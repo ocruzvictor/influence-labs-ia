@@ -65,6 +65,83 @@ docs/
 ```
 <!-- AIOS-MANAGED-END: framework-structure -->
 
+<!-- AIOS-MANAGED-START: framework-boundary -->
+## Framework vs Project Boundary
+
+O AIOS usa um modelo de 4 camadas (L1-L4) para separar artefatos do framework e do projeto. Deny rules em `.claude/settings.json` reforçam isso deterministicamente.
+
+| Camada | Mutabilidade | Paths | Notas |
+|--------|-------------|-------|-------|
+| **L1** Framework Core | NEVER modify | `.aios-core/core/`, `.aios-core/constitution.md`, `bin/aios.js`, `bin/aios-init.js` | Protegido por deny rules |
+| **L2** Framework Templates | NEVER modify | `.aios-core/development/tasks/`, `.aios-core/development/templates/`, `.aios-core/development/checklists/`, `.aios-core/development/workflows/`, `.aios-core/infrastructure/` | Extend-only |
+| **L3** Project Config | Mutable (exceptions) | `.aios-core/data/`, `agents/*/MEMORY.md`, `core-config.yaml` | Allow rules permitem |
+| **L4** Project Runtime | ALWAYS modify | `docs/stories/`, `packages/`, `squads/`, `tests/` | Trabalho do projeto |
+
+**Toggle:** `core-config.yaml` → `boundary.frameworkProtection: true/false` controla se deny rules são ativas (default: true para projetos, false para contribuidores do framework).
+
+> **Referência formal:** `.claude/settings.json` (deny/allow rules), `.claude/rules/agent-authority.md`
+<!-- AIOS-MANAGED-END: framework-boundary -->
+
+<!-- AIOS-MANAGED-START: rules-system -->
+## Rules System
+
+O AIOS carrega regras contextuais de `.claude/rules/` automaticamente. Regras com frontmatter `paths:` só carregam quando arquivos correspondentes são editados.
+
+| Rule File | Description |
+|-----------|-------------|
+| `agent-authority.md` | Agent delegation matrix and exclusive operations |
+| `agent-handoff.md` | Agent switch compaction protocol for context optimization |
+| `agent-memory-imports.md` | Agent memory lifecycle and CLAUDE.md ownership |
+| `coderabbit-integration.md` | Automated code review integration rules |
+| `ids-principles.md` | Incremental Development System principles |
+| `mcp-usage.md` | MCP server usage rules and tool selection priority |
+| `story-lifecycle.md` | Story status transitions and quality gates |
+| `workflow-execution.md` | 4 primary workflows (SDC, QA Loop, Spec Pipeline, Brownfield) |
+
+> **Diretório:** `.claude/rules/` — rules são carregadas automaticamente pelo Claude Code quando relevantes.
+<!-- AIOS-MANAGED-END: rules-system -->
+
+<!-- AIOS-MANAGED-START: code-intelligence -->
+## Code Intelligence
+
+O AIOS possui um sistema de code intelligence opcional que enriquece operações com dados de análise de código.
+
+| Status | Descrição | Comportamento |
+|--------|-----------|---------------|
+| **Configured** | Provider ativo e funcional | Enrichment completo disponível |
+| **Fallback** | Provider indisponível | Sistema opera normalmente sem enrichment — graceful degradation |
+| **Disabled** | Nenhum provider configurado | Funcionalidade de code-intel ignorada silenciosamente |
+
+**Graceful Fallback:** Code intelligence é sempre opcional. `isCodeIntelAvailable()` verifica disponibilidade antes de qualquer operação. Se indisponível, o sistema retorna o resultado base sem modificação — nunca falha.
+
+**Diagnóstico:** `aios doctor` inclui check de code-intel provider status.
+
+> **Referência:** `.aios-core/core/code-intel/` — provider interface, enricher, client
+<!-- AIOS-MANAGED-END: code-intelligence -->
+
+<!-- AIOS-MANAGED-START: graph-dashboard -->
+## Graph Dashboard
+
+O CLI `aios graph` visualiza dependências, estatísticas de entidades e status de providers.
+
+### Comandos
+
+```bash
+aios graph --deps                        # Dependency tree (ASCII)
+aios graph --deps --format=json          # Output como JSON
+aios graph --deps --format=html          # Interactive HTML (abre browser)
+aios graph --deps --format=mermaid       # Mermaid diagram
+aios graph --deps --format=dot           # DOT format (Graphviz)
+aios graph --deps --watch                # Live mode com auto-refresh
+aios graph --deps --watch --interval=10  # Refresh a cada 10 segundos
+aios graph --stats                       # Entity stats e cache metrics
+```
+
+**Formatos de saída:** ascii (default), json, dot, mermaid, html
+
+> **Referência:** `.aios-core/core/graph-dashboard/` — CLI, renderers, data sources
+<!-- AIOS-MANAGED-END: graph-dashboard -->
+
 ## Workflow Execution
 
 ### Task Execution Pattern

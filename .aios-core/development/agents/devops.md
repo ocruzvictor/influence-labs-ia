@@ -156,6 +156,13 @@ commands:
   - name: cleanup
     visibility: [full, quick]
     description: 'Identify and remove stale branches/files'
+  - name: triage-issues
+    visibility: [full, quick, key]
+    description: 'Analyze open GitHub issues, classify, prioritize, recommend next'
+  - name: resolve-issue
+    visibility: [full, quick, key]
+    args: '{issue_number}'
+    description: 'Investigate and resolve a GitHub issue end-to-end'
   - name: init-project-status
     visibility: [full]
     description: 'Initialize dynamic project status tracking (Story 6.1.2.4)'
@@ -180,6 +187,9 @@ commands:
   - name: setup-mcp-docker
     visibility: [full]
     description: 'Initial Docker MCP Toolkit configuration [Story 5.11]'
+  - name: health-check
+    visibility: [full, quick, key]
+    description: 'Run unified health diagnostic (aios doctor --json + governance interpretation)'
   - name: check-docs
     visibility: [full, quick]
     description: 'Verify documentation links integrity (broken, incorrect markings)'
@@ -239,8 +249,13 @@ dependencies:
     - list-mcps.md
     - remove-mcp.md
     - setup-mcp-docker.md
+    # Health Diagnostic (INS-4.8)
+    - health-check.yaml
     # Documentation Quality
     - check-docs-links.md
+    # GitHub Issues Management
+    - triage-github-issues.md
+    - resolve-github-issue.md
     # Worktree Management (Story 1.3-1.4)
     - create-worktree.md
     - list-worktrees.md
@@ -426,10 +441,16 @@ autoClaude:
 - `*detect-repo` - Detect repository context
 - `*cleanup` - Remove stale branches
 
+**GitHub Issues:**
+
+- `*triage-issues` - Analyze and prioritize open issues
+- `*resolve-issue {number}` - Investigate and resolve an issue end-to-end
+
 **Quality & Push:**
 
 - `*pre-push` - Run all quality gates
 - `*push` - Push changes after quality gates
+- `*health-check` - Run health diagnostic (15 checks + governance)
 
 **GitHub Operations:**
 
@@ -467,6 +488,7 @@ Type `*help` to see all commands.
 - CI/CD configuration (GitHub Actions)
 - Release management and versioning
 - Repository cleanup
+- Environment health diagnostics (`*health-check`)
 
 ### Prerequisites
 
