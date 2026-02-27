@@ -11,7 +11,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const fs = require('fs');\n\nfunction normalize(text) {\n  return String(text || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction tokenize(text) {\n  const stop = new Set(['a','as','o','os','de','da','do','das','dos','e','em','no','na','nos','nas','que','com','para','por','uma','um','ao','aos']);\n  return normalize(text).split(' ').filter(t => t.length > 1 && !stop.has(t));\n}\n\nconst input = $json;\nconst query = input.message || '';\nconst tokens = tokenize(query);\nconst indexPath = process.env.RAG_INDEX_PATH || '/data/rag/kb-index.json';\nlet entries = [];\n\ntry {\n  const raw = fs.readFileSync(indexPath, 'utf8');\n  entries = JSON.parse(raw).entries || [];\n} catch (e) {\n  entries = [];\n}\n\nconst scored = entries.map((entry) => {\n  const content = normalize(entry.content || '');\n  const section = normalize(entry.section || '');\n  const keywords = (entry.keywords || []).map(normalize);\n  let score = 0;\n  for (const token of tokens) {\n    if (keywords.some(k => k.includes(token))) score += 5;\n    if (section.includes(token)) score += 3;\n    if (content.includes(token)) score += 2;\n  }\n  if (content.includes(normalize(query))) score += 8;\n  return { ...entry, score };\n}).filter(e => e.score > 0).sort((a, b) => b.score - a.score);\n\nconst top = scored.slice(0, 3);\nconst bestScore = top[0]?.score || 0;\nconst ragConfident = bestScore >= 6;\nconst ragContext = top.map((t, i) => `[${i + 1}] ${t.source} :: ${t.section}\\n${t.content}`).join('\\n\\n') || 'Sem trechos relevantes na KB.';\n\nreturn [{\n  json: {\n    ...input,\n    rag_matches: top,\n    rag_best_score: bestScore,\n    rag_confident: ragConfident,\n    rag_context: ragContext,\n    llm_provider: ($env.LLM_PROVIDER || 'openai').toLowerCase()\n  }\n}];"
+        "jsCode": "const fs = require('fs');\n\nfunction normalize(text) {\n  return String(text || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction tokenize(text) {\n  const stop = new Set(['a','as','o','os','de','da','do','das','dos','e','em','no','na','nos','nas','que','com','para','por','uma','um','ao','aos']);\n  return normalize(text).split(' ').filter(t => t.length > 1 && !stop.has(t));\n}\n\nconst input = $json;\ninput.phone = (input.phone || '').replace(/[^0-9+@.]/g, '');\nconst query = input.message || '';\nconst tokens = tokenize(query);\nconst indexPath = process.env.RAG_INDEX_PATH || '/data/rag/kb-index.json';\nlet entries = [];\n\ntry {\n  const raw = fs.readFileSync(indexPath, 'utf8');\n  entries = JSON.parse(raw).entries || [];\n} catch (e) {\n  entries = [];\n}\n\nconst scored = entries.map((entry) => {\n  const content = normalize(entry.content || '');\n  const section = normalize(entry.section || '');\n  const keywords = (entry.keywords || []).map(normalize);\n  let score = 0;\n  for (const token of tokens) {\n    if (keywords.some(k => k.includes(token))) score += 5;\n    if (section.includes(token)) score += 3;\n    if (content.includes(token)) score += 2;\n  }\n  if (content.includes(normalize(query))) score += 8;\n  return { ...entry, score };\n}).filter(e => e.score > 0).sort((a, b) => b.score - a.score);\n\nconst top = scored.slice(0, 3);\nconst bestScore = top[0]?.score || 0;\nconst ragConfident = bestScore >= 6;\nconst ragContext = top.map((t, i) => `[${i + 1}] ${t.source} :: ${t.section}\\n${t.content}`).join('\\n\\n') || 'Sem trechos relevantes na KB.';\n\nreturn [{\n  json: {\n    ...input,\n    rag_matches: top,\n    rag_best_score: bestScore,\n    rag_confident: ragConfident,\n    rag_context: ragContext,\n    llm_provider: ($env.LLM_PROVIDER || 'openai').toLowerCase()\n  }\n}];"
       },
       "id": "rag_search",
       "name": "RAG Search KB",
@@ -32,7 +32,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$json.llm_provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://api.openai.com/v1/responses'}}",
+        "url": "={{$json.llm_provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://api.openai.com/v1/chat/completions'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -57,7 +57,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{$json.llm_provider === 'anthropic' ? JSON.stringify({model: $env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest', max_tokens: 500, temperature: 0.1, system: $json.system_prompt, messages: [{role: 'user', content: $json.user_prompt}]}) : JSON.stringify({model: $env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.1, input: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}]})}}"
+        "body": "={{$json.llm_provider === 'anthropic' ? JSON.stringify({model: $env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest', max_tokens: 500, temperature: 0.1, system: $json.system_prompt, messages: [{role: 'user', content: $json.user_prompt}]}) : JSON.stringify({model: $env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.1, messages: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}]})}}"
       },
       "id": "faq_llm",
       "name": "FAQ LLM",
@@ -67,7 +67,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const source = $items('Build FAQ Prompt', 0, 0)[0].json;\nlet payload = { answer: 'Boa pergunta! Vou confirmar com a equipe e ja te retorno.', confidence: 0.4 };\nlet text = '';\nif ($json.output?.[0]?.content?.[0]?.text) text = $json.output[0].content[0].text;\nif (!text && Array.isArray($json.content) && $json.content[0]?.text) text = $json.content[0].text;\n\ntry {\n  payload = { ...payload, ...JSON.parse(text) };\n} catch (e) {}\n\nif (!source.rag_confident && payload.confidence > 0.69) {\n  payload.confidence = 0.69;\n}\n\nif (typeof payload.confidence !== 'number') payload.confidence = 0.4;\nconst escalated = payload.confidence < 0.7;\n\nif (escalated) {\n  payload.answer = 'Boa pergunta! Vou confirmar com a equipe e ja te retorno.';\n}\n\nreturn [{\n  json: {\n    ...source,\n    answer: payload.answer,\n    confidence: payload.confidence,\n    escalated,\n    handoff_reason: escalated ? 'faq_low_confidence' : null\n  }\n}];"
+        "jsCode": "const source = $items('Build FAQ Prompt', 0, 0)[0].json;\nlet payload = { answer: 'Boa pergunta! Vou confirmar com a equipe e ja te retorno.', confidence: 0.4 };\nlet text = '';\nif ($json.choices?.[0]?.message?.content) text = $json.choices[0].message.content;\nif (!text && Array.isArray($json.content) && $json.content[0]?.text) text = $json.content[0].text;\n\ntry {\n  payload = { ...payload, ...JSON.parse(text) };\n} catch (e) {}\n\nif (!source.rag_confident && payload.confidence > 0.69) {\n  payload.confidence = 0.69;\n}\n\nif (typeof payload.confidence !== 'number') payload.confidence = 0.4;\nconst escalated = payload.confidence < 0.7;\n\nif (escalated) {\n  payload.answer = 'Boa pergunta! Vou confirmar com a equipe e ja te retorno.';\n}\n\nconst safeAnswer = (payload.answer || '').replace(/'/g, \"''\");\nconst agentLabel = escalated ? 'faq_handoff' : 'faq';\nreturn [{\n  json: {\n    ...source,\n    answer: safeAnswer,\n    confidence: payload.confidence,\n    escalated,\n    agent_label: agentLabel,\n    handoff_reason: escalated ? 'faq_low_confidence' : null\n  }\n}];"
       },
       "id": "parse_faq",
       "name": "Parse FAQ Output",
@@ -122,7 +122,7 @@
         "options": {}
       },
       "id": "call_human",
-      "name": "Call WF-05",
+      "name": "Call WF-05 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
       "position": [360, 200]
@@ -130,7 +130,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO conversation_history (client_phone, role, content, intent, agent)\nVALUES ('{{ $json.phone }}', 'assistant', '{{ $json.answer }}', 'faq', '{{ $json.escalated ? 'faq_handoff' : 'faq' }}');"
+        "query": "INSERT INTO conversation_history (client_phone, role, content, intent, agent)\nVALUES ('{{ $json.phone }}', 'assistant', '{{ $json.answer }}', 'faq', '{{ $json.agent_label }}');"
       },
       "id": "save_history",
       "name": "Save History",
@@ -164,13 +164,13 @@
     "If Confident": {
       "main": [
         [{ "node": "Send FAQ Response", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-05", "type": "main", "index": 0 }]
+        [{ "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }]
       ]
     },
     "Send FAQ Response": {
       "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
     },
-    "Call WF-05": {
+    "Call WF-05 [AJUSTAR ID APOS IMPORT]": {
       "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
     }
   },

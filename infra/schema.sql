@@ -1,3 +1,6 @@
+-- Conectar ao database dedicado do projeto
+\c influence_labs_salon;
+
 -- Core de clientes (cache local + vinculo com Trinks)
 CREATE TABLE IF NOT EXISTS clients (
   id SERIAL PRIMARY KEY,

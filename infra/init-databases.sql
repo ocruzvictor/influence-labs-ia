@@ -2,3 +2,4 @@ CREATE DATABASE evolution;
 CREATE DATABASE n8n;
 CREATE DATABASE chatwoot;
 CREATE DATABASE typebot;
+CREATE DATABASE influence_labs_salon;

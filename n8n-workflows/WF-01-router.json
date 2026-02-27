@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $json.body ?? $json;\nconst message = body?.data?.message?.text || body?.message || '';\nconst phone = body?.data?.key?.remoteJid || body?.phone || '';\nreturn [{ json: { raw: body, message, phone } }];"
+        "jsCode": "const body = $json.body ?? $json;\nconst message = body?.data?.message?.text || body?.message || '';\nconst rawPhone = body?.data?.key?.remoteJid || body?.phone || '';\nconst phone = rawPhone.replace(/[^0-9+@.]/g, '');\nreturn [{ json: { raw: body, message, phone } }];"
       },
       "id": "parse_incoming",
       "name": "Parse Incoming",
@@ -55,7 +55,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$json.llm_provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://api.openai.com/v1/responses'}}",
+        "url": "={{$json.llm_provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://api.openai.com/v1/chat/completions'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -80,7 +80,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{$json.llm_provider === 'anthropic' ? JSON.stringify({model: $env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest', max_tokens: 200, temperature: 0.1, system: $json.system_prompt, messages: [{role: 'user', content: $json.user_prompt}]}) : JSON.stringify({model: $env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.1, input: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}]})}}"
+        "body": "={{$json.llm_provider === 'anthropic' ? JSON.stringify({model: $env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest', max_tokens: 200, temperature: 0.1, system: $json.system_prompt, messages: [{role: 'user', content: $json.user_prompt}]}) : JSON.stringify({model: $env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.1, messages: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}]})}}"
       },
       "id": "classify_intent",
       "name": "Classify Intent",
@@ -90,7 +90,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const source = $items('Build Router Prompt', 0, 0)[0].json;\nconst fallback = { intent: 'humano', confidence: 0.5, parse_error: true };\nlet text = '';\nconst raw = $json;\nif (raw.output?.[0]?.content?.[0]?.text) text = raw.output[0].content[0].text;\nif (!text && Array.isArray(raw.content) && raw.content[0]?.text) text = raw.content[0].text;\nif (!text && raw.completion) text = raw.completion;\nlet parsed = fallback;\ntry {\n  parsed = { ...fallback, ...JSON.parse(text), parse_error: false };\n} catch (e) {\n  parsed = fallback;\n}\nif (!parsed.intent || typeof parsed.confidence !== 'number') parsed = fallback;\nif (parsed.confidence < 0.65) parsed.intent = 'humano';\nreturn [{ json: { ...source, intent: parsed.intent, confidence: parsed.confidence, parse_error: parsed.parse_error } }];"
+        "jsCode": "const source = $items('Build Router Prompt', 0, 0)[0].json;\nconst fallback = { intent: 'humano', confidence: 0.5, parse_error: true };\nlet text = '';\nconst raw = $json;\nif (raw.choices?.[0]?.message?.content) text = raw.choices[0].message.content;\nif (!text && Array.isArray(raw.content) && raw.content[0]?.text) text = raw.content[0].text;\nif (!text && raw.completion) text = raw.completion;\nlet parsed = fallback;\ntry {\n  parsed = { ...fallback, ...JSON.parse(text), parse_error: false };\n} catch (e) {\n  parsed = fallback;\n}\nif (!parsed.intent || typeof parsed.confidence !== 'number') parsed = fallback;\nif (parsed.confidence < 0.65) parsed.intent = 'humano';\nreturn [{ json: { ...source, intent: parsed.intent, confidence: parsed.confidence, parse_error: parsed.parse_error } }];"
       },
       "id": "parse_intent",
       "name": "Parse Intent",
@@ -200,7 +200,7 @@
         "options": {}
       },
       "id": "call_receptionist",
-      "name": "Call WF-02",
+      "name": "Call WF-02 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
       "position": [760, -140]
@@ -211,7 +211,7 @@
         "options": {}
       },
       "id": "call_faq",
-      "name": "Call WF-03",
+      "name": "Call WF-03 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
       "position": [760, -60]
@@ -222,7 +222,7 @@
         "options": {}
       },
       "id": "call_sales",
-      "name": "Call WF-04",
+      "name": "Call WF-04 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
       "position": [760, 20]
@@ -233,7 +233,7 @@
         "options": {}
       },
       "id": "call_human",
-      "name": "Call WF-05",
+      "name": "Call WF-05 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
       "position": [760, 120]
@@ -285,27 +285,27 @@
       ]
     },
     "Notify Router Error": {
-      "main": [[{ "node": "Call WF-05", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }]]
     },
     "Switch Intent": {
       "main": [
-        [{ "node": "Call WF-02", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-03", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-04", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-05", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-05", "type": "main", "index": 0 }]
+        [{ "node": "Call WF-02 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }],
+        [{ "node": "Call WF-03 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }],
+        [{ "node": "Call WF-04 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }],
+        [{ "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }],
+        [{ "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }]
       ]
     },
-    "Call WF-02": {
+    "Call WF-02 [AJUSTAR ID APOS IMPORT]": {
       "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
     },
-    "Call WF-03": {
+    "Call WF-03 [AJUSTAR ID APOS IMPORT]": {
       "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
     },
-    "Call WF-04": {
+    "Call WF-04 [AJUSTAR ID APOS IMPORT]": {
       "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
     },
-    "Call WF-05": {
+    "Call WF-05 [AJUSTAR ID APOS IMPORT]": {
       "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
     }
   },

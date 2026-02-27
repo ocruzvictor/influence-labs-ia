@@ -41,7 +41,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $items('Execute Workflow Trigger', 0, 0)[0].json;\nconst response = $json || {};\nconst sourceId = response.contact_inboxes?.[0]?.source_id\n  || response.payload?.contact_inboxes?.[0]?.source_id\n  || response.source_id\n  || input.phone;\n\nreturn [{\n  json: {\n    ...input,\n    chatwoot_contact_source_id: sourceId,\n    chatwoot_inbox_identifier: $env.CHATWOOT_INBOX_IDENTIFIER || null\n  }\n}];"
+        "jsCode": "const input = $items('Execute Workflow Trigger', 0, 0)[0].json;\ninput.phone = (input.phone || '').replace(/[^0-9+@.]/g, '');\nconst response = $json || {};\nconst sourceId = response.contact_inboxes?.[0]?.source_id\n  || response.payload?.contact_inboxes?.[0]?.source_id\n  || response.source_id\n  || input.phone;\n\nreturn [{\n  json: {\n    ...input,\n    chatwoot_contact_source_id: sourceId,\n    chatwoot_inbox_identifier: $env.CHATWOOT_INBOX_IDENTIFIER || null\n  }\n}];"
       },
       "id": "build_conversation_payload",
       "name": "Build Conversation Payload",
