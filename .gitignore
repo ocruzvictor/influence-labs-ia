@@ -10,18 +10,23 @@
 # Dependencies (AIOS)
 node_modules/
 node_modules
+**/node_modules/
 
 # Build & Logs (AIOS)
 dist/
 build/
 *.log
 logs/
+npm-debug.log*
+coverage/
 
 # IDE & OS (AIOS)
 .DS_Store
 Thumbs.db
 .idea/
+.vscode/
 *.swp
+*.swo
 
 # AIOS Local (AIOS)
 .aios-core/local/
@@ -32,3 +37,8 @@ Thumbs.db
 .aios/*.lock
 .aios/*.tmp.*
 *.backup.*
+tmp/
+temp/
+
+# Raw materials — large binaries (use cloud storage)
+docs/raw-materials/
