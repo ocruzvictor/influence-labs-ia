@@ -1,0 +1,38 @@
+name: salon-qa-loop
+version: 1.0.0
+description: Loop de QA para validar qualidade, confiabilidade e handoff humano do agente do salao
+
+trigger:
+  command: "*salon-qa"
+  agent: qa
+
+steps:
+  - id: prepare
+    task: test-scenarios
+    inputs:
+      scope: "agendamento, faq, vendas, takeover"
+
+  - id: execute
+    action: run-test-pack
+    description: Executa cenarios 1-50 e registra resultados por categoria
+    depends_on: [prepare]
+
+  - id: evaluate
+    action: evaluate-gates
+    description: Verifica criterios de aprovacao (>=90% sucesso, <5s, zero alucinacao)
+    depends_on: [execute]
+
+  - id: report
+    action: generate-report
+    description: Gera relatorio de defeitos, riscos e recomendacoes
+    depends_on: [evaluate]
+
+error_handling:
+  on_failure: "Registrar falhas criticas, acionar Victor e bloquear rollout"
+  retry_count: 1
+
+completion:
+  message: "QA loop finalizado"
+  next_steps:
+    - "Se aprovado, seguir para piloto"
+    - "Se reprovado, corrigir prompts/workflows e repetir QA"

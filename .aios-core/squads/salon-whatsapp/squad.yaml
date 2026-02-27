@@ -1,0 +1,47 @@
+name: "salon-whatsapp"
+version: 0.1.0
+description: "Squad para projeto beta de agente WhatsApp para salao de beleza com recepcionista IA, vendas proativas e follow-up"
+author: "Victor Cruz / Influence Labs"
+license: MIT
+
+aios:
+  minVersion: "2.1.0"
+  type: squad
+
+components:
+  agents:
+    - agents/*.yaml
+  tasks:
+    - tasks/*.md
+  workflows:
+    - workflows/*.yaml
+  templates:
+    - templates/*.md
+
+config:
+  client: "Salao de Beleza (Beta)"
+  stack:
+    gateway: "Evolution API (Cloud API mode)"
+    orchestrator: "n8n Community (self-hosted)"
+    crm: "Chatwoot (self-hosted)"
+    chatbot: "Typebot (self-hosted, opcional)"
+    llm_primary: "Claude API ou GPT-4o-mini"
+    llm_router: "GPT-4o-mini ou Claude Haiku"
+  pricing:
+    infra: "~R$ 80/mes (VPS)"
+    llm: "~R$ 30-80/mes"
+    meta_fees: "~R$ 80/mes"
+    total: "~R$ 190-240/mes"
+
+keywords:
+  - aios
+  - squad
+  - whatsapp
+  - salon
+  - multi-agent
+
+tags:
+  - aios
+  - whatsapp
+  - salon
+  - beta

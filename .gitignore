@@ -27,3 +27,8 @@ Thumbs.db
 .aios-core/local/
 .claude/settings.local.json
 .aios/install-log.txt
+
+# Runtime & Temp (AIOS)
+.aios/*.lock
+.aios/*.tmp.*
+*.backup.*

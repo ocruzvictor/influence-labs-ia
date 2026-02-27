@@ -1,0 +1,85 @@
+name: salon-delivery
+description: "Ciclo completo de entrega do projeto salao: Discovery -> Build -> Deploy -> Operate"
+version: 1.0.0
+
+phases:
+  - id: discovery
+    name: "Sprint 0 - Discovery"
+    duration: "3-5 dias"
+    agent: "@analyst + Victor (humano)"
+    tasks:
+      - discovery-client
+      - build-knowledge-base
+    artifacts:
+      - "Pareto AI Canvas preenchido"
+      - "Mapa AS-IS -> TO-BE"
+      - "KB do salao (servicos, precos, horarios, profissionais)"
+      - "KPIs definidos (taxa agendamento, tempo resposta, satisfacao)"
+    gate: "Victor aprova escopo e KB"
+
+  - id: architecture
+    name: "Arquitetura e Prompts"
+    duration: "2-3 dias"
+    agent: "@architect + @dev"
+    tasks:
+      - create-prompts-pacer
+      - setup-whatsapp-api
+    artifacts:
+      - "Prompts PACER para cada agente (recepcionista, FAQ, vendas, router)"
+      - "Evolution API configurada com Cloud API"
+      - "Fluxo de estados do agente documentado"
+    gate: "Prompts testados manualmente no playground LLM"
+    depends_on: [discovery]
+
+  - id: build-core
+    name: "Sprint 1 - Core Agent"
+    duration: "7-10 dias"
+    agent: "@dev"
+    tasks:
+      - build-n8n-workflows
+      - setup-chatwoot
+      - test-scenarios
+    artifacts:
+      - "n8n workflows: router + recepcionista + FAQ"
+      - "Chatwoot configurado com human takeover"
+      - "50+ cenarios testados"
+    gate: "@qa valida cenarios + Victor aprova UX"
+    depends_on: [architecture]
+
+  - id: pilot
+    name: "Lancamento Piloto"
+    duration: "3-5 dias"
+    agent: "@dev + Victor"
+    tasks:
+      - pilot-launch
+    artifacts:
+      - "Agente operando com 10% do trafego"
+      - "Dashboard de monitoramento"
+      - "Log de conversas para revisao"
+    gate: "Metricas OK apos 3 dias -> escalar para 50% -> 100%"
+    depends_on: [build-core]
+
+  - id: build-sales
+    name: "Sprint 2 - Vendas e Follow-up"
+    duration: "7-10 dias"
+    agent: "@dev"
+    tasks:
+      - build-sales-followup
+    artifacts:
+      - "Sub-workflow vendas proativas"
+      - "Cron: lembrete 24h, follow-up 48h, reativacao 30/60 dias"
+      - "Templates de mensagens marketing aprovadas"
+    gate: "Victor + dona do salao aprovam tom das mensagens"
+    depends_on: [pilot]
+
+  - id: optimize
+    name: "Sprint 3 - Otimizacao"
+    duration: "continuo"
+    agent: "@dev + @analyst"
+    tasks:
+      - optimize-autohealing
+    artifacts:
+      - "Auto-healing configurado"
+      - "Dashboard KPIs para dona do salao"
+      - "Case study documentado com metricas"
+    depends_on: [build-sales]

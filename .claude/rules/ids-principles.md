@@ -1,3 +1,10 @@
+---
+paths:
+  - ".aios-core/**"
+  - "packages/**"
+  - "bin/**"
+---
+
 # IDS Principles — Detailed Rules
 
 > Status: Planned (IDS epic is Draft — principles apply as aspirational guidance)

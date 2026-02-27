@@ -1,3 +1,11 @@
+---
+paths:
+  - ".aios-core/**"
+  - "tests/**"
+  - "packages/**"
+  - "bin/**"
+---
+
 # CodeRabbit Integration — Detailed Rules
 
 ## Self-Healing Configuration

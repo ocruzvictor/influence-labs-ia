@@ -1,3 +1,9 @@
+---
+paths:
+  - "docs/stories/**"
+  - ".aios-core/development/**"
+---
+
 # Story Lifecycle — Detailed Rules
 
 ## Status Progression
