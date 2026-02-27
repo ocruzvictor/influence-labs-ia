@@ -1,0 +1,14 @@
+{
+  "name": "influence-labs-ia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Artifacts and workflow assets for Influence Labs WhatsApp AI operations",
+  "scripts": {
+    "lint": "node tests/run-prompt-tests.js --lint-only",
+    "typecheck": "node tests/run-prompt-tests.js --typecheck-only",
+    "test": "node tests/run-prompt-tests.js --mock",
+    "test:router": "node tests/run-prompt-tests.js --agent router --mock",
+    "test:faq": "node tests/run-prompt-tests.js --agent faq --mock",
+    "test:receptionist": "node tests/run-prompt-tests.js --agent receptionist --mock"
+  }
+}

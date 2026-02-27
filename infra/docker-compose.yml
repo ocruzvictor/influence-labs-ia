@@ -1,0 +1,164 @@
+services:
+  evolution-api:
+    image: atendai/evolution-api:${EVOLUTION_IMAGE_TAG:-v2.3.7}
+    container_name: evolution-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/evolution
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/0
+      RABBITMQ_ENABLED: "false"
+      PROVIDER_ENABLED: "true"
+      PROVIDER_HOST: https://graph.facebook.com
+      PROVIDER_PREFIX: v21.0
+      SERVER_URL: https://api.${BASE_DOMAIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  n8n:
+    image: n8nio/n8n:${N8N_IMAGE_TAG:-2.7.4}
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: postgres
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      N8N_HOST: n8n.${BASE_DOMAIN}
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://n8n.${BASE_DOMAIN}/
+      GENERIC_TIMEZONE: America/Sao_Paulo
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  chatwoot:
+    image: chatwoot/chatwoot:${CHATWOOT_IMAGE_TAG:-v4.10.1}
+    container_name: chatwoot
+    restart: unless-stopped
+    entrypoint: docker/entrypoints/rails.sh
+    command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
+    ports:
+      - "3000:3000"
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET}
+      FRONTEND_URL: https://chat.${BASE_DOMAIN}
+      ENABLE_ACCOUNT_SIGNUP: "false"
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/chatwoot
+      REDIS_URL: redis://redis:6379/1
+      RAILS_LOG_TO_STDOUT: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  chatwoot-worker:
+    image: chatwoot/chatwoot:${CHATWOOT_IMAGE_TAG:-v4.10.1}
+    container_name: chatwoot-worker
+    restart: unless-stopped
+    entrypoint: docker/entrypoints/rails.sh
+    command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET}
+      FRONTEND_URL: https://chat.${BASE_DOMAIN}
+      ENABLE_ACCOUNT_SIGNUP: "false"
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/chatwoot
+      REDIS_URL: redis://redis:6379/1
+      RAILS_LOG_TO_STDOUT: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  typebot-builder:
+    image: baptistearno/typebot-builder:${TYPEBOT_IMAGE_TAG:-3.15.1}
+    container_name: typebot-builder
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/typebot
+      NEXTAUTH_URL: https://builder.${BASE_DOMAIN}
+      NEXTAUTH_SECRET: ${TYPEBOT_AUTH_SECRET}
+      ENCRYPTION_SECRET: ${TYPEBOT_ENCRYPTION_SECRET}
+      ADMIN_EMAIL: ${TYPEBOT_ADMIN_EMAIL}
+      DISABLE_SIGNUP: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  typebot-viewer:
+    image: baptistearno/typebot-viewer:${TYPEBOT_IMAGE_TAG:-3.15.1}
+    container_name: typebot-viewer
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/typebot
+      NEXTAUTH_URL: https://builder.${BASE_DOMAIN}
+      NEXTAUTH_SECRET: ${TYPEBOT_AUTH_SECRET}
+      ENCRYPTION_SECRET: ${TYPEBOT_ENCRYPTION_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:${POSTGRES_IMAGE_TAG:-17.7-bookworm}
+    container_name: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:${REDIS_IMAGE_TAG:-7.4.7-alpine}
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  n8n_data:
+  postgres_data:
+  redis_data:

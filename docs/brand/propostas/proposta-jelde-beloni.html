@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proposta Comercial - Sistema de Roteiros IA</title>
+  <link rel="preconnect" href="https://tess-workflows-files.storage.googleapis.com">
+  <link rel="stylesheet" href="https://tess-workflows-files.storage.googleapis.com/57f0a0d64359554db0b13dd588d253b0d7a3dc84/pareto-training.tokens.css">
+  <!-- Source of truth for tokens -->
+  <!-- https://tess-workflows-files.storage.googleapis.com/57f0a0d64359554db0b13dd588d253b0d7a3dc84/pareto-training.tokens.json -->
+  <style>
+    :root {
+      --page-bg: var(--color-neutral-50, #f2f5fb);
+      --surface: var(--color-neutral-0, #ffffff);
+      --surface-soft: var(--color-neutral-100, #f8fafc);
+      --text: var(--color-neutral-900, #0f172a);
+      --text-soft: var(--color-neutral-600, #475569);
+      --brand: var(--color-primary-600, #1456d8);
+      --brand-soft: var(--color-primary-100, #e6efff);
+      --border: var(--color-neutral-200, #dbe4f0);
+      --ok: var(--color-success-600, #1e8e3e);
+      --radius-xl: 24px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --shadow: 0 20px 50px rgba(2, 6, 23, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(160deg, var(--page-bg), #e9eef8);
+      color: var(--text);
+      font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    .proposal {
+      width: min(1080px, calc(100% - 32px));
+      margin: 24px auto 64px;
+      display: grid;
+      gap: 20px;
+    }
+
+    .page {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      padding: 32px;
+      min-height: 88vh;
+      display: grid;
+      align-content: start;
+      gap: 20px;
+    }
+
+    .cover {
+      background:
+        radial-gradient(1200px 600px at -10% -20%, var(--brand-soft), transparent 70%),
+        var(--surface);
+    }
+
+    .eyebrow {
+      margin: 0;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--brand);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.15;
+      margin-top: 8px;
+    }
+
+    h2 {
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      line-height: 1.2;
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      line-height: 1.3;
+    }
+
+    .subtitle {
+      font-size: 1.05rem;
+      color: var(--text-soft);
+      max-width: 60ch;
+    }
+
+    .meta-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      margin-top: 12px;
+    }
+
+    .meta-item {
+      background: var(--surface-soft);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+    }
+
+    .meta-item strong {
+      display: block;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-soft);
+      margin-bottom: 6px;
+    }
+
+    .section-head {
+      display: grid;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      background: linear-gradient(180deg, var(--surface), var(--surface-soft));
+      display: grid;
+      gap: 8px;
+    }
+
+    .card p {
+      color: var(--text-soft);
+      font-size: 0.95rem;
+    }
+
+    .phase-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .phase {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .phase h3 {
+      color: var(--brand);
+    }
+
+    .phase ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .phase .result {
+      margin-top: 4px;
+      background: var(--brand-soft);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.92rem;
+    }
+
+    .check-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .check-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      background: var(--surface-soft);
+    }
+
+    .check-item h3 {
+      color: var(--ok);
+      margin-bottom: 6px;
+    }
+
+    .pricing {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .price-box {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      background: var(--surface-soft);
+    }
+
+    .price-main {
+      font-size: clamp(1.8rem, 4vw, 2.4rem);
+      line-height: 1.1;
+      color: var(--brand);
+      font-weight: 800;
+      margin-top: 8px;
+    }
+
+    .inclusions {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 8px;
+    }
+
+    .inclusions li {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--surface-soft);
+    }
+
+    .bonus {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      background: linear-gradient(180deg, var(--brand-soft), var(--surface));
+    }
+
+    .bonus ul {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .page-index {
+      justify-self: end;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-soft);
+    }
+
+    @media (max-width: 720px) {
+      .proposal {
+        width: calc(100% - 16px);
+        margin: 8px auto 32px;
+      }
+
+      .page {
+        padding: 20px;
+        min-height: auto;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .proposal {
+        margin: 0;
+        width: 100%;
+        gap: 0;
+      }
+
+      .page {
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        min-height: 100vh;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="proposal">
+    <section class="page cover" aria-label="Capa">
+      <p class="eyebrow">Proposta Comercial</p>
+      <h1>Sistema Inteligente de Roteiros para Instagram</h1>
+      <p class="subtitle">
+        Proposta simplificada para construcao de um sistema de IA capaz de buscar historias de empreendedorismo e gerar roteiros no seu tom de voz.
+      </p>
+      <div class="meta-grid">
+        <div class="meta-item">
+          <strong>Cliente</strong>
+          <span>Jelde Beloni</span>
+        </div>
+        <div class="meta-item">
+          <strong>Data</strong>
+          <span>Fevereiro 2026</span>
+        </div>
+        <div class="meta-item">
+          <strong>Validade</strong>
+          <span>15 dias</span>
+        </div>
+      </div>
+      <p class="page-index">Capa</p>
+    </section>
+
+    <section class="page" aria-label="Pagina 1">
+      <header class="section-head">
+        <p class="eyebrow">Pagina 1</p>
+        <h2>O Que Voce Vai Receber</h2>
+        <p class="subtitle">Entregaveis do projeto.</p>
+      </header>
+      <div class="cards">
+        <article class="card">
+          <h3>Sistema de IA Personalizado</h3>
+          <p>Agente treinado para buscar historias de empreendedorismo e gerar roteiros no seu tom de voz.</p>
+        </article>
+        <article class="card">
+          <h3>Documento de Tom de Voz</h3>
+          <p>Analise completa do seu estilo: linguagem, estruturas narrativas, gatilhos e padroes.</p>
+        </article>
+        <article class="card">
+          <h3>Banco de Historias Curado</h3>
+          <p>50-100 historias de empreendedorismo selecionadas e categorizadas.</p>
+        </article>
+        <article class="card">
+          <h3>20-30 Roteiros Prontos</h3>
+          <p>Roteiros completos de Reels estruturados e prontos para gravar.</p>
+        </article>
+        <article class="card">
+          <h3>Documentacao Completa</h3>
+          <p>Guia passo a passo para voce usar e ajustar o sistema com autonomia.</p>
+        </article>
+        <article class="card">
+          <h3>Treinamento Pratico</h3>
+          <p>Sessoes hands-on ate voce dominar o sistema.</p>
+        </article>
+        <article class="card">
+          <h3>15 Dias de Suporte</h3>
+          <p>Ajustes e suporte via WhatsApp apos entrega.</p>
+        </article>
+      </div>
+      <p class="page-index">Pagina 1</p>
+    </section>
+
+    <section class="page" aria-label="Pagina 2">
+      <header class="section-head">
+        <p class="eyebrow">Pagina 2</p>
+        <h2>Como Funciona</h2>
+        <p class="subtitle">Processo de trabalho.</p>
+      </header>
+      <div class="phase-list">
+        <article class="phase">
+          <h3>Sessao 1 - Discovery &amp; Setup (4h)</h3>
+          <ul>
+            <li>Analisamos 20-30 posts/videos seus para mapear tom de voz.</li>
+            <li>Definimos criterios de historias que funcionam.</li>
+            <li>Testamos buscas de historias em tempo real.</li>
+            <li>Geramos 3-5 roteiros na hora para validar.</li>
+            <li>Formato: 50% conversa estrategica + 50% construcao hands-on.</li>
+          </ul>
+          <p class="result"><strong>Voce recebe:</strong> Documento de Tom de Voz + Primeiros Roteiros.</p>
+        </article>
+        <article class="phase">
+          <h3>Trabalho Assincrono (7-10 dias)</h3>
+          <ul>
+            <li>Desenvolvemos o agente de busca de historias.</li>
+            <li>Refinamos prompts de geracao.</li>
+            <li>Criamos banco com 50-100 historias curadas.</li>
+            <li>Geramos 10-15 roteiros de teste.</li>
+            <li>Formato: trabalho focado da equipe + updates para acompanhamento.</li>
+          </ul>
+          <p class="result"><strong>Voce recebe:</strong> Sistema funcionando + Roteiros de teste.</p>
+        </article>
+        <article class="phase">
+          <h3>Sessao 2 - Apresentacao &amp; Ajustes (3h)</h3>
+          <ul>
+            <li>Apresentamos o sistema completo.</li>
+            <li>Testamos geracao ao vivo.</li>
+            <li>Ajustes finos com seu feedback.</li>
+            <li>Geramos lote adicional de roteiros.</li>
+            <li>Formato: 50% demonstracao + 50% ajustes colaborativos.</li>
+          </ul>
+          <p class="result"><strong>Voce recebe:</strong> Sistema ajustado + Mais roteiros.</p>
+        </article>
+        <article class="phase">
+          <h3>Sessao 3 - Treinamento &amp; Entrega (2-3h)</h3>
+          <ul>
+            <li>Treinamento completo para uso autonomo.</li>
+            <li>Entrega do banco final de historias.</li>
+            <li>Geracao do lote final de roteiros.</li>
+            <li>Documentacao para consulta futura.</li>
+            <li>Formato: hands-on com voce operando o sistema.</li>
+          </ul>
+          <p class="result"><strong>Voce recebe:</strong> 20-30 Roteiros Finais + Documentacao + Sistema 100% Operacional.</p>
+        </article>
+      </div>
+      <p><strong>Cronograma total:</strong> 3-4 semanas.</p>
+      <p class="page-index">Pagina 2</p>
+    </section>
+
+    <section class="page" aria-label="Pagina 3">
+      <header class="section-head">
+        <p class="eyebrow">Pagina 3</p>
+        <h2>Garantia de Entrega</h2>
+        <p class="subtitle">O que garantimos.</p>
+      </header>
+      <div class="check-grid">
+        <article class="check-item">
+          <h3>Sistema 100% Operacional</h3>
+          <p>Funcionando e gerando roteiros de qualidade no seu tom de voz.</p>
+        </article>
+        <article class="check-item">
+          <h3>Volume Minimo</h3>
+          <p>20 roteiros prontos + sistema capaz de gerar ilimitados.</p>
+        </article>
+        <article class="check-item">
+          <h3>Reducao de Tempo</h3>
+          <p>70-80% menos tempo gasto em pesquisa e estruturacao de roteiros.</p>
+        </article>
+        <article class="check-item">
+          <h3>Autonomia Completa</h3>
+          <p>Voce domina o sistema e pode evoluir sozinho.</p>
+        </article>
+        <article class="check-item">
+          <h3>Banco de Conteudo</h3>
+          <p>50-100 historias para meses de conteudo.</p>
+        </article>
+      </div>
+      <p>
+        Se o sistema nao atender esses criterios, continuamos trabalhando ate entregar, sem custo adicional.
+      </p>
+      <p class="subtitle">
+        Foco em otimizar seu processo, nao em prometer engajamento (que depende de multiplas variaveis).
+      </p>
+      <p class="page-index">Pagina 3</p>
+    </section>
+
+    <section class="page" aria-label="Pagina 4">
+      <header class="section-head">
+        <p class="eyebrow">Pagina 4</p>
+        <h2>Investimento</h2>
+        <p class="subtitle">Proposta comercial.</p>
+      </header>
+
+      <div class="pricing">
+        <article class="price-box">
+          <p class="eyebrow">Investimento</p>
+          <p class="price-main">R$ 4.900</p>
+          <p>Pagamento a vista (PIX): <strong>R$ 4.655</strong> (5% desconto)</p>
+          <p>Parcelamento: <strong>3x sem juros no cartao</strong></p>
+        </article>
+        <article class="price-box">
+          <p class="eyebrow">Forma de pagamento</p>
+          <p><strong>50%</strong> na assinatura do contrato</p>
+          <p><strong>50%</strong> na entrega final</p>
+          <p><strong>Inicio:</strong> imediato apos aprovacao</p>
+          <p><strong>Prazo:</strong> 3-4 semanas</p>
+        </article>
+      </div>
+
+      <h3>O que esta incluso</h3>
+      <ul class="inclusions">
+        <li>3 sessoes estrategicas</li>
+        <li>Sistema de IA personalizado</li>
+        <li>Mapeamento de tom de voz</li>
+        <li>50-100 historias curadas</li>
+        <li>20-30 roteiros prontos</li>
+        <li>Documentacao completa</li>
+        <li>Treinamento hands-on</li>
+        <li>15 dias de suporte</li>
+      </ul>
+      <p class="page-index">Pagina 4</p>
+    </section>
+
+    <section class="page" aria-label="Pagina 5">
+      <header class="section-head">
+        <p class="eyebrow">Pagina 5</p>
+        <h2>Bonus: Proximo Passo</h2>
+        <p class="subtitle">Condicao especial.</p>
+      </header>
+      <article class="bonus">
+        <p>
+          Se voce decidir avancar para o Diagnostico de Maturidade em IA do E-commerce apos este piloto:
+        </p>
+        <ul>
+          <li>Abatimento de <strong>75% do valor deste piloto</strong> no diagnostico.</li>
+          <li>Desconto adicional de <strong>R$ 3.000</strong> no projeto de implementacao completa.</li>
+          <li>Prioridade no cronograma.</li>
+        </ul>
+        <p><strong>Ou seja:</strong> este investimento pode virar credito se voce escalar.</p>
+      </article>
+      <p class="page-index">Pagina 5</p>
+    </section>
+  </main>
+</body>
+</html>

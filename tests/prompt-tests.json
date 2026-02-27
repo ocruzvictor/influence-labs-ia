@@ -1,0 +1,640 @@
+{
+  "router_tests": [
+    {
+      "input": "Quanto custa corte com o Tiago?",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "Tem horario quinta com o Andre?",
+      "expected_intent": "agendamento"
+    },
+    {
+      "input": "Vi a promocao de terca, me conta",
+      "expected_intent": "vendas"
+    },
+    {
+      "input": "O corte ficou horrivel",
+      "expected_intent": "reclamacao"
+    },
+    {
+      "input": "Quero falar com o Gabriel",
+      "expected_intent": "humano"
+    },
+    {
+      "input": "Quanto custa visagismo?",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "Posso remarcar pra sabado?",
+      "expected_intent": "agendamento"
+    },
+    {
+      "input": "Nao gostei do atendimento de hoje",
+      "expected_intent": "reclamacao"
+    },
+    {
+      "input": "Preciso cancelar meu horario de amanha",
+      "expected_intent": "agendamento"
+    },
+    {
+      "input": "Tem vaga agora com o Tiago?",
+      "expected_intent": "agendamento"
+    },
+    {
+      "input": "Me passa o endereco",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "Vocês vendem Don Alcides?",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "Quero aproveitar um encaixe hoje",
+      "expected_intent": "agendamento"
+    },
+    {
+      "input": "Consegue desconto fora da promocao?",
+      "expected_intent": "vendas"
+    },
+    {
+      "input": "decepcionado com o resultado",
+      "expected_intent": "reclamacao"
+    },
+    {
+      "input": "Quero falar com uma pessoa",
+      "expected_intent": "humano"
+    },
+    {
+      "input": "nao quero falar com robo",
+      "expected_intent": "humano"
+    },
+    {
+      "input": "paguei sinal e quero entender a politica",
+      "expected_intent": "humano"
+    },
+    {
+      "input": "posso remarcar de novo?",
+      "expected_intent": "agendamento"
+    },
+    {
+      "input": "quais formas de pagamento?",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "hoje 17h funciona?",
+      "expected_intent": "agendamento",
+      "context": "cliente escolhendo horario"
+    },
+    {
+      "input": "Andre",
+      "expected_intent": "agendamento",
+      "context": "cliente escolhendo profissional"
+    },
+    {
+      "input": "sim confirmado",
+      "expected_intent": "agendamento",
+      "context": "mensagem de confirmacao ativa"
+    },
+    {
+      "input": "tem campanha de aniversario?",
+      "expected_intent": "vendas"
+    },
+    {
+      "input": "absurdo esse atendimento",
+      "expected_intent": "reclamacao"
+    },
+    {
+      "input": "???",
+      "expected_intent": "humano"
+    },
+    {
+      "input": "bom dia",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "oi",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "me transfere",
+      "expected_intent": "humano"
+    },
+    {
+      "input": "daria para encaixar sobrancelha junto?",
+      "expected_intent": "agendamento"
+    },
+    {
+      "input": "tem mechas sem teste?",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "quero produto boaz",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "to sem grana, tem promo?",
+      "expected_intent": "vendas"
+    },
+    {
+      "input": "horrivel, quero reclamar",
+      "expected_intent": "reclamacao"
+    },
+    {
+      "input": "deixa pra la, quero humano",
+      "expected_intent": "humano"
+    },
+    {
+      "input": "terca e quarta tem preco melhor?",
+      "expected_intent": "vendas"
+    },
+    {
+      "input": "posso levar meu filho para corte?",
+      "expected_intent": "faq"
+    },
+    {
+      "input": "vou atrasar 20 minutos",
+      "expected_intent": "agendamento"
+    },
+    {
+      "input": "quero cancelar e reagendar 3 vezes",
+      "expected_intent": "humano",
+      "context": "terceira tentativa na conversa"
+    }
+  ],
+  "receptionist_tests": [
+    {
+      "input": "Quero cortar cabelo e barba quinta as 14h com o Tiago",
+      "context": {
+        "available_slots": [
+          "14:00",
+          "15:00"
+        ]
+      },
+      "expected_contains": [
+        "cabelo",
+        "barba",
+        "Tiago",
+        "14"
+      ],
+      "expected_not_contains": [
+        "inventei",
+        "talvez"
+      ]
+    },
+    {
+      "input": "Tiago ta de folga quarta? Tem outro barbeiro?",
+      "context": {
+        "available_slots": [
+          "10:00",
+          "11:00"
+        ],
+        "professionals": [
+          "Andre",
+          "Erick"
+        ]
+      },
+      "expected_contains": [
+        "Andre",
+        "Erick",
+        "Trinks"
+      ],
+      "expected_not_contains": [
+        "sem opcao"
+      ]
+    },
+    {
+      "input": "Quero remarcar meu horario",
+      "context": {
+        "available_slots": [
+          "09:30",
+          "16:00"
+        ]
+      },
+      "expected_contains": [
+        "reagendar",
+        "horario"
+      ],
+      "expected_not_contains": [
+        "cancelado automaticamente"
+      ]
+    },
+    {
+      "input": "Quero cancelar hoje",
+      "context": {
+        "available_slots": [
+          "15:00"
+        ]
+      },
+      "expected_contains": [
+        "cancelamento",
+        "confirmar"
+      ],
+      "expected_not_contains": [
+        "ja cancelei sem confirmar"
+      ]
+    },
+    {
+      "input": "Tem manicure sabado?",
+      "context": {
+        "available_slots": [
+          "09:00",
+          "11:00"
+        ]
+      },
+      "expected_contains": [
+        "manicure",
+        "sabado"
+      ],
+      "expected_not_contains": [
+        "segunda-feira"
+      ]
+    },
+    {
+      "input": "Progressiva hoje agora",
+      "context": {
+        "available_slots": []
+      },
+      "expected_contains": [
+        "lista de espera"
+      ],
+      "expected_not_contains": [
+        "agendado"
+      ]
+    },
+    {
+      "input": "Da desconto no corte masculino?",
+      "context": {
+        "available_slots": [
+          "17:00"
+        ]
+      },
+      "expected_contains": [
+        "promocao oficial",
+        "terca",
+        "quarta"
+      ],
+      "expected_not_contains": [
+        "desconto extra"
+      ]
+    },
+    {
+      "input": "Quero falar com o Gabriel",
+      "context": {
+        "available_slots": [
+          "10:00"
+        ]
+      },
+      "expected_contains": [
+        "transferir",
+        "Gabriel"
+      ],
+      "expected_not_contains": [
+        "continuo sozinho"
+      ]
+    },
+    {
+      "input": "Sou cliente nova",
+      "context": {
+        "available_slots": [
+          "13:00"
+        ]
+      },
+      "expected_contains": [
+        "nome completo",
+        "celular",
+        "email",
+        "data de nascimento"
+      ],
+      "expected_not_contains": [
+        "dados sensiveis"
+      ]
+    },
+    {
+      "input": "Quanto custa visagismo?",
+      "context": {
+        "available_slots": [
+          "14:00"
+        ]
+      },
+      "expected_contains": [
+        "consultoria",
+        "objetivo"
+      ],
+      "expected_not_contains": [
+        "R$ 750 logo na primeira frase"
+      ]
+    },
+    {
+      "input": "Quanto custa mechas?",
+      "context": {
+        "available_slots": [
+          "09:00"
+        ]
+      },
+      "expected_contains": [
+        "teste de mechas",
+        "gratuito"
+      ],
+      "expected_not_contains": [
+        "R$ 835 direto"
+      ]
+    },
+    {
+      "input": "Meu horario esta confirmado?",
+      "context": {
+        "available_slots": [
+          "16:00"
+        ]
+      },
+      "expected_contains": [
+        "confirmacao tripla"
+      ],
+      "expected_not_contains": [
+        "nao tenho acesso"
+      ]
+    },
+    {
+      "input": "Quero encaixar sobrancelha junto do corte",
+      "context": {
+        "available_slots": [
+          "15:00",
+          "15:30"
+        ]
+      },
+      "expected_contains": [
+        "vou verificar",
+        "encaixe"
+      ],
+      "expected_not_contains": [
+        "nao tentamos"
+      ]
+    },
+    {
+      "input": "Estou atrasado 15 minutos",
+      "context": {
+        "available_slots": [
+          "18:00"
+        ]
+      },
+      "expected_contains": [
+        "15 minutos",
+        "seguranca"
+      ],
+      "expected_not_contains": [
+        "perdeu automaticamente"
+      ]
+    },
+    {
+      "input": "Nao gostei do ultimo atendimento",
+      "context": {
+        "available_slots": [
+          "11:00"
+        ]
+      },
+      "expected_contains": [
+        "lamento",
+        "Gabriel"
+      ],
+      "expected_not_contains": [
+        "discutir"
+      ]
+    },
+    {
+      "input": "Pode mover meu horario porque voces precisam?",
+      "context": {
+        "available_slots": [
+          "10:00"
+        ]
+      },
+      "expected_contains": [
+        "manter horario confirmado"
+      ],
+      "expected_not_contains": [
+        "troca forcada"
+      ]
+    },
+    {
+      "input": "Cliente recorrente aqui",
+      "context": {
+        "available_slots": [
+          "09:00"
+        ],
+        "client_profile": "known"
+      },
+      "expected_contains": [
+        "bem-vindo de volta"
+      ],
+      "expected_not_contains": [
+        "pedir recadastro completo"
+      ]
+    },
+    {
+      "input": "Aceita pix?",
+      "context": {
+        "available_slots": [
+          "14:00"
+        ]
+      },
+      "expected_contains": [
+        "PIX",
+        "cartao",
+        "dinheiro"
+      ],
+      "expected_not_contains": [
+        "nao aceitamos"
+      ]
+    },
+    {
+      "input": "Pode ser com Andre premium?",
+      "context": {
+        "available_slots": [
+          "13:00"
+        ]
+      },
+      "expected_contains": [
+        "tabela premium"
+      ],
+      "expected_not_contains": [
+        "valor unico sem diferenca"
+      ]
+    },
+    {
+      "input": "Quero confirmar: corte com Tiago sexta 18h",
+      "context": {
+        "available_slots": [
+          "18:00"
+        ]
+      },
+      "expected_contains": [
+        "servico",
+        "profissional",
+        "data",
+        "hora",
+        "valor"
+      ],
+      "expected_not_contains": [
+        "confirmacao incompleta"
+      ]
+    }
+  ],
+  "faq_tests": [
+    {
+      "input": "Qual o endereco?",
+      "expected_contains": [
+        "Rua Espirito Santo, 385"
+      ],
+      "source": "salon-info.md"
+    },
+    {
+      "input": "Qual horario de funcionamento?",
+      "expected_contains": [
+        "Terca a Sexta",
+        "Sabado"
+      ],
+      "source": "salon-info.md"
+    },
+    {
+      "input": "Tem estacionamento?",
+      "expected_contains": [
+        "estacionamento",
+        "rampa lateral"
+      ],
+      "source": "salon-info.md"
+    },
+    {
+      "input": "Aceitam pix?",
+      "expected_contains": [
+        "PIX",
+        "cartao",
+        "dinheiro"
+      ],
+      "source": "salon-info.md"
+    },
+    {
+      "input": "Quanto custa corte masculino?",
+      "expected_contains": [
+        "R$ 85",
+        "R$ 100"
+      ],
+      "source": "faq.md"
+    },
+    {
+      "input": "Quanto custa cabelo e barba?",
+      "expected_contains": [
+        "R$ 130",
+        "R$ 155"
+      ],
+      "source": "faq.md"
+    },
+    {
+      "input": "Quanto custa visagismo?",
+      "expected_contains": [
+        "fluxo consultivo",
+        "R$ 750"
+      ],
+      "source": "faq.md"
+    },
+    {
+      "input": "Quanto custa mechas?",
+      "expected_contains": [
+        "teste de mechas",
+        "gratuito"
+      ],
+      "source": "faq.md"
+    },
+    {
+      "input": "Quem faz barba?",
+      "expected_contains": [
+        "Tiago",
+        "Andre",
+        "Erick"
+      ],
+      "source": "services.md"
+    },
+    {
+      "input": "Quem faz manicure?",
+      "expected_contains": [
+        "Maluzinha",
+        "Jackie"
+      ],
+      "source": "professionals.md"
+    },
+    {
+      "input": "Posso remarcar?",
+      "expected_contains": [
+        "Sem problema nenhum"
+      ],
+      "source": "faq.md"
+    },
+    {
+      "input": "Vendem produtos?",
+      "expected_contains": [
+        "Don Alcides",
+        "BOAZ"
+      ],
+      "source": "products.md"
+    },
+    {
+      "input": "Tem RedBull?",
+      "expected_contains": [
+        "RedBull",
+        "R$ 15"
+      ],
+      "source": "products.md"
+    },
+    {
+      "input": "Quero falar com o Gabriel",
+      "expected_contains": [
+        "transferir",
+        "atendimento humano"
+      ],
+      "source": "faq.md"
+    },
+    {
+      "input": "Qual politica para cliente de risco?",
+      "expected_contains": [
+        "deposito",
+        "50%"
+      ],
+      "source": "scheduling-rules.md"
+    },
+    {
+      "input": "Qual o protocolo de confirmacao?",
+      "expected_contains": [
+        "D-1",
+        "confirmacao tripla"
+      ],
+      "source": "scheduling-rules.md"
+    },
+    {
+      "input": "Faz depilacao?",
+      "expected_contains": [
+        "Depilacao de Nariz",
+        "Depilacao de Orelha"
+      ],
+      "source": "services.md"
+    },
+    {
+      "input": "Faz massagem?",
+      "expected_contains": [
+        "Massagem corpo todo",
+        "Massagem local"
+      ],
+      "source": "services.md"
+    },
+    {
+      "input": "Tem promocao?",
+      "expected_contains": [
+        "Terca e quarta"
+      ],
+      "source": "sales.md"
+    },
+    {
+      "input": "Vocês fazem preenchimento labial?",
+      "expected_contains": [
+        "vou confirmar com a equipe"
+      ],
+      "source": "fallback"
+    }
+  ]
+}

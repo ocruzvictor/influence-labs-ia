@@ -1,0 +1,310 @@
+{
+  "name": "WF-04 Sales",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1060,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{($env.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/clients/history\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.TRINKS_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "={{$json.phone}}"
+            }
+          ]
+        }
+      },
+      "id": "load_client",
+      "name": "Load Client Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -840,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $items('Execute Workflow Trigger', 0, 0)[0].json;\nconst api = items[0]?.json || {};\nconst history = api.data || api.client || api;\n\nconst now = new Date();\nconst lastVisitRaw = history.last_visit || history.lastVisit || null;\nconst lastVisit = lastVisitRaw ? new Date(lastVisitRaw) : null;\nconst daysSinceLastVisit = lastVisit ? Math.floor((now - lastVisit) / (1000 * 60 * 60 * 24)) : null;\n\nconst client = {\n  id: history.id || history.client_id || null,\n  name: history.name || input.name || '',\n  last_service: history.last_service || history.lastService || '',\n  last_visit: lastVisitRaw,\n  visit_count: history.visit_count || history.visitCount || 0,\n  opted_out: Boolean(history.opted_out || history.optedOut)\n};\n\nconst defaultOfferByService = {\n  'Coloracao Global': 'tratamento capilar',\n  'Corte Feminino': 'hidratacao',\n  'Corte Masculino': 'barba',\n  'Barba com Maquina': 'cabelo e barba'\n};\n\nconst offer = defaultOfferByService[client.last_service] || 'tratamento capilar';\nconst blocked = Boolean(client.opted_out);\nconst reason = blocked ? 'opted_out' : null;\nconst proactiveType = input.proactive_type || 'promotion';\n\nconst systemPrompt = `# Vendas e Follow-up - Studio Tirra\\nTom amigavel, objetivo e nao insistente.\\nRetorne JSON com sales_text.`;\n\nconst userPrompt = `Cliente: ${client.name || 'cliente'}\\nUltimo servico: ${client.last_service || 'desconhecido'}\\nUltima visita: ${client.last_visit || 'desconhecida'}\\nDias desde ultima visita: ${daysSinceLastVisit ?? 'desconhecido'}\\nFrequencia de visitas: ${client.visit_count || 0}\\nOferta recomendada: ${offer}\\nTipo de mensagem: ${proactiveType}\\nMensagem original: ${input.message || 'cliente pediu informacao comercial'}\\n\\nRetorne JSON com sales_text.`;\n\nreturn [{\n  json: {\n    ...input,\n    client,\n    offer,\n    blocked,\n    reason,\n    proactive_type: proactiveType,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    llm_provider: ($env.LLM_PROVIDER || 'openai').toLowerCase()\n  }\n}];"
+      },
+      "id": "build_offer",
+      "name": "Build Offer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -620,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.blocked}}",
+              "operation": "isFalse"
+            }
+          ]
+        }
+      },
+      "id": "if_allowed",
+      "name": "If Allowed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.llm_provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://api.openai.com/v1/responses'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{$env.ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{$json.llm_provider === 'anthropic' ? JSON.stringify({model: $env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest', max_tokens: 300, temperature: 0.4, system: $json.system_prompt, messages: [{role: 'user', content: $json.user_prompt}]}) : JSON.stringify({model: $env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.4, input: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}]})}}"
+      },
+      "id": "generate_sales_text",
+      "name": "Generate Sales Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $items('Build Offer', 0, 0)[0].json;\nlet sales_text = `Oi ${source.client?.name || ''}! Tenho uma sugestao para voce: ${source.offer}. Quer que eu te envie horarios?`;\nlet text = '';\nif ($json.output?.[0]?.content?.[0]?.text) text = $json.output[0].content[0].text;\nif (!text && Array.isArray($json.content) && $json.content[0]?.text) text = $json.content[0].text;\n\ntry {\n  const parsed = JSON.parse(text);\n  if (parsed.sales_text) sales_text = parsed.sales_text;\n} catch (e) {}\n\nreturn [{ json: { ...source, sales_text } }];"
+      },
+      "id": "parse_sales",
+      "name": "Parse Sales",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.EVOLUTION_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"{{$json.sales_text}}\"}"
+      },
+      "id": "send_sales",
+      "name": "Send Sales Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO proactive_messages (client_id, type, status)\nVALUES ((SELECT id FROM clients WHERE phone = '{{ $json.phone }}' LIMIT 1), '{{ $json.proactive_type }}', 'sent');"
+      },
+      "id": "log_proactive",
+      "name": "Log Proactive",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversation_history (client_phone, role, content, intent, agent)\nVALUES ('{{ $json.phone }}', 'assistant', '{{ $json.sales_text || $json.reason }}', 'vendas', '{{ $json.blocked ? 'sales_blocked_optout' : 'sales' }}');"
+      },
+      "id": "save_history",
+      "name": "Save History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        700,
+        120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Client Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Client Profile": {
+      "main": [
+        [
+          {
+            "node": "Build Offer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Offer": {
+      "main": [
+        [
+          {
+            "node": "If Allowed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Allowed": {
+      "main": [
+        [
+          {
+            "node": "Generate Sales Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Sales Text": {
+      "main": [
+        [
+          {
+            "node": "Parse Sales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Sales": {
+      "main": [
+        [
+          {
+            "node": "Send Sales Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Sales Message": {
+      "main": [
+        [
+          {
+            "node": "Log Proactive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Proactive": {
+      "main": [
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false,
+  "versionId": "wf04-sales-v3-trinks",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "WF-04-sales"
+}

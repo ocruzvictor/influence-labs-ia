@@ -1,0 +1,187 @@
+{
+  "name": "WF-03 FAQ",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [-1060, 120]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\n\nfunction normalize(text) {\n  return String(text || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction tokenize(text) {\n  const stop = new Set(['a','as','o','os','de','da','do','das','dos','e','em','no','na','nos','nas','que','com','para','por','uma','um','ao','aos']);\n  return normalize(text).split(' ').filter(t => t.length > 1 && !stop.has(t));\n}\n\nconst input = $json;\nconst query = input.message || '';\nconst tokens = tokenize(query);\nconst indexPath = process.env.RAG_INDEX_PATH || '/data/rag/kb-index.json';\nlet entries = [];\n\ntry {\n  const raw = fs.readFileSync(indexPath, 'utf8');\n  entries = JSON.parse(raw).entries || [];\n} catch (e) {\n  entries = [];\n}\n\nconst scored = entries.map((entry) => {\n  const content = normalize(entry.content || '');\n  const section = normalize(entry.section || '');\n  const keywords = (entry.keywords || []).map(normalize);\n  let score = 0;\n  for (const token of tokens) {\n    if (keywords.some(k => k.includes(token))) score += 5;\n    if (section.includes(token)) score += 3;\n    if (content.includes(token)) score += 2;\n  }\n  if (content.includes(normalize(query))) score += 8;\n  return { ...entry, score };\n}).filter(e => e.score > 0).sort((a, b) => b.score - a.score);\n\nconst top = scored.slice(0, 3);\nconst bestScore = top[0]?.score || 0;\nconst ragConfident = bestScore >= 6;\nconst ragContext = top.map((t, i) => `[${i + 1}] ${t.source} :: ${t.section}\\n${t.content}`).join('\\n\\n') || 'Sem trechos relevantes na KB.';\n\nreturn [{\n  json: {\n    ...input,\n    rag_matches: top,\n    rag_best_score: bestScore,\n    rag_confident: ragConfident,\n    rag_context: ragContext,\n    llm_provider: ($env.LLM_PROVIDER || 'openai').toLowerCase()\n  }\n}];"
+      },
+      "id": "rag_search",
+      "name": "RAG Search KB",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-820, 120]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json;\nconst systemPrompt = `# FAQ - System Prompt\\n\\nVoce responde perguntas do salao usando apenas a base de conhecimento.\\nRetorne JSON com answer e confidence (0 a 1).\\nSe nao souber, confidence deve ser menor que 0.7 e answer deve indicar que vai confirmar com a equipe.`;\nconst userPrompt = `Pergunta do cliente: ${input.message}\\n\\nContexto RAG:\\n${input.rag_context}`;\nreturn [{ json: { ...input, system_prompt: systemPrompt, user_prompt: userPrompt } }];"
+      },
+      "id": "build_faq_prompt",
+      "name": "Build FAQ Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-600, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.llm_provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://api.openai.com/v1/responses'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{$env.ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{$json.llm_provider === 'anthropic' ? JSON.stringify({model: $env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest', max_tokens: 500, temperature: 0.1, system: $json.system_prompt, messages: [{role: 'user', content: $json.user_prompt}]}) : JSON.stringify({model: $env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.1, input: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}]})}}"
+      },
+      "id": "faq_llm",
+      "name": "FAQ LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-360, 120]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $items('Build FAQ Prompt', 0, 0)[0].json;\nlet payload = { answer: 'Boa pergunta! Vou confirmar com a equipe e ja te retorno.', confidence: 0.4 };\nlet text = '';\nif ($json.output?.[0]?.content?.[0]?.text) text = $json.output[0].content[0].text;\nif (!text && Array.isArray($json.content) && $json.content[0]?.text) text = $json.content[0].text;\n\ntry {\n  payload = { ...payload, ...JSON.parse(text) };\n} catch (e) {}\n\nif (!source.rag_confident && payload.confidence > 0.69) {\n  payload.confidence = 0.69;\n}\n\nif (typeof payload.confidence !== 'number') payload.confidence = 0.4;\nconst escalated = payload.confidence < 0.7;\n\nif (escalated) {\n  payload.answer = 'Boa pergunta! Vou confirmar com a equipe e ja te retorno.';\n}\n\nreturn [{\n  json: {\n    ...source,\n    answer: payload.answer,\n    confidence: payload.confidence,\n    escalated,\n    handoff_reason: escalated ? 'faq_low_confidence' : null\n  }\n}];"
+      },
+      "id": "parse_faq",
+      "name": "Parse FAQ Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-120, 120]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.confidence}}",
+              "operation": "largerEqual",
+              "value2": 0.7
+            }
+          ]
+        }
+      },
+      "id": "if_confident",
+      "name": "If Confident",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [120, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.EVOLUTION_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"{{$json.answer}}\"}"
+      },
+      "id": "send_faq",
+      "name": "Send FAQ Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [360, 40]
+    },
+    {
+      "parameters": {
+        "workflowId": "WF-05-human-takeover",
+        "options": {}
+      },
+      "id": "call_human",
+      "name": "Call WF-05",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [360, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversation_history (client_phone, role, content, intent, agent)\nVALUES ('{{ $json.phone }}', 'assistant', '{{ $json.answer }}', 'faq', '{{ $json.escalated ? 'faq_handoff' : 'faq' }}');"
+      },
+      "id": "save_history",
+      "name": "Save History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [600, 120],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "RAG Search KB", "type": "main", "index": 0 }]]
+    },
+    "RAG Search KB": {
+      "main": [[{ "node": "Build FAQ Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build FAQ Prompt": {
+      "main": [[{ "node": "FAQ LLM", "type": "main", "index": 0 }]]
+    },
+    "FAQ LLM": {
+      "main": [[{ "node": "Parse FAQ Output", "type": "main", "index": 0 }]]
+    },
+    "Parse FAQ Output": {
+      "main": [[{ "node": "If Confident", "type": "main", "index": 0 }]]
+    },
+    "If Confident": {
+      "main": [
+        [{ "node": "Send FAQ Response", "type": "main", "index": 0 }],
+        [{ "node": "Call WF-05", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send FAQ Response": {
+      "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
+    },
+    "Call WF-05": {
+      "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false,
+  "versionId": "wf03-faq-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "WF-03-faq"
+}

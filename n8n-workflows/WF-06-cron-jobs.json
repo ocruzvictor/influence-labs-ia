@@ -1,0 +1,777 @@
+{
+  "name": "WF-06 Cron Jobs",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron_reminder",
+      "name": "Cron Reminder 24h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1440,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{($env.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/appointments\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.TRINKS_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{$now.plus({ days: 1 }).toFormat(\"yyyy-MM-dd\")}}"
+            },
+            {
+              "name": "status",
+              "value": "confirmed"
+            }
+          ]
+        }
+      },
+      "id": "query_tomorrow",
+      "name": "Query Tomorrow Appointments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1200,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1
+      },
+      "id": "loop_tomorrow",
+      "name": "Loop Tomorrow",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -960,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$now.hour >= 8 && $now.hour < 20}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "if_safe_hour_reminder",
+      "name": "If Safe Hour Reminder",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.EVOLUTION_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"Oi {{$json.name}}! Lembrete do seu horario amanha: {{$json.service}} as {{$json.time}} com {{$json.professional}}.\"}"
+      },
+      "id": "send_reminder",
+      "name": "Send Reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -520,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO proactive_messages (client_id, type, status)\nVALUES ({{ $json.client_id }}, 'reminder', 'sent');"
+      },
+      "id": "log_reminder",
+      "name": "Log Reminder",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -300,
+        -240
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO metrics (metric_name, metric_value) VALUES ('proactive_sent_reminder', 1);"
+      },
+      "id": "metric_reminder",
+      "name": "Metric Reminder",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -80,
+        -240
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron_followup",
+      "name": "Cron Follow-up 48h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{($env.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/appointments\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.TRINKS_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{$now.minus({ days: 2 }).toFormat(\"yyyy-MM-dd\")}}"
+            },
+            {
+              "name": "status",
+              "value": "completed"
+            }
+          ]
+        }
+      },
+      "id": "query_followup",
+      "name": "Query Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1
+      },
+      "id": "loop_followup",
+      "name": "Loop Follow-up",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$now.hour >= 8 && $now.hour < 20}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "if_safe_hour_followup",
+      "name": "If Safe Hour Follow-up",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.EVOLUTION_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"Oi {{$json.name}}! Tudo bem? Queria saber se voce gostou do seu {{$json.service}}. Se quiser, te ajudo com um novo horario.\"}"
+      },
+      "id": "send_followup",
+      "name": "Send Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -520,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO proactive_messages (client_id, type, status)\nVALUES ({{ $json.client_id }}, 'followup', 'sent');"
+      },
+      "id": "log_followup",
+      "name": "Log Follow-up",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -300,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO metrics (metric_name, metric_value) VALUES ('proactive_sent_followup', 1);"
+      },
+      "id": "metric_followup",
+      "name": "Metric Follow-up",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -80,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "cron_reactivation",
+      "name": "Cron Reactivation Weekly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1440,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.id AS client_id, c.phone, c.name, c.last_service\nFROM clients c\nWHERE c.opted_out = false\n  AND (c.last_visit IS NULL OR c.last_visit < NOW() - INTERVAL '30 day')\n  AND NOT EXISTS (\n    SELECT 1\n    FROM proactive_messages pm\n    WHERE pm.client_id = c.id\n      AND pm.sent_at > NOW() - INTERVAL '7 day'\n  );"
+      },
+      "id": "query_reactivation",
+      "name": "Query Reactivation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1200,
+        380
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1
+      },
+      "id": "loop_reactivation",
+      "name": "Loop Reactivation",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -960,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$now.hour >= 8 && $now.hour < 20}}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "if_safe_hour_reactivation",
+      "name": "If Safe Hour Reactivation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.EVOLUTION_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"Oi {{$json.name}}! Faz tempo que nao te vemos por aqui. Quer que eu veja horarios para {{$json.last_service || 'seu proximo atendimento'}}?\"}"
+      },
+      "id": "send_reactivation",
+      "name": "Send Reactivation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -520,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO proactive_messages (client_id, type, status)\nVALUES ({{ $json.client_id }}, 'reactivation', 'sent');"
+      },
+      "id": "log_reactivation",
+      "name": "Log Reactivation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -300,
+        320
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO metrics (metric_name, metric_value) VALUES ('proactive_sent_reactivation', 1);"
+      },
+      "id": "metric_reactivation",
+      "name": "Metric Reactivation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -80,
+        320
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = items[0]?.json || {};\nconst list = raw.data || raw.appointments || raw.items || [];\nif (!Array.isArray(list) || list.length === 0) return [];\nreturn list.map((a) => ({ json: {\n  client_id: a.client_id || a.client?.id || null,\n  phone: a.phone || a.client?.phone || '',\n  name: a.name || a.client?.name || 'Cliente',\n  service: a.service || a.service_name || '',\n  time: a.time || a.start_time || '',\n  professional: a.professional || a.professional_name || ''\n}}));"
+      },
+      "id": "expand_tomorrow",
+      "name": "Expand Tomorrow Appointments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1080,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = items[0]?.json || {};\nconst list = raw.data || raw.appointments || raw.items || [];\nif (!Array.isArray(list) || list.length === 0) return [];\nreturn list.map((a) => ({ json: {\n  client_id: a.client_id || a.client?.id || null,\n  phone: a.phone || a.client?.phone || '',\n  name: a.name || a.client?.name || 'Cliente',\n  service: a.service || a.service_name || ''\n}}));"
+      },
+      "id": "expand_followup",
+      "name": "Expand Follow-up Appointments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1080,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Cron Reminder 24h": {
+      "main": [
+        [
+          {
+            "node": "Query Tomorrow Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Tomorrow Appointments": {
+      "main": [
+        [
+          {
+            "node": "Expand Tomorrow Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Tomorrow": {
+      "main": [
+        [
+          {
+            "node": "If Safe Hour Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "If Safe Hour Reminder": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Tomorrow",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send Reminder": {
+      "main": [
+        [
+          {
+            "node": "Log Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Reminder": {
+      "main": [
+        [
+          {
+            "node": "Metric Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Metric Reminder": {
+      "main": [
+        [
+          {
+            "node": "Loop Tomorrow",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Cron Follow-up 48h": {
+      "main": [
+        [
+          {
+            "node": "Query Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Expand Follow-up Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Follow-up": {
+      "main": [
+        [
+          {
+            "node": "If Safe Hour Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "If Safe Hour Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Follow-up",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Log Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Metric Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Metric Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Loop Follow-up",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Cron Reactivation Weekly": {
+      "main": [
+        [
+          {
+            "node": "Query Reactivation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Reactivation": {
+      "main": [
+        [
+          {
+            "node": "Loop Reactivation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Reactivation": {
+      "main": [
+        [
+          {
+            "node": "If Safe Hour Reactivation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "If Safe Hour Reactivation": {
+      "main": [
+        [
+          {
+            "node": "Send Reactivation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Reactivation",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send Reactivation": {
+      "main": [
+        [
+          {
+            "node": "Log Reactivation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Reactivation": {
+      "main": [
+        [
+          {
+            "node": "Metric Reactivation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Metric Reactivation": {
+      "main": [
+        [
+          {
+            "node": "Loop Reactivation",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Expand Tomorrow Appointments": {
+      "main": [
+        [
+          {
+            "node": "Loop Tomorrow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Follow-up Appointments": {
+      "main": [
+        [
+          {
+            "node": "Loop Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false,
+  "versionId": "wf06-cron-v3-trinks",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "WF-06-cron-jobs"
+}

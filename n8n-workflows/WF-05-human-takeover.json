@@ -1,0 +1,183 @@
+{
+  "name": "WF-05 Human Takeover",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [-1120, 140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.CHATWOOT_BASE_URL}}/api/v1/accounts/{{$env.CHATWOOT_ACCOUNT_ID}}/contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "={{$env.CHATWOOT_API_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"inbox_id\": {{$env.CHATWOOT_INBOX_ID}}, \"name\": \"{{$json.name || 'Cliente WhatsApp'}}\", \"phone_number\": \"{{$json.phone}}\", \"identifier\": \"{{$json.phone}}\"}",
+        "options": {
+          "ignoreResponseCode": true
+        }
+      },
+      "id": "upsert_contact",
+      "name": "Upsert Chatwoot Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-900, 140]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $items('Execute Workflow Trigger', 0, 0)[0].json;\nconst response = $json || {};\nconst sourceId = response.contact_inboxes?.[0]?.source_id\n  || response.payload?.contact_inboxes?.[0]?.source_id\n  || response.source_id\n  || input.phone;\n\nreturn [{\n  json: {\n    ...input,\n    chatwoot_contact_source_id: sourceId,\n    chatwoot_inbox_identifier: $env.CHATWOOT_INBOX_IDENTIFIER || null\n  }\n}];"
+      },
+      "id": "build_conversation_payload",
+      "name": "Build Conversation Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-680, 140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.CHATWOOT_BASE_URL}}/public/api/v1/inboxes/{{$env.CHATWOOT_INBOX_IDENTIFIER}}/contacts/{{$json.chatwoot_contact_source_id}}/conversations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "={{$env.CHATWOOT_API_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"message\":\"Escalacao automatica iniciada para atendimento humano.\",\"status\":\"open\",\"custom_attributes\":{\"source\":\"n8n\",\"reason\":\"{{$json.handoff_reason || 'router_or_faq'}}\"}}",
+        "options": {
+          "ignoreResponseCode": true
+        }
+      },
+      "id": "create_chatwoot_conversation",
+      "name": "Create Chatwoot Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-460, 140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.CHATWOOT_BASE_URL}}/api/v1/accounts/{{$env.CHATWOOT_ACCOUNT_ID}}/conversations/{{$json.id || $json.conversation_id || $json.payload?.id}}/assignments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "={{$env.CHATWOOT_API_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"assignee_id\": {{$env.CHATWOOT_ASSIGNEE_ID || 'null'}}}",
+        "options": {
+          "ignoreResponseCode": true
+        }
+      },
+      "id": "assign_chatwoot_agent",
+      "name": "Assign Chatwoot Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-240, 140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.EVOLUTION_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"Perfeito, vou te transferir para nosso atendimento humano agora. Ja te respondemos por aqui em instantes.\"}"
+      },
+      "id": "send_holding_message",
+      "name": "Send Holding Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-20, 140]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversation_history (client_phone, role, content, intent, agent)\nVALUES ('{{ $json.phone }}', 'assistant', 'Handoff para humano acionado', 'humano', 'human_takeover');"
+      },
+      "id": "log_takeover",
+      "name": "Log Takeover",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [200, 140],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_main",
+          "name": "Postgres Main"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "Upsert Chatwoot Contact", "type": "main", "index": 0 }]]
+    },
+    "Upsert Chatwoot Contact": {
+      "main": [[{ "node": "Build Conversation Payload", "type": "main", "index": 0 }]]
+    },
+    "Build Conversation Payload": {
+      "main": [[{ "node": "Create Chatwoot Conversation", "type": "main", "index": 0 }]]
+    },
+    "Create Chatwoot Conversation": {
+      "main": [[{ "node": "Assign Chatwoot Agent", "type": "main", "index": 0 }]]
+    },
+    "Assign Chatwoot Agent": {
+      "main": [[{ "node": "Send Holding Message", "type": "main", "index": 0 }]]
+    },
+    "Send Holding Message": {
+      "main": [[{ "node": "Log Takeover", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false,
+  "versionId": "wf05-human-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "WF-05-human-takeover"
+}

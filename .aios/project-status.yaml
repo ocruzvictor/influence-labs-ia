@@ -1,0 +1,19 @@
+status:
+  branch: main
+  modifiedFiles:
+    - .codex/agents/aios-master.md
+    - .codex/agents/analyst.md
+    - .codex/agents/architect.md
+    - .codex/agents/data-engineer.md
+    - .codex/agents/dev.md
+  modifiedFilesTotalCount: 30
+  recentCommits:
+    - 'chore: sync AIOS framework to latest upstream'
+    - 'chore: initial commit — AIOS framework setup'
+  currentEpic: null
+  currentStory: null
+  lastUpdate: '2026-02-25T02:48:21.800Z'
+  isGitRepo: true
+timestamp: 1771987701805
+ttl: 60
+gitFingerprint: 1771904641743.7695:1771905449356.49

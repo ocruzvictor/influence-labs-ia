@@ -1,0 +1,1876 @@
+{
+  "entries": [
+    {
+      "source": "salon-info.md",
+      "section": "Identidade",
+      "content": "Studio Tirra fica na Rua Espirito Santo, 385, Santo Antonio, Sao Caetano do Sul/SP (CEP 09530-700).",
+      "keywords": [
+        "endereco",
+        "local",
+        "onde fica",
+        "maps"
+      ]
+    },
+    {
+      "source": "salon-info.md",
+      "section": "Horario",
+      "content": "Funciona de terca a sexta das 9h as 19h e sabado das 9h as 18h.",
+      "keywords": [
+        "horario",
+        "funcionamento",
+        "abre"
+      ]
+    },
+    {
+      "source": "salon-info.md",
+      "section": "Estacionamento",
+      "content": "Ha estacionamento no local; acesso pela rampa lateral.",
+      "keywords": [
+        "estacionamento",
+        "rampa"
+      ]
+    },
+    {
+      "source": "salon-info.md",
+      "section": "Pagamento",
+      "content": "Aceita PIX, cartao de credito/debito e dinheiro.",
+      "keywords": [
+        "pagamento",
+        "pix",
+        "cartao",
+        "dinheiro"
+      ]
+    },
+    {
+      "source": "salon-info.md",
+      "section": "Contato",
+      "content": "Supervisor de atendimento: Gabriel Rocha Ferreira.",
+      "keywords": [
+        "gabriel",
+        "humano",
+        "supervisor"
+      ]
+    },
+    {
+      "source": "professionals.md",
+      "section": "Tiago Rocha",
+      "content": "Dono e hair stylist premium; folga quarta; tabela premium.",
+      "keywords": [
+        "profissional",
+        "agenda",
+        "tiago"
+      ]
+    },
+    {
+      "source": "professionals.md",
+      "section": "Andre de Oliveira",
+      "content": "Gestor e barbeiro premium para servicos masculinos.",
+      "keywords": [
+        "profissional",
+        "agenda",
+        "andre"
+      ]
+    },
+    {
+      "source": "professionals.md",
+      "section": "Erick Barros",
+      "content": "Barbeiro para corte masculino e barba.",
+      "keywords": [
+        "profissional",
+        "agenda",
+        "erick"
+      ]
+    },
+    {
+      "source": "professionals.md",
+      "section": "Eli",
+      "content": "Hair stylist e apoio em nails.",
+      "keywords": [
+        "profissional",
+        "agenda",
+        "eli"
+      ]
+    },
+    {
+      "source": "professionals.md",
+      "section": "Maluzinha",
+      "content": "Manicure e nail designer.",
+      "keywords": [
+        "profissional",
+        "agenda",
+        "maluzinha"
+      ]
+    },
+    {
+      "source": "professionals.md",
+      "section": "Giovanna Ferraz",
+      "content": "Sobrancelha, depilacao e servicos tecnicos.",
+      "keywords": [
+        "profissional",
+        "agenda",
+        "giovanna"
+      ]
+    },
+    {
+      "source": "professionals.md",
+      "section": "Jackie",
+      "content": "Manicure e pedicure.",
+      "keywords": [
+        "profissional",
+        "agenda",
+        "jackie"
+      ]
+    },
+    {
+      "source": "professionals.md",
+      "section": "Fernanda (Fefe)",
+      "content": "Hair stylist de corte, escova e tratamentos.",
+      "keywords": [
+        "profissional",
+        "agenda",
+        "fernanda"
+      ]
+    },
+    {
+      "source": "scheduling-rules.md",
+      "section": "Antecedencia",
+      "content": "Antecedencia ideal de 24 horas para agendamento.",
+      "keywords": [
+        "antecedencia",
+        "agendar"
+      ]
+    },
+    {
+      "source": "scheduling-rules.md",
+      "section": "Atraso",
+      "content": "Tolerancia de 15 minutos para atraso.",
+      "keywords": [
+        "atraso",
+        "tolerancia"
+      ]
+    },
+    {
+      "source": "scheduling-rules.md",
+      "section": "Lista de espera",
+      "content": "Quando nao houver horario, oferecer lista de espera e aviso proativo.",
+      "keywords": [
+        "lista de espera",
+        "vaga"
+      ]
+    },
+    {
+      "source": "scheduling-rules.md",
+      "section": "Confirmacao D-1",
+      "content": "Confirmacao obrigatoria 1 dia antes do horario.",
+      "keywords": [
+        "confirmacao",
+        "lembrete"
+      ]
+    },
+    {
+      "source": "scheduling-rules.md",
+      "section": "Confirmacao tripla",
+      "content": "Confirmar servico, profissional, data e hora antes do commit.",
+      "keywords": [
+        "confirmacao tripla",
+        "resumo"
+      ]
+    },
+    {
+      "source": "scheduling-rules.md",
+      "section": "Cliente risco",
+      "content": "Clientes score baixo podem exigir deposito de 50%.",
+      "keywords": [
+        "deposito",
+        "sinal",
+        "risco"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Preco corte masculino",
+      "content": "Equipe R$ 85 e premium R$ 100.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "preco corte masculino"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Preco corte feminino",
+      "content": "Equipe R$ 180 e premium R$ 190.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "preco corte feminino"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Preco cabelo + barba",
+      "content": "Equipe R$ 130 e premium R$ 155.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "preco cabelo + barba"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Horario para dia especifico",
+      "content": "Primeiro pergunta o profissional preferido e consulta Trinks.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "horario para dia especifico"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Endereco",
+      "content": "Rua Espirito Santo, 385, Santo Antonio, Sao Caetano do Sul.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "endereco"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Estacionamento",
+      "content": "Tem estacionamento no local.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "estacionamento"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Pagamento",
+      "content": "Aceita PIX, cartao e dinheiro.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "pagamento"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Funcionamento",
+      "content": "Terca a sexta 9h-19h e sabado 9h-18h.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "funcionamento"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Remarcacao",
+      "content": "Pode remarcar sem atrito, conforme disponibilidade.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "remarcacao"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Visagismo",
+      "content": "Fluxo consultivo antes de falar investimento de R$ 750.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "visagismo"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Mechas",
+      "content": "Primeiro oferecer teste de mechas gratuito.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "mechas"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Instagram profissional",
+      "content": "Pode compartilhar portfolio do profissional.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "instagram profissional"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Agendamento familiar",
+      "content": "Pode agendar para familiar tambem.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "agendamento familiar"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Atendimento infantil",
+      "content": "Ha servicos infantis para corte.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "atendimento infantil"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Encaixe de servico",
+      "content": "Verificar encaixe conforme duracao e agenda real.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "encaixe de servico"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Venda de produtos",
+      "content": "Tem Don Alcides, BOAZ e Alice da Venda.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "venda de produtos"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Promocao",
+      "content": "Terca e quarta com condicoes promocionais.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "promocao"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Melhor profissional",
+      "content": "Escalar para Gabriel por se tratar de recomendacao subjetiva.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "melhor profissional"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Parcelamento",
+      "content": "Alguns servicos podem parcelar (ex.: visagismo).",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "parcelamento"
+      ]
+    },
+    {
+      "source": "faq.md",
+      "section": "Falar com humano",
+      "content": "Transferencia imediata quando solicitado.",
+      "keywords": [
+        "faq",
+        "studio tirra",
+        "falar com humano"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Promocao terca quarta",
+      "content": "Promocoes oficiais ocorrem principalmente em terca e quarta.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "promocao terca quarta"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Cross-sell add-on",
+      "content": "Sugerir servico complementar quando cliente ja esta agendado.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "cross-sell add-on"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Cross-sell familiar",
+      "content": "Perguntar se familiar quer agendar junto.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "cross-sell familiar"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Aniversario",
+      "content": "Campanha de aniversario com 10% limite R$30.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "aniversario"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Campanha sazonal",
+      "content": "Acoes sazonais em datas especiais.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "campanha sazonal"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Upsell premium",
+      "content": "Mudanca visual pode levar a visagismo/mechas consultivas.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "upsell premium"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Slot proativo",
+      "content": "Avisar quando vaga de profissional disputado abrir.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "slot proativo"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Win-back",
+      "content": "Reativar cliente com 45-60 dias sem visita.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "win-back"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Opt-out",
+      "content": "Parar mensagens apos opt-out do cliente.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "opt-out"
+      ]
+    },
+    {
+      "source": "sales.md",
+      "section": "Horario seguro",
+      "content": "Nao enviar mensagens proativas entre 20h e 8h.",
+      "keywords": [
+        "vendas",
+        "follow-up",
+        "horario seguro"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "Don Alcides Balm",
+      "content": "Balm para barba Don Alcides com faixa ~R$79,90-79,97.",
+      "keywords": [
+        "don alcides",
+        "balm",
+        "barba"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "Don Alcides Leave-in",
+      "content": "Leave-in para barba Don Alcides na faixa ~R$79,90-79,97.",
+      "keywords": [
+        "don alcides",
+        "leave-in"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "Don Alcides Pomadas",
+      "content": "Pomadas modeladoras Don Alcides na faixa ~R$59,97-79,97.",
+      "keywords": [
+        "pomada",
+        "don alcides"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "BOAZ Shampoo Energy",
+      "content": "Shampoo Energy BOAZ por R$127,00.",
+      "keywords": [
+        "boaz",
+        "shampoo"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "BOAZ Shampoo Intensive",
+      "content": "Shampoo Intensive BOAZ por R$139,00.",
+      "keywords": [
+        "boaz",
+        "shampoo"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "BOAZ Condicionador Intensive",
+      "content": "Condicionador Intensive BOAZ por R$129,90.",
+      "keywords": [
+        "boaz",
+        "condicionador"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "BOAZ Nano Olium",
+      "content": "Nano Olium BOAZ em torno de R$125,00.",
+      "keywords": [
+        "boaz",
+        "oleo"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "Alice Difusor 200ml",
+      "content": "Difusores Alice da Venda 200mL por R$94,90.",
+      "keywords": [
+        "alice da venda",
+        "difusor"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "Alice Difusor 300ml",
+      "content": "Difusores 300mL por R$109,90.",
+      "keywords": [
+        "alice da venda",
+        "difusor"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "Alice Refil",
+      "content": "Refis de difusor por R$67,90.",
+      "keywords": [
+        "alice da venda",
+        "refil"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "Heineken",
+      "content": "Heineken por R$12,00.",
+      "keywords": [
+        "bebida",
+        "heineken"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "RedBull",
+      "content": "RedBull e RedBull Zero por R$15,00.",
+      "keywords": [
+        "bebida",
+        "redbull"
+      ]
+    },
+    {
+      "source": "products.md",
+      "section": "Guarana",
+      "content": "Guarana lata por R$6,00.",
+      "keywords": [
+        "bebida",
+        "refrigerante"
+      ]
+    },
+    {
+      "source": "client-classification.md",
+      "section": "Score bom",
+      "content": "Score acima de 80% recebe atendimento VIP.",
+      "keywords": [
+        "score",
+        "bom cliente",
+        "vip"
+      ]
+    },
+    {
+      "source": "client-classification.md",
+      "section": "Score neutro",
+      "content": "Faixa 50-80% recebe atendimento padrao com reclassificacao dinamica.",
+      "keywords": [
+        "score",
+        "neutro"
+      ]
+    },
+    {
+      "source": "client-classification.md",
+      "section": "Score mau",
+      "content": "Abaixo de 50% ativa barreiras e deposito.",
+      "keywords": [
+        "score",
+        "mau cliente",
+        "deposito"
+      ]
+    },
+    {
+      "source": "client-classification.md",
+      "section": "Etica",
+      "content": "Classificacao baseada apenas em comportamento de agenda.",
+      "keywords": [
+        "lgpd",
+        "etica"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Alinhamento Térmico - High Liss",
+      "content": "Alinhamento Térmico - High Liss: R$ 390,00 com duracao de 180 minutos.",
+      "keywords": [
+        "servico",
+        "alinhamento térmico - high liss",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Alongamento com molde F1",
+      "content": "Alongamento com molde F1: R$ 130,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "alongamento com molde f1",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Alongamento com Soft Gel",
+      "content": "Alongamento com Soft Gel: R$ 135,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "alongamento com soft gel",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Alongamento de unhas com fibra/tips",
+      "content": "Alongamento de unhas com fibra/tips: R$ 205,00 com duracao de 150 minutos.",
+      "keywords": [
+        "servico",
+        "alongamento de unhas com fibra/tips",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Avaliação",
+      "content": "Avaliação: R$ 0,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "avaliação",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Ação de junho - Barba",
+      "content": "Ação de junho - Barba: R$ 0,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "ação de junho - barba",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Ação de junho - Restore",
+      "content": "Ação de junho - Restore: R$ 0,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "ação de junho - restore",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Baby Liss / Cachos",
+      "content": "Baby Liss / Cachos: R$ 50,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "baby liss / cachos",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Banho de gel",
+      "content": "Banho de gel: R$ 140,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "banho de gel",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Barba com Máquina",
+      "content": "Barba com Máquina: R$ 60,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "barba com máquina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Brow Lamination",
+      "content": "Brow Lamination: R$ 155,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "brow lamination",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Cabelo e Barba",
+      "content": "Cabelo e Barba: R$ 130,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "cabelo e barba",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Coloração Global",
+      "content": "Coloração Global: R$ 235,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "coloração global",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Coloração Global (produto do cliente)",
+      "content": "Coloração Global (produto do cliente): R$ 160,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "coloração global (produto do cliente)",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Coloração Global Masculina",
+      "content": "Coloração Global Masculina: R$ 70,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "coloração global masculina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Contorno de Mechas",
+      "content": "Contorno de Mechas: R$ 380,00 com duracao de 180 minutos.",
+      "keywords": [
+        "servico",
+        "contorno de mechas",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Correção de Cor",
+      "content": "Correção de Cor: R$ 1047,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "correção de cor",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Corte de franja",
+      "content": "Corte de franja: R$ 0,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "corte de franja",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Corte Feminino",
+      "content": "Corte Feminino: R$ 180,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "corte feminino",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Corte Infantil Feminino",
+      "content": "Corte Infantil Feminino: R$ 180,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "corte infantil feminino",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Corte Infantil Masculino",
+      "content": "Corte Infantil Masculino: R$ 85,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "corte infantil masculino",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Corte Masculino",
+      "content": "Corte Masculino: R$ 85,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "corte masculino",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Cronograma Joico",
+      "content": "Cronograma Joico: R$ 230,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "cronograma joico",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Cronograma MED",
+      "content": "Cronograma MED: R$ 660,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "cronograma med",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Cronograma TRUSS",
+      "content": "Cronograma TRUSS: R$ 660,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "cronograma truss",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Decoração de unha em gel",
+      "content": "Decoração de unha em gel: R$ 0,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "decoração de unha em gel",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Depilação de Nariz",
+      "content": "Depilação de Nariz: R$ 47,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "depilação de nariz",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Depilação de Orelha",
+      "content": "Depilação de Orelha: R$ 47,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "depilação de orelha",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Depilação de pé",
+      "content": "Depilação de pé: R$ 10,50 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "depilação de pé",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Depilação Orelha + Nariz",
+      "content": "Depilação Orelha + Nariz: R$ 75,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "depilação orelha + nariz",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Descoloração de Sobrancelha",
+      "content": "Descoloração de Sobrancelha: R$ 65,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "descoloração de sobrancelha",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Descoloração Global Masculina",
+      "content": "Descoloração Global Masculina: R$ 345,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "descoloração global masculina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Design de Sobrancelha",
+      "content": "Design de Sobrancelha: R$ 50,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "design de sobrancelha",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Design de Sobrancelha com Cera",
+      "content": "Design de Sobrancelha com Cera: R$ 25,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "design de sobrancelha com cera",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Desmetalização - Truss",
+      "content": "Desmetalização - Truss: R$ 260,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "desmetalização - truss",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Epilação de buço",
+      "content": "Epilação de buço: R$ 45,00 com duracao de 10 minutos.",
+      "keywords": [
+        "servico",
+        "epilação de buço",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Epilação facial egípcia",
+      "content": "Epilação facial egípcia: R$ 55,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "epilação facial egípcia",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Escalda Pés",
+      "content": "Escalda Pés: R$ 45,00 com duracao de 40 minutos.",
+      "keywords": [
+        "servico",
+        "escalda pés",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Escova",
+      "content": "Escova: R$ 60,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "escova",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Escova Botox",
+      "content": "Escova Botox: R$ 275,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "escova botox",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Escova em MegaHair",
+      "content": "Escova em MegaHair: R$ 100,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "escova em megahair",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Escova Progressiva Feminina",
+      "content": "Escova Progressiva Feminina: R$ 315,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "escova progressiva feminina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Escova Progressiva Masculina",
+      "content": "Escova Progressiva Masculina: R$ 100,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "escova progressiva masculina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Esmaltação",
+      "content": "Esmaltação: R$ 27,00 com duracao de 50 minutos.",
+      "keywords": [
+        "servico",
+        "esmaltação",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Esmaltação em gel",
+      "content": "Esmaltação em gel: R$ 40,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "esmaltação em gel",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Esmaltação em gel com cutilagem",
+      "content": "Esmaltação em gel com cutilagem: R$ 90,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "esmaltação em gel com cutilagem",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Fort Brows - Reconstrução dos fios",
+      "content": "Fort Brows - Reconstrução dos fios: R$ 160,00 com duracao de 10 minutos.",
+      "keywords": [
+        "servico",
+        "fort brows - reconstrução dos fios",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Francesinha",
+      "content": "Francesinha: R$ 12,00 com duracao de 10 minutos.",
+      "keywords": [
+        "servico",
+        "francesinha",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Futura mamãe - Reconstrução BOAZ",
+      "content": "Futura mamãe - Reconstrução BOAZ: R$ 0,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "futura mamãe - reconstrução boaz",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Gorjeta ao profissional",
+      "content": "Gorjeta ao profissional: R$ 0,00 com duracao de 10 minutos.",
+      "keywords": [
+        "servico",
+        "gorjeta ao profissional",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Hidra Gloss",
+      "content": "Hidra Gloss: R$ 125,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "hidra gloss",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Hidratação BRAE",
+      "content": "Hidratação BRAE: R$ 110,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "hidratação brae",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Hidratação Penetraitt",
+      "content": "Hidratação Penetraitt: R$ 185,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "hidratação penetraitt",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Higienização + Secagem",
+      "content": "Higienização + Secagem: R$ 45,00 com duracao de 20 minutos.",
+      "keywords": [
+        "servico",
+        "higienização + secagem",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Lash Lifting",
+      "content": "Lash Lifting: R$ 155,00 com duracao de 80 minutos.",
+      "keywords": [
+        "servico",
+        "lash lifting",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Limpeza de cor",
+      "content": "Limpeza de cor: R$ 110,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "limpeza de cor",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Manicure",
+      "content": "Manicure: R$ 50,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "manicure",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Manicure e Pedicure",
+      "content": "Manicure e Pedicure: R$ 90,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "manicure e pedicure",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Manicure e Pedicure Masculina",
+      "content": "Manicure e Pedicure Masculina: R$ 90,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "manicure e pedicure masculina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Manicure Masculina",
+      "content": "Manicure Masculina: R$ 50,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "manicure masculina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Manutenção de prótese",
+      "content": "Manutenção de prótese: R$ 125,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "manutenção de prótese",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Manutenção do alongamento",
+      "content": "Manutenção do alongamento: R$ 140,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "manutenção do alongamento",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Manutenção do Molde F1",
+      "content": "Manutenção do Molde F1: R$ 110,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "manutenção do molde f1",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Manutenção do Soft Gel",
+      "content": "Manutenção do Soft Gel: R$ 115,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "manutenção do soft gel",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Manutenção no banho de gel",
+      "content": "Manutenção no banho de gel: R$ 110,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "manutenção no banho de gel",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Maquiagem",
+      "content": "Maquiagem: R$ 180,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "maquiagem",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Massagem corpo todo",
+      "content": "Massagem corpo todo: R$ 200,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "massagem corpo todo",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Massagem local",
+      "content": "Massagem local: R$ 150,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "massagem local",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Matização",
+      "content": "Matização: R$ 110,00 com duracao de 40 minutos.",
+      "keywords": [
+        "servico",
+        "matização",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Mechas",
+      "content": "Mechas: R$ 835,00 com duracao de 330 minutos.",
+      "keywords": [
+        "servico",
+        "mechas",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Mechas na Touca",
+      "content": "Mechas na Touca: R$ 370,00 com duracao de 300 minutos.",
+      "keywords": [
+        "servico",
+        "mechas na touca",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Nanopigmentação de barba",
+      "content": "Nanopigmentação de barba: R$ 750,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "nanopigmentação de barba",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Nanopigmentação de Sobrancelha",
+      "content": "Nanopigmentação de Sobrancelha: R$ 447,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "nanopigmentação de sobrancelha",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Nutrição Lowell",
+      "content": "Nutrição Lowell: R$ 110,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "nutrição lowell",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Ozonioterapia",
+      "content": "Ozonioterapia: R$ 25,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "ozonioterapia",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Pedicure",
+      "content": "Pedicure: R$ 55,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "pedicure",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Pedicure Masculina",
+      "content": "Pedicure Masculina: R$ 55,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "pedicure masculina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Penteado trança preso",
+      "content": "Penteado trança preso: R$ 280,00 com duracao de 100 minutos.",
+      "keywords": [
+        "servico",
+        "penteado trança preso",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Penteado trança semi preso",
+      "content": "Penteado trança semi preso: R$ 260,00 com duracao de 100 minutos.",
+      "keywords": [
+        "servico",
+        "penteado trança semi preso",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Pigmentação de Barba",
+      "content": "Pigmentação de Barba: R$ 55,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "pigmentação de barba",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Platinado",
+      "content": "Platinado: R$ 370,00 com duracao de 300 minutos.",
+      "keywords": [
+        "servico",
+        "platinado",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Progressiva vegana This Is",
+      "content": "Progressiva vegana This Is: R$ 390,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "progressiva vegana this is",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Queixo - epilação",
+      "content": "Queixo - epilação: R$ 25,00 com duracao de 10 minutos.",
+      "keywords": [
+        "servico",
+        "queixo - epilação",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Reconstrução Capilar TRUSS/MIRACLE",
+      "content": "Reconstrução Capilar TRUSS/MIRACLE: R$ 189,00 com duracao de 70 minutos.",
+      "keywords": [
+        "servico",
+        "reconstrução capilar truss/miracle",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Relaxamento Capilar Masculino",
+      "content": "Relaxamento Capilar Masculino: R$ 115,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "relaxamento capilar masculino",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Remoção da esmaltação em gel",
+      "content": "Remoção da esmaltação em gel: R$ 40,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "remoção da esmaltação em gel",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Remoção do alongamento de unha",
+      "content": "Remoção do alongamento de unha: R$ 60,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "remoção do alongamento de unha",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Reposição de unha avulsa",
+      "content": "Reposição de unha avulsa: R$ 25,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "reposição de unha avulsa",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Reposição de unha na manutenção",
+      "content": "Reposição de unha na manutenção: R$ 15,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "reposição de unha na manutenção",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Retoque de Raiz",
+      "content": "Retoque de Raiz: R$ 170,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "retoque de raiz",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Retoque de raiz (Produto do cliente)",
+      "content": "Retoque de raiz (Produto do cliente): R$ 110,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "retoque de raiz (produto do cliente)",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Retoque Micropigmentação",
+      "content": "Retoque Micropigmentação: R$ 105,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "retoque micropigmentação",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Sobrancelha na Navalha",
+      "content": "Sobrancelha na Navalha: R$ 25,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "sobrancelha na navalha",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "SPA dos Pés",
+      "content": "SPA dos Pés: R$ 60,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "spa dos pés",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Terere",
+      "content": "Terere: R$ 15,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "terere",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Teste de Mechas",
+      "content": "Teste de Mechas: R$ 0,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "teste de mechas",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Barba com Máquina",
+      "content": "Tiago - Barba com Máquina: R$ 65,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - barba com máquina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Cabelo e Barba",
+      "content": "Tiago - Cabelo e Barba: R$ 155,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - cabelo e barba",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Coloração Global",
+      "content": "Tiago - Coloração Global: R$ 280,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - coloração global",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Corte Feminino",
+      "content": "Tiago - Corte Feminino: R$ 190,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - corte feminino",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Corte Infantil Feminino",
+      "content": "Tiago - Corte Infantil Feminino: R$ 190,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - corte infantil feminino",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Corte Infantil Masculino",
+      "content": "Tiago - Corte Infantil Masculino: R$ 100,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - corte infantil masculino",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Corte Masculino",
+      "content": "Tiago - Corte Masculino: R$ 100,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - corte masculino",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Mechas",
+      "content": "Tiago - Mechas: R$ 925,00 com duracao de 300 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - mechas",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Morena Iluminada",
+      "content": "Tiago - Morena Iluminada: R$ 810,00 com duracao de 300 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - morena iluminada",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Progressiva Feminina",
+      "content": "Tiago - Progressiva Feminina: R$ 315,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - progressiva feminina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Progressiva Masculina",
+      "content": "Tiago - Progressiva Masculina: R$ 115,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - progressiva masculina",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tiago - Retoque de raiz",
+      "content": "Tiago - Retoque de raiz: R$ 198,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tiago - retoque de raiz",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tintura de cílios",
+      "content": "Tintura de cílios: R$ 50,00 com duracao de 10 minutos.",
+      "keywords": [
+        "servico",
+        "tintura de cílios",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tintura de sobrancelhas (Coloração)",
+      "content": "Tintura de sobrancelhas (Coloração): R$ 65,00 com duracao de 10 minutos.",
+      "keywords": [
+        "servico",
+        "tintura de sobrancelhas (coloração)",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tintura de sobrancelhas (Henna)",
+      "content": "Tintura de sobrancelhas (Henna): R$ 65,00 com duracao de 30 minutos.",
+      "keywords": [
+        "servico",
+        "tintura de sobrancelhas (henna)",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tonalização",
+      "content": "Tonalização: R$ 165,00 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "tonalização",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento de Limpeza Hidrofóbica",
+      "content": "Tratamento de Limpeza Hidrofóbica: R$ 189,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento de limpeza hidrofóbica",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento de Reconstrução Infusion TRUSS",
+      "content": "Tratamento de Reconstrução Infusion TRUSS: R$ 220,50 com duracao de 90 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento de reconstrução infusion truss",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento de retorno de mechas",
+      "content": "Tratamento de retorno de mechas: R$ 0,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento de retorno de mechas",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento Energy BOAZ",
+      "content": "Tratamento Energy BOAZ: R$ 175,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento energy boaz",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento Intensive",
+      "content": "Tratamento Intensive: R$ 189,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento intensive",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento Intensive + Nano Olium",
+      "content": "Tratamento Intensive + Nano Olium: R$ 400,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento intensive + nano olium",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento MED",
+      "content": "Tratamento MED: R$ 170,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento med",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento MED Basic",
+      "content": "Tratamento MED Basic: R$ 110,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento med basic",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento No Metal TRUSS",
+      "content": "Tratamento No Metal TRUSS: R$ 180,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento no metal truss",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Tratamento Restore BOAZ",
+      "content": "Tratamento Restore BOAZ: R$ 175,00 com duracao de 60 minutos.",
+      "keywords": [
+        "servico",
+        "tratamento restore boaz",
+        "preco"
+      ]
+    },
+    {
+      "source": "services.md",
+      "section": "Visagismo",
+      "content": "Visagismo: R$ 750,00 com duracao de 120 minutos.",
+      "keywords": [
+        "servico",
+        "visagismo",
+        "preco"
+      ]
+    }
+  ]
+}
