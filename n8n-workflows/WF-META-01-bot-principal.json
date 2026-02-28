@@ -1,5 +1,5 @@
 {
-  "name": "Studio Tirra — Bot Principal (Meta API + Trinks + TESS)",
+  "name": "Studio Tirra — Bot Principal v3 (Lean PACER + Trinks Dinamico)",
   "nodes": [
     {
       "parameters": {
@@ -46,7 +46,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extrai dados do payload Meta Cloud API\nconst body = $json.body ?? $json;\nconst change = body.entry?.[0]?.changes?.[0]?.value;\n\n// Ignora eventos sem mensagem (ex: status de entrega/leitura)\nif (!change?.messages?.length) {\n  return [{ json: { skip: true, reason: 'sem_mensagem' } }];\n}\n\nconst msg = change.messages[0];\n\n// Por enquanto so processa texto; imagens/audio ignorados\nif (msg.type !== 'text') {\n  return [{ json: { skip: true, reason: 'tipo_nao_suportado_' + msg.type } }];\n}\n\nconst from = msg.from;\nconst messageText = msg.text.body;\nconst messageId = msg.id;\nconst contactName = change.contacts?.[0]?.profile?.name || from;\nconst timestamp = msg.timestamp;\n\nreturn [{ json: { skip: false, from, messageText, messageId, contactName, timestamp } }];"
+        "jsCode": "const body = $json.body ?? $json;\nconst change = body.entry?.[0]?.changes?.[0]?.value;\n\nif (!change?.messages?.length) {\n  return [{ json: { skip: true, reason: 'sem_mensagem' } }];\n}\n\nconst msg = change.messages[0];\nif (msg.type !== 'text') {\n  return [{ json: { skip: true, reason: 'tipo_nao_suportado_' + msg.type } }];\n}\n\nreturn [{ json: {\n  skip: false,\n  from: msg.from,\n  messageText: msg.text.body,\n  messageId: msg.id,\n  contactName: change.contacts?.[0]?.profile?.name || msg.from,\n  timestamp: msg.timestamp\n} }];"
       },
       "id": "parse_meta_payload",
       "name": "Parse Payload Meta",
@@ -57,12 +57,7 @@
     {
       "parameters": {
         "conditions": {
-          "boolean": [
-            {
-              "value1": "={{ $json.skip }}",
-              "operation": "isTrue"
-            }
-          ]
+          "boolean": [{ "value1": "={{ $json.skip }}", "operation": "isTrue" }]
         }
       },
       "id": "if_skip",
@@ -72,9 +67,7 @@
       "position": [-920, 100]
     },
     {
-      "parameters": {
-        "jsCode": "// Status update ou tipo nao suportado — encerra sem erro\nreturn [];"
-      },
+      "parameters": { "jsCode": "return [];" },
       "id": "noop_skip",
       "name": "Ignorar (sem acao)",
       "type": "n8n-nodes-base.code",
@@ -88,35 +81,49 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "X-Api-Key",
-              "value": "O808z7HPzj4zFP0Y0j303xo4w315F2P6QslLUrr7"
-            },
-            {
-              "name": "estabelecimentoId",
-              "value": "243868"
-            }
+            { "name": "X-Api-Key", "value": "O808z7HPzj4zFP0Y0j303xo4w315F2P6QslLUrr7" },
+            { "name": "estabelecimentoId", "value": "243868" }
           ]
         },
-        "options": {
-          "timeout": 10000
-        }
+        "options": { "timeout": 10000 }
       },
       "id": "fetch_trinks_slots",
-      "name": "Buscar Horarios Trinks (Hoje)",
+      "name": "Trinks: Horarios Hoje",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-680, 100]
+      "position": [-680, 0],
+      "notes": "GET /v1/agendamentos/profissionais/{data} — horarios vagos"
     },
     {
       "parameters": {
-        "jsCode": "// Combina dados do Parse Payload Meta com horarios do Trinks\nconst source = $('Parse Payload Meta').item.json;\nconst trinks = $json;\n\n// Formata horarios vagos de forma legivel para o TESS\nlet slotsText = 'HORARIOS VAGOS HOJE:\\n';\nlet hasSlots = false;\n\nif (trinks.data && Array.isArray(trinks.data)) {\n  for (const prof of trinks.data) {\n    if (prof.horariosVagos && prof.horariosVagos.length > 0) {\n      hasSlots = true;\n      slotsText += `- ${prof.nome}: ${prof.horariosVagos.join(', ')}\\n`;\n    }\n  }\n}\n\nif (!hasSlots) {\n  slotsText = 'HORARIOS VAGOS HOJE: Nenhum horario disponivel para hoje. Sugira ao cliente verificar outro dia.';\n}\n\nreturn [{ json: { ...source, availableSlots: slotsText } }];"
+        "method": "GET",
+        "url": "https://api.trinks.com/v1/profissionais",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Api-Key", "value": "O808z7HPzj4zFP0Y0j303xo4w315F2P6QslLUrr7" },
+            { "name": "estabelecimentoId", "value": "243868" }
+          ]
+        },
+        "options": { "timeout": 10000 }
       },
-      "id": "format_trinks_slots",
-      "name": "Formatar Horarios Trinks",
+      "id": "fetch_trinks_profissionais",
+      "name": "Trinks: Profissionais",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-680, 160],
+      "notes": "GET /v1/profissionais — lista de profissionais ativos"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta contexto dinamico compacto a partir dos dados Trinks\nconst source = $('Parse Payload Meta').item.json;\nconst slotsRaw = $('Trinks: Horarios Hoje').item.json;\nconst profsRaw = $('Trinks: Profissionais').item.json;\n\n// === SLOTS ===\nlet slots = '';\nif (slotsRaw.data && Array.isArray(slotsRaw.data)) {\n  const today = new Date().toISOString().split('T')[0];\n  const available = slotsRaw.data.filter(p => p.horariosVagos?.length > 0);\n  if (available.length > 0) {\n    slots = `HORARIOS VAGOS ${today}:\\n`;\n    for (const p of available) {\n      slots += `- ${p.nome}: ${p.horariosVagos.join(', ')}\\n`;\n    }\n  } else {\n    slots = `HORARIOS VAGOS ${today}: Nenhum disponivel hoje.`;\n  }\n} else {\n  slots = 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';\n}\n\n// === PROFISSIONAIS (compacto: nome | funcao) ===\nlet profs = '';\nif (profsRaw.data && Array.isArray(profsRaw.data)) {\n  profs = 'PROFISSIONAIS ATIVOS:\\n';\n  for (const p of profsRaw.data) {\n    const nome = p.apelido || p.nome;\n    profs += `- ${nome} (ID ${p.id})\\n`;\n  }\n} else {\n  profs = 'PROFISSIONAIS: Erro ao consultar.';\n}\n\nreturn [{ json: {\n  ...source,\n  dynamicContext: `${slots}\\n${profs}`\n} }];"
+      },
+      "id": "build_context",
+      "name": "Montar Contexto Dinamico",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-440, 100]
+      "position": [-380, 100],
+      "notes": "Combina slots + profissionais em texto compacto para injetar no TESS"
     },
     {
       "parameters": {
@@ -125,80 +132,65 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer 549342|5G44besREWO7WTTYPtO3gD56yiPINZGZIhGmnpiE598d9fa6"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "Authorization", "value": "Bearer 549342|5G44besREWO7WTTYPtO3gD56yiPINZGZIhGmnpiE598d9fa6" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  messages: [\n    {\n      role: 'system',\n      content: 'Voce e a Assistente Virtual do Studio Tirra: empatica, proativa, consultiva e objetiva. Supervisor humano: Gabriel Rocha Ferreira. Fale sempre em portugues brasileiro, com tom acolhedor e profissional.\\n\\nINFORMACOES DO SALAO:\\n- Endereco: Rua Espirito Santo, 385 - Santo Antonio, Sao Caetano do Sul/SP\\n- Estacionamento: Sim, subir rampa lateral\\n- Horario: Terca a Sexta 9h-19h | Sabado 9h-18h | Fechado Dom e Seg\\n- Pagamento: Cartao credito/debito, PIX, Dinheiro\\n- Instagram: @studiotirra\\n\\nPROFISSIONAIS:\\n- Tiago Rocha (ID 818965): Dono/Hair Stylist Premium. Corte, coloracao, mechas, visagismo. Folga quarta. Tabela premium.\\n- Andre de Oliveira (ID 827200): Gestor/Barbeiro Premium. Corte masc, barba. Tabela premium masculina.\\n- Erick Barros (ID 827204): Barbeiro. Corte masc, barba.\\n- Eli/Eliane (ID 828191): Hair Stylist/Nails. Corte, escova, coloracao, manicure/pedicure.\\n- Maluzinha/Maria Luiza (ID 828199): Manicure/Nail Designer.\\n- Giovanna Ferraz (ID 827192): Esteticista/Sobrancelha. Sobrancelha, lash lifting, depilacao.\\n- Jackie/Jaqueline (ID 827187): Manicure.\\n- Fernanda/Fefe (ID 826936): Hair Stylist. Corte, escova, tratamentos.\\n- Gabriel Rocha (ID 827194): Supervisor. Escalacao humana.\\n\\nSERVICOS PRINCIPAIS (R$):\\nCorte Fem R$180 (Tiago R$190) | Corte Masc R$85 (Tiago/Andre R$100) | Barba R$60 (Tiago R$65) | Cabelo+Barba R$130 (Tiago R$155) | Coloracao Global R$235 (Tiago R$280) | Mechas R$835 (Tiago R$925) | Progressiva Fem R$315 | Progressiva Masc R$100 | Escova R$60 | Manicure R$50 | Pedicure R$55 | Mani+Pedi R$90 | Design Sobrancelha R$50 | Brow Lamination R$155 | Lash Lifting R$155 | Visagismo R$750 (3x s/ juros) | Corte franja GRATIS | Avaliacao GRATIS | Teste Mechas GRATIS\\nTerca/quarta: precos promocionais em servicos selecionados.\\n\\nREGRAS:\\n- NUNCA inventar horario — usar apenas dados de AVAILABLE_SLOTS abaixo\\n- Novo cliente: coletar nome, celular, email, nascimento, servico, profissional\\n- Confirmacao tripla obrigatoria antes de finalizar agendamento\\n- Mensagem final: endereco + estacionamento + valor\\n- Visagismo/Mechas: fluxo consultivo (nao abrir com preco, oferecer Teste de Mechas gratis)\\n- Escalar para Gabriel: conflito de agenda, reclamacao, pedido de humano, recomendacao subjetiva\\n\\nQUANDO PRECISAR AGENDAR, retorne:\\n[BOOKING_REQUEST]\\n{\"action\":\"check_availability\",\"date\":\"YYYY-MM-DD\",\"professional_id\":null,\"service\":\"nome\"}\\n\\nQUANDO CLIENTE CONFIRMAR HORARIO:\\n[BOOKING_CONFIRM]\\n{\"action\":\"create_booking\",\"client_name\":\"Nome\",\"client_phone\":\"5511...\",\"professional_id\":818965,\"service_name\":\"Corte\",\"date_time\":\"2026-03-01T10:00:00\",\"duration_minutes\":60}\\n\\nO n8n intercepta essas tags e executa na API Trinks automaticamente.\\n\\n' + $json.availableSlots\n    },\n    {\n      role: 'user',\n      content: $json.messageText\n    }\n  ],\n  wait_execution: true\n}) }}"
+        "body": "={{ JSON.stringify({\n  messages: [\n    {\n      role: 'system',\n      content: 'Voce e a Assistente Virtual do Studio Tirra, salao premium em Sao Caetano do Sul/SP. Empatica, proativa, consultiva. Supervisor: Gabriel Rocha. Tom caloroso, emojis moderados (😊 ✌🏻 😉).\\n\\nINFO FIXA: Endereco R. Espirito Santo, 385 - Santo Antonio, SCS/SP | Estacionamento: rampa lateral | Horario: Ter-Sex 9h-19h, Sab 9h-18h | Pagamento: Cartao/PIX/Dinheiro | @studiotirra | Ter-Qua precos promocionais\\n\\nREGRAS:\\n- NUNCA inventar horario/preco — usar APENAS dados abaixo\\n- Mechas: NAO dar preco, oferecer Teste de Mechas gratuito primeiro\\n- Visagismo: fluxo consultivo (entender objetivo → explicar → so depois preco R$750 3x s/juros)\\n- Novo cliente: coletar nome, celular, email, nascimento\\n- Confirmacao tripla antes de agendar\\n- Msg final: endereco + estacionamento + valor\\n- Escalar p/ Gabriel: reclamacao, conflito agenda, pedido de humano, recomendacao subjetiva\\n- SE sem horarios → \"Me fala qual dia voce prefere que eu verifico!\"\\n\\nPara solicitar consulta de horarios, retorne: [BOOKING_REQUEST]{\"action\":\"check_availability\",\"date\":\"YYYY-MM-DD\",\"professional_id\":null}\\nPara confirmar booking: [BOOKING_CONFIRM]{\"action\":\"create_booking\",\"client_name\":\"...\",\"professional_id\":123,\"service_name\":\"...\",\"date_time\":\"...\",\"duration_minutes\":60}\\n\\n--- DADOS TEMPO REAL (Trinks API) ---\\n' + $json.dynamicContext\n    },\n    {\n      role: 'user',\n      content: $json.messageText\n    }\n  ],\n  wait_execution: true\n}) }}"
       },
       "id": "call_tess",
-      "name": "Chamar TESS (Agente 33200)",
+      "name": "TESS (Agente 33200)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-200, 100]
+      "position": [-100, 100],
+      "notes": "System prompt LEAN (~800 tokens fixo) + contexto dinamico variavel"
     },
     {
       "parameters": {
-        "jsCode": "// Extrai o texto da resposta do TESS e detecta tags de booking\nconst raw = $json;\nconst source = $('Parse Payload Meta').item.json;\n\nlet response = '';\n\n// Tenta diferentes formatos de resposta TESS\nif (typeof raw === 'string') {\n  response = raw;\n} else if (raw.output && typeof raw.output === 'string') {\n  response = raw.output;\n} else if (raw.choices?.[0]?.message?.content) {\n  response = raw.choices[0].message.content;\n} else if (raw.response && typeof raw.response === 'string') {\n  response = raw.response;\n} else if (raw.text && typeof raw.text === 'string') {\n  response = raw.text;\n} else if (raw.content && typeof raw.content === 'string') {\n  response = raw.content;\n} else if (Array.isArray(raw.content) && raw.content[0]?.text) {\n  response = raw.content[0].text;\n}\n\nif (!response) {\n  response = 'Ola! Estou com uma dificuldade tecnica no momento. Nosso atendimento humano entrara em contato em breve. Obrigado!';\n}\n\nresponse = response.trim();\n\n// Detecta tags de booking\nlet bookingRequest = null;\nlet bookingConfirm = null;\nlet clientMessage = response;\n\n// Detecta [BOOKING_REQUEST]\nconst reqMatch = response.match(/\\[BOOKING_REQUEST\\]\\s*\\n?({[\\s\\S]*?})/i);\nif (reqMatch) {\n  try {\n    bookingRequest = JSON.parse(reqMatch[1]);\n    clientMessage = response.replace(/\\[BOOKING_REQUEST\\]\\s*\\n?{[\\s\\S]*?}/i, '').trim();\n  } catch (e) { /* ignora parse error */ }\n}\n\n// Detecta [BOOKING_CONFIRM]\nconst confMatch = response.match(/\\[BOOKING_CONFIRM\\]\\s*\\n?({[\\s\\S]*?})/i);\nif (confMatch) {\n  try {\n    bookingConfirm = JSON.parse(confMatch[1]);\n    clientMessage = response.replace(/\\[BOOKING_CONFIRM\\]\\s*\\n?{[\\s\\S]*?}/i, '').trim();\n  } catch (e) { /* ignora parse error */ }\n}\n\n// Se nao sobrou mensagem para o cliente apos remover tags, manter a original\nif (!clientMessage) {\n  clientMessage = response;\n}\n\nreturn [{ json: {\n  ...source,\n  tessResponse: clientMessage,\n  bookingRequest,\n  bookingConfirm,\n  hasBookingAction: !!(bookingRequest || bookingConfirm)\n} }];"
+        "jsCode": "const raw = $json;\nconst source = $('Parse Payload Meta').item.json;\n\nlet response = '';\nif (typeof raw === 'string') response = raw;\nelse if (raw.output) response = String(raw.output);\nelse if (raw.choices?.[0]?.message?.content) response = raw.choices[0].message.content;\nelse if (raw.response) response = String(raw.response);\nelse if (raw.text) response = String(raw.text);\nelse if (typeof raw.content === 'string') response = raw.content;\nelse if (Array.isArray(raw.content) && raw.content[0]?.text) response = raw.content[0].text;\n\nif (!response) {\n  return [{ json: { ...source, tessResponse: 'Ola! Estou com uma dificuldade tecnica. Nosso atendimento humano entrara em contato em breve!', hasBookingAction: false } }];\n}\n\nresponse = response.trim();\nlet bookingRequest = null, bookingConfirm = null, clientMessage = response;\n\nconst reqMatch = response.match(/\\[BOOKING_REQUEST\\]\\s*\\n?({[\\s\\S]*?})/i);\nif (reqMatch) {\n  try { bookingRequest = JSON.parse(reqMatch[1]); clientMessage = response.replace(reqMatch[0], '').trim(); } catch(e) {}\n}\n\nconst confMatch = response.match(/\\[BOOKING_CONFIRM\\]\\s*\\n?({[\\s\\S]*?})/i);\nif (confMatch) {\n  try { bookingConfirm = JSON.parse(confMatch[1]); clientMessage = clientMessage.replace(confMatch[0], '').trim(); } catch(e) {}\n}\n\nreturn [{ json: {\n  ...source,\n  tessResponse: clientMessage || response,\n  bookingRequest, bookingConfirm,\n  hasBookingAction: !!(bookingRequest || bookingConfirm)\n} }];"
       },
       "id": "parse_tess_response",
       "name": "Parse Resposta TESS",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [40, 100]
+      "position": [140, 100]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [
-            {
-              "value1": "={{ $json.hasBookingAction }}",
-              "operation": "isTrue"
-            }
-          ]
+          "boolean": [{ "value1": "={{ $json.hasBookingAction }}", "operation": "isTrue" }]
         }
       },
       "id": "if_booking",
       "name": "Tem Booking?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [280, 100]
+      "position": [380, 100]
     },
     {
       "parameters": {
-        "jsCode": "// Processa acao de booking na API Trinks\nconst data = $json;\nconst TRINKS_API = 'https://api.trinks.com/v1';\nconst TRINKS_KEY = 'O808z7HPzj4zFP0Y0j303xo4w315F2P6QslLUrr7';\n\nlet bookingResult = null;\nlet bookingError = null;\n\ntry {\n  if (data.bookingRequest && data.bookingRequest.action === 'check_availability') {\n    // Busca horarios para a data solicitada\n    const date = data.bookingRequest.date;\n    const resp = await fetch(`${TRINKS_API}/agendamentos/profissionais/${date}`, {\n      headers: {\n        'X-Api-Key': TRINKS_KEY,\n        'estabelecimentoId': '243868'\n      }\n    });\n    const result = await resp.json();\n\n    let slotsText = `HORARIOS VAGOS PARA ${date}:\\n`;\n    let hasSlots = false;\n\n    if (result.data && Array.isArray(result.data)) {\n      for (const prof of result.data) {\n        // Filtra por profissional se especificado\n        if (data.bookingRequest.professional_id && prof.id !== data.bookingRequest.professional_id) continue;\n        if (prof.horariosVagos && prof.horariosVagos.length > 0) {\n          hasSlots = true;\n          slotsText += `- ${prof.nome}: ${prof.horariosVagos.join(', ')}\\n`;\n        }\n      }\n    }\n\n    if (!hasSlots) {\n      slotsText += 'Nenhum horario disponivel para esta data.';\n    }\n\n    bookingResult = { type: 'availability', slots: slotsText };\n\n  } else if (data.bookingConfirm && data.bookingConfirm.action === 'create_booking') {\n    // Por enquanto: registra intencao de booking (POST requer ServicoEstabelecimentoId)\n    // TODO: Mapear servicos via GET /v1/servicos quando IDs forem coletados\n    bookingResult = {\n      type: 'booking_pending',\n      message: `Agendamento registrado para ${data.bookingConfirm.client_name}: ${data.bookingConfirm.service_name} em ${data.bookingConfirm.date_time} com profissional ID ${data.bookingConfirm.professional_id}. NOTA: Booking automatico pendente — ServicoEstabelecimentoId necessario.`\n    };\n  }\n} catch (err) {\n  bookingError = err.message;\n}\n\nreturn [{ json: {\n  ...data,\n  bookingResult,\n  bookingError,\n  // Se temos novos slots, precisamos chamar TESS novamente com o contexto\n  needsSecondCall: bookingResult?.type === 'availability'\n} }];"
+        "jsCode": "const data = $json;\nconst TRINKS = 'https://api.trinks.com/v1';\nconst KEY = 'O808z7HPzj4zFP0Y0j303xo4w315F2P6QslLUrr7';\nconst headers = { 'X-Api-Key': KEY, 'estabelecimentoId': '243868' };\n\nlet result = null;\ntry {\n  if (data.bookingRequest?.action === 'check_availability') {\n    const date = data.bookingRequest.date;\n    const resp = await fetch(`${TRINKS}/agendamentos/profissionais/${date}`, { headers });\n    const json = await resp.json();\n    let txt = `HORARIOS ${date}:\\n`;\n    let found = false;\n    if (json.data) {\n      for (const p of json.data) {\n        if (data.bookingRequest.professional_id && p.id !== data.bookingRequest.professional_id) continue;\n        if (p.horariosVagos?.length) {\n          found = true;\n          txt += `- ${p.nome}: ${p.horariosVagos.join(', ')}\\n`;\n        }\n      }\n    }\n    if (!found) txt += 'Nenhum horario disponivel.';\n    result = { type: 'availability', slots: txt };\n  } else if (data.bookingConfirm?.action === 'create_booking') {\n    result = { type: 'booking_pending', message: `Booking para ${data.bookingConfirm.client_name}: ${data.bookingConfirm.service_name} em ${data.bookingConfirm.date_time}. Pendente ServicoEstabelecimentoId.` };\n  }\n} catch (err) {\n  result = { type: 'error', message: err.message };\n}\n\nreturn [{ json: { ...data, bookingResult: result, needsSecondCall: result?.type === 'availability' } }];"
       },
       "id": "execute_booking",
       "name": "Executar Booking Trinks",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [520, -20]
+      "position": [620, -20]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [
-            {
-              "value1": "={{ $json.needsSecondCall }}",
-              "operation": "isTrue"
-            }
-          ]
+          "boolean": [{ "value1": "={{ $json.needsSecondCall }}", "operation": "isTrue" }]
         }
       },
       "id": "if_needs_second_call",
-      "name": "Precisa 2a Chamada TESS?",
+      "name": "Precisa 2a Chamada?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [760, -20]
+      "position": [860, -20]
     },
     {
       "parameters": {
@@ -207,36 +199,31 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer 549342|5G44besREWO7WTTYPtO3gD56yiPINZGZIhGmnpiE598d9fa6"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "Authorization", "value": "Bearer 549342|5G44besREWO7WTTYPtO3gD56yiPINZGZIhGmnpiE598d9fa6" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\n  messages: [\n    {\n      role: 'system',\n      content: 'Voce e a Assistente Virtual do Studio Tirra. O cliente perguntou sobre agendamento. Abaixo estao os horarios disponiveis que voce consultou. Apresente as opcoes de forma clara e acolhedora. NUNCA invente horarios — use apenas os dados abaixo.\\n\\n' + $json.bookingResult.slots\n    },\n    {\n      role: 'user',\n      content: $json.messageText\n    }\n  ],\n  wait_execution: true\n}) }}"
+        "body": "={{ JSON.stringify({\n  messages: [\n    {\n      role: 'system',\n      content: 'Voce e a Assistente do Studio Tirra. Apresente os horarios abaixo de forma clara e acolhedora. NUNCA invente horarios. Use emojis moderados.\\n\\n' + $json.bookingResult.slots\n    },\n    { role: 'user', content: $json.messageText }\n  ],\n  wait_execution: true\n}) }}"
       },
       "id": "call_tess_with_slots",
-      "name": "TESS com Horarios (2a chamada)",
+      "name": "TESS: Apresentar Horarios",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1000, -140]
+      "position": [1100, -140],
+      "notes": "2a chamada TESS — prompt ultra-lean (~100 tokens) + slots especificos"
     },
     {
       "parameters": {
-        "jsCode": "// Extrai resposta da 2a chamada TESS (com horarios)\nconst raw = $json;\nconst source = $('Parse Payload Meta').item.json;\n\nlet response = '';\nif (typeof raw === 'string') response = raw;\nelse if (raw.output) response = raw.output;\nelse if (raw.choices?.[0]?.message?.content) response = raw.choices[0].message.content;\nelse if (raw.response) response = raw.response;\nelse if (raw.text) response = raw.text;\nelse if (raw.content && typeof raw.content === 'string') response = raw.content;\nelse if (Array.isArray(raw.content) && raw.content[0]?.text) response = raw.content[0].text;\n\nif (!response) response = 'Vou verificar os horarios disponiveis e ja te retorno!';\n\n// Remove eventuais tags de booking da resposta\nresponse = response.replace(/\\[BOOKING_REQUEST\\]\\s*\\n?{[\\s\\S]*?}/gi, '').trim();\nresponse = response.replace(/\\[BOOKING_CONFIRM\\]\\s*\\n?{[\\s\\S]*?}/gi, '').trim();\n\nreturn [{ json: { ...source, tessResponse: response } }];"
+        "jsCode": "const raw = $json;\nconst source = $('Parse Payload Meta').item.json;\nlet r = '';\nif (typeof raw === 'string') r = raw;\nelse if (raw.output) r = String(raw.output);\nelse if (raw.choices?.[0]?.message?.content) r = raw.choices[0].message.content;\nelse if (raw.response) r = String(raw.response);\nelse if (raw.text) r = String(raw.text);\nelse if (typeof raw.content === 'string') r = raw.content;\nelse if (Array.isArray(raw.content) && raw.content[0]?.text) r = raw.content[0].text;\nif (!r) r = 'Vou verificar e ja te retorno!';\nr = r.replace(/\\[BOOKING_(?:REQUEST|CONFIRM)\\]\\s*\\n?{[\\s\\S]*?}/gi, '').trim();\nreturn [{ json: { ...source, tessResponse: r } }];"
       },
       "id": "parse_tess_slots_response",
-      "name": "Parse Resposta TESS (Slots)",
+      "name": "Parse Resposta (Slots)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1240, -140]
+      "position": [1340, -140]
     },
     {
       "parameters": {
@@ -245,14 +232,8 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer [SEU_META_ACCESS_TOKEN]"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "Authorization", "value": "Bearer [SEU_META_ACCESS_TOKEN]" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
@@ -264,50 +245,42 @@
       "name": "Enviar Resposta (Meta API)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1480, 100]
+      "position": [1580, 100]
     }
   ],
   "connections": {
     "Meta Verificacao (GET)": {
-      "main": [
-        [{ "node": "Responder hub.challenge", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Responder hub.challenge", "type": "main", "index": 0 }]]
     },
     "Meta Mensagens (POST)": {
-      "main": [
-        [{ "node": "Parse Payload Meta", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Parse Payload Meta", "type": "main", "index": 0 }]]
     },
     "Parse Payload Meta": {
-      "main": [
-        [{ "node": "Ignorar?", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Ignorar?", "type": "main", "index": 0 }]]
     },
     "Ignorar?": {
       "main": [
         [{ "node": "Ignorar (sem acao)", "type": "main", "index": 0 }],
-        [{ "node": "Buscar Horarios Trinks (Hoje)", "type": "main", "index": 0 }]
+        [
+          { "node": "Trinks: Horarios Hoje", "type": "main", "index": 0 },
+          { "node": "Trinks: Profissionais", "type": "main", "index": 0 }
+        ]
       ]
     },
-    "Buscar Horarios Trinks (Hoje)": {
-      "main": [
-        [{ "node": "Formatar Horarios Trinks", "type": "main", "index": 0 }]
-      ]
+    "Trinks: Horarios Hoje": {
+      "main": [[{ "node": "Montar Contexto Dinamico", "type": "main", "index": 0 }]]
     },
-    "Formatar Horarios Trinks": {
-      "main": [
-        [{ "node": "Chamar TESS (Agente 33200)", "type": "main", "index": 0 }]
-      ]
+    "Trinks: Profissionais": {
+      "main": [[{ "node": "Montar Contexto Dinamico", "type": "main", "index": 0 }]]
     },
-    "Chamar TESS (Agente 33200)": {
-      "main": [
-        [{ "node": "Parse Resposta TESS", "type": "main", "index": 0 }]
-      ]
+    "Montar Contexto Dinamico": {
+      "main": [[{ "node": "TESS (Agente 33200)", "type": "main", "index": 0 }]]
+    },
+    "TESS (Agente 33200)": {
+      "main": [[{ "node": "Parse Resposta TESS", "type": "main", "index": 0 }]]
     },
     "Parse Resposta TESS": {
-      "main": [
-        [{ "node": "Tem Booking?", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Tem Booking?", "type": "main", "index": 0 }]]
     },
     "Tem Booking?": {
       "main": [
@@ -316,25 +289,19 @@
       ]
     },
     "Executar Booking Trinks": {
-      "main": [
-        [{ "node": "Precisa 2a Chamada TESS?", "type": "main", "index": 0 }]
-      ]
+      "main": [[{ "node": "Precisa 2a Chamada?", "type": "main", "index": 0 }]]
     },
-    "Precisa 2a Chamada TESS?": {
+    "Precisa 2a Chamada?": {
       "main": [
-        [{ "node": "TESS com Horarios (2a chamada)", "type": "main", "index": 0 }],
+        [{ "node": "TESS: Apresentar Horarios", "type": "main", "index": 0 }],
         [{ "node": "Enviar Resposta (Meta API)", "type": "main", "index": 0 }]
       ]
     },
-    "TESS com Horarios (2a chamada)": {
-      "main": [
-        [{ "node": "Parse Resposta TESS (Slots)", "type": "main", "index": 0 }]
-      ]
+    "TESS: Apresentar Horarios": {
+      "main": [[{ "node": "Parse Resposta (Slots)", "type": "main", "index": 0 }]]
     },
-    "Parse Resposta TESS (Slots)": {
-      "main": [
-        [{ "node": "Enviar Resposta (Meta API)", "type": "main", "index": 0 }]
-      ]
+    "Parse Resposta (Slots)": {
+      "main": [[{ "node": "Enviar Resposta (Meta API)", "type": "main", "index": 0 }]]
     }
   },
   "settings": {
@@ -347,6 +314,6 @@
   "id": "WF-META-01-bot-principal",
   "meta": {
     "templateCredsSetupCompleted": false,
-    "notes": "WORKFLOW v2 — COM INTEGRACAO TRINKS API\n\nFLUXO:\n1. Meta Webhook recebe mensagem\n2. Parse payload (ignora status/non-text)\n3. Busca horarios vagos do dia na API Trinks\n4. Formata slots e injeta no context do TESS\n5. TESS responde com KB completo + horarios reais\n6. Parse detecta tags [BOOKING_REQUEST] ou [BOOKING_CONFIRM]\n7. Se booking: executa na API Trinks + 2a chamada TESS com resultados\n8. Envia resposta final ao cliente via Meta API\n\nPLACEHOLDERS A PREENCHER ANTES DE ATIVAR:\n1. Node 'Enviar Resposta (Meta API)': substitua [SEU_META_PHONE_NUMBER_ID]\n2. Header 'Authorization' do mesmo node: substitua [SEU_META_ACCESS_TOKEN]\n\nTRINKS API:\n- API Key: O808z7HPzj4zFP0Y0j303xo4w315F2P6QslLUrr7\n- Estabelecimento: 243868\n- Rate limits: 60 req/min, 5000 req/mes\n\nBOOKING AUTOMATICO:\n- check_availability: funciona 100%\n- create_booking: pendente ServicoEstabelecimentoId (coletar via GET /v1/servicos)\n\nVERIFY TOKEN META: studio-tirra-verify-2026\nWEBHOOK URL META: https://paretogroup.app.n8n.cloud/webhook/meta-webhook"
+    "notes": "WORKFLOW v3 — LEAN PACER + TRINKS DINAMICO\n\nARQUITETURA DE CUSTO:\n- System prompt fixo: ~800 tokens (comportamento/regras apenas)\n- Contexto dinamico: ~200-400 tokens (slots + profissionais da API)\n- Total por chamada: ~1000-1200 tokens (vs ~4000 da v1)\n- Economia: ~70% por chamada TESS\n\nFLUXO:\n1. Meta Webhook recebe mensagem\n2. Parse payload (ignora status/non-text)\n3. Em PARALELO: busca slots + profissionais na API Trinks\n4. Monta contexto dinamico compacto\n5. TESS responde com prompt lean + dados tempo real\n6. Parse detecta tags [BOOKING_REQUEST] ou [BOOKING_CONFIRM]\n7. Se booking: executa na Trinks + 2a chamada TESS ultra-lean\n8. Envia resposta final via Meta API\n\nPLACEHOLDERS:\n- [SEU_META_PHONE_NUMBER_ID] no node 'Enviar Resposta'\n- [SEU_META_ACCESS_TOKEN] no mesmo node\n\nNOTA: Catalogo de servicos com precos deve ser configurado como KB no TESS dashboard (tess.im/dashboard > Agent 33200 > Knowledge Base), NAO no system prompt.\n\nVERIFY TOKEN META: studio-tirra-verify-2026\nWEBHOOK URL: https://paretogroup.app.n8n.cloud/webhook/meta-webhook"
   }
 }
