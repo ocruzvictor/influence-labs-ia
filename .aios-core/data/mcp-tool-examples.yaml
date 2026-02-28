@@ -198,7 +198,69 @@ tools:
         expected: "Returns list of circular dependency chains if any"
 
   # ---------------------------------------------------------------------------
-  # 10. docker-gateway — MCP infrastructure (Tier 2, 1 profile + infra)
+  # 10. memory — Persistent knowledge graph (Tier 3, session-spanning)
+  # ---------------------------------------------------------------------------
+  memory:
+    tier: 3
+    essential: false
+    profiles: [analyst, architect, aios-master]
+    note: "Use to persist entities, decisions, and observations across sessions — eliminates context repetition"
+    examples:
+      - description: "Store a new project entity with initial observations"
+        input:
+          tool: create_entities
+          entities:
+            - name: "StudioTirra"
+              entityType: "project"
+              observations:
+                - "Beta client of Influence Labs"
+                - "Stack: Evolution API + n8n + Chatwoot + Claude"
+                - "Booking via Trinks API"
+        expected: "Creates StudioTirra entity in knowledge graph with observations"
+      - description: "Search for existing context before starting a session"
+        input:
+          tool: search_nodes
+          query: "Studio Tirra WhatsApp booking flow decisions"
+        expected: "Returns relevant entities and their observations matching the query"
+      - description: "Add new observation to existing entity after work"
+        input:
+          tool: add_observations
+          observations:
+            - entityName: "StudioTirra"
+              contents:
+                - "Deploy guide completed: docs/deploy/deploy-guide.md"
+                - "Beta cost estimate: R$77-152/month"
+        expected: "Appends new facts to StudioTirra entity without overwriting existing ones"
+
+  # ---------------------------------------------------------------------------
+  # 11. sequential-thinking — Structured reasoning chains (Tier 3, complex tasks)
+  # ---------------------------------------------------------------------------
+  sequential-thinking:
+    tier: 3
+    essential: false
+    profiles: [architect, qa, analyst]
+    note: "Use for problems with 3+ constraints or trade-offs — reduces alucinação on complex decisions"
+    examples:
+      - description: "Reason through architectural trade-off before recommending"
+        input:
+          tool: sequentialthinking
+          thought: "Problem: Studio Tirra needs Trinks webhook integration. Constraints: n8n self-hosted needs HTTPS, Evolution API needs endpoint. Let me analyze the options."
+          thoughtNumber: 1
+          totalThoughtsEstimate: 4
+          nextThoughtNeeded: true
+        expected: "Processes first reasoning step, returns structured thought for continuation"
+      - description: "Revise earlier reasoning when new constraint found"
+        input:
+          tool: sequentialthinking
+          thought: "Correction on thought 2: self-hosted n8n does NOT expose HTTPS by default. Need nginx reverse proxy or use n8n Cloud. This changes the VPS setup."
+          thoughtNumber: 3
+          isRevision: true
+          revisesThought: 2
+          nextThoughtNeeded: true
+        expected: "Revises thought 2, continues reasoning chain with corrected assumption"
+
+  # ---------------------------------------------------------------------------
+  # 12. docker-gateway — MCP infrastructure (Tier 2, 1 profile + infra)
   # ---------------------------------------------------------------------------
   docker-gateway:
     tier: 2

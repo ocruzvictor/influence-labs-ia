@@ -1,0 +1,83 @@
+/**
+ * Semantic Tokens — LAYER 2
+ * Aliases de propósito. Componentes consomem SOMENTE estes tokens.
+ * Valores são sobrescritos pelos temas (Layer 3A/3B).
+ *
+ * Fallbacks: Influence Labs como default (brand principal do projeto).
+ * Para ativar Pareto: data-brand="pareto" no <html>.
+ */
+:root {
+  /* === CORES — defaults (IL como base) === */
+  --color-brand:           #0E1A2B;
+  --color-primary:         #0E7C86;
+  --color-accent:          #F06A4A;
+
+  --color-bg:              #FFFFFF;
+  --color-surface:         #FFFFFF;
+  --color-surface-subtle:  #F7FAFC;
+  --color-surface-muted:   #E6EDF3;
+
+  --color-text-heading:    #1D2733;
+  --color-text-body:       #1D2733;
+  --color-text-muted:      #718096;
+
+  --color-border-subtle:   rgba(14, 26, 43, 0.06);
+  --color-border-soft:     rgba(14, 26, 43, 0.12);
+  --color-nav-glass:       rgba(255, 255, 255, 0.85);
+
+  /* === TIPOGRAFIA — defaults (IL) === */
+  --font-heading:  'Space Grotesk', -apple-system, sans-serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --font-mono:     'JetBrains Mono', monospace;
+
+  --fw-light:    300;
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  --tracking-tight: -0.02em;
+  --tracking-caps:   0.08em;
+
+  --leading-tight:       1.2;
+  --leading-body:        1.5;
+  --leading-comfortable: 1.7;
+
+  --fs-xs:   12px;
+  --fs-sm:   13px;
+  --fs-base: 15px;
+  --fs-md:   17px;
+  --fs-lg:   20px;
+  --fs-xl:   24px;
+  --fs-2xl:  28px;
+  --fs-3xl:  36px;
+  --fs-4xl:  44px;
+  --fs-5xl:  56px;
+
+  /* === FORMA — defaults (IL) === */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   20px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 4px rgba(14, 26, 43, 0.12);
+  --shadow-md: 0 8px 24px rgba(14, 26, 43, 0.14);
+  --shadow-lg: 0 20px 48px rgba(14, 26, 43, 0.18);
+
+  /* === LAYOUT === */
+  --container-max: 1400px;
+  --modal-max:      640px;
+  --modal-max-h:    85vh;
+
+  /* === SPACING === */
+  --space-1:  1px;
+  --space-6:  6px;
+  --space-8:  8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-60: 60px;
+}

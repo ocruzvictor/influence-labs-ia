@@ -1,0 +1,44 @@
+/**
+ * Influence Labs — Primitive Tokens v1.0
+ * LAYER 1 — Valores brutos da marca Influence Labs.
+ * Decisões: Uma (@ux-design-expert) | Arquitetura: Aria (@architect)
+ * Não referenciar diretamente nos componentes — usar semantic.css
+ */
+:root {
+  /* Brand colors */
+  --il-navy:  #0E1A2B; /* Identidade da marca — logos, navbars, footers */
+  --il-teal:  #0E7C86; /* Primária interativa — CTAs, links, botões */
+  --il-coral: #F06A4A; /* Accent — badges, alertas, pontos de atenção */
+
+  /* Surfaces */
+  --il-white:      #FFFFFF;
+  --il-ice:        #F7FAFC;
+  --il-gray-light: #E6EDF3;
+
+  /* Text */
+  --il-graphite: #1D2733;
+  --il-gray-mid: #718096;
+
+  /* Borders (navy-based, mais sofisticado que black puro) */
+  --il-border-subtle: rgba(14, 26, 43, 0.06);
+  --il-border-soft:   rgba(14, 26, 43, 0.12);
+
+  /* Overlay */
+  --il-nav-glass: rgba(255, 255, 255, 0.85);
+
+  /* Typography */
+  --il-font-heading: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --il-font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --il-font-mono:    'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Radius — mais tight que Pareto: precisão técnica */
+  --il-radius-sm:   8px;
+  --il-radius-md:   12px;
+  --il-radius-lg:   20px;
+  --il-radius-pill: 999px;
+
+  /* Shadows — navy como base (mais sofisticado que black puro) */
+  --il-shadow-sm: 0 1px 4px rgba(14, 26, 43, 0.12);
+  --il-shadow-md: 0 8px 24px rgba(14, 26, 43, 0.14);
+  --il-shadow-lg: 0 20px 48px rgba(14, 26, 43, 0.18);
+}

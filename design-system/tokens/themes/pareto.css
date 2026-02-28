@@ -1,0 +1,80 @@
+/**
+ * Pareto — Brand Theme
+ * LAYER 3A — Mapeia primitivos Pareto → tokens semânticos
+ * Uso: <html data-brand="pareto">
+ */
+:root[data-brand="pareto"] {
+  /* === CORES === */
+  --color-brand:           var(--pareto-purple);
+  --color-primary:         var(--pareto-purple);
+  --color-accent:          var(--pareto-lime);
+
+  --color-bg:              var(--pareto-surface-1);
+  --color-surface:         var(--pareto-surface-1);
+  --color-surface-subtle:  var(--pareto-surface-2);
+  --color-surface-muted:   var(--pareto-surface-2);
+
+  --color-text-heading:    var(--pareto-ink-1);
+  --color-text-body:       var(--pareto-ink-2);
+  --color-text-muted:      var(--pareto-ink-muted);
+
+  --color-border-subtle:   var(--pareto-border-subtle);
+  --color-border-soft:     var(--pareto-border-soft);
+  --color-nav-glass:       var(--pareto-nav-glass);
+
+  /* === TIPOGRAFIA === */
+  --font-heading:          var(--pareto-font);
+  --font-body:             var(--pareto-font);
+  --font-mono:             'Fira Code', monospace;
+
+  --fw-light:    var(--pareto-w-light);
+  --fw-regular:  var(--pareto-w-regular);
+  --fw-medium:   var(--pareto-w-medium);
+  --fw-semibold: var(--pareto-w-semibold);
+  --fw-bold:     var(--pareto-w-bold);
+
+  --tracking-tight: var(--pareto-tracking-tight);
+  --tracking-caps:  var(--pareto-tracking-caps);
+
+  --leading-tight:        var(--pareto-leading-tight);
+  --leading-body:         var(--pareto-leading-body);
+  --leading-comfortable:  var(--pareto-leading-comfortable);
+
+  --fs-xs:   var(--pareto-fs-xs);
+  --fs-sm:   var(--pareto-fs-sm);
+  --fs-base: var(--pareto-fs-base);
+  --fs-md:   var(--pareto-fs-md);
+  --fs-lg:   var(--pareto-fs-lg);
+  --fs-xl:   var(--pareto-fs-xl);
+  --fs-2xl:  var(--pareto-fs-2xl);
+  --fs-3xl:  var(--pareto-fs-3xl);
+  --fs-4xl:  var(--pareto-fs-4xl);
+  --fs-5xl:  var(--pareto-fs-5xl);
+
+  /* === FORMA === */
+  --radius-sm:   var(--pareto-radius-sm);
+  --radius-md:   var(--pareto-radius-md);
+  --radius-lg:   var(--pareto-radius-md); /* Pareto não tem lg, usa md */
+  --radius-pill: var(--pareto-radius-pill);
+
+  --shadow-sm: var(--pareto-shadow-sm);
+  --shadow-md: var(--pareto-shadow-md);
+  --shadow-lg: var(--pareto-shadow-lg);
+
+  /* === LAYOUT === */
+  --container-max: var(--pareto-container-max);
+  --modal-max:     var(--pareto-modal-max);
+  --modal-max-h:   var(--pareto-modal-max-h);
+
+  /* === SPACING === */
+  --space-1:  var(--pareto-space-1);
+  --space-6:  var(--pareto-space-6);
+  --space-8:  var(--pareto-space-8);
+  --space-12: var(--pareto-space-12);
+  --space-16: var(--pareto-space-16);
+  --space-24: var(--pareto-space-24);
+  --space-32: var(--pareto-space-32);
+  --space-40: var(--pareto-space-40);
+  --space-48: var(--pareto-space-48);
+  --space-60: var(--pareto-space-60);
+}

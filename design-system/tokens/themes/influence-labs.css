@@ -1,0 +1,102 @@
+/**
+ * Influence Labs — Brand Theme v1.0
+ * LAYER 3B — Mapeia primitivos IL → tokens semânticos
+ * Uso: <html data-brand="influence-labs">
+ * Decisões visuais: Uma (@ux-design-expert)
+ * Arquitetura: Aria (@architect)
+ */
+:root[data-brand="influence-labs"] {
+  /* === CORES === */
+
+  /* Identidade da marca (logos, navbars, footers pesados) */
+  --color-brand:           var(--il-navy);
+
+  /* Primária interativa (CTAs, links, botões, estados ativos) */
+  --color-primary:         var(--il-teal);
+
+  /* Accent (badges, tags, pontos de atenção) */
+  --color-accent:          var(--il-coral);
+
+  /* Surfaces */
+  --color-bg:              var(--il-white);
+  --color-surface:         var(--il-white);
+  --color-surface-subtle:  var(--il-ice);
+  --color-surface-muted:   var(--il-gray-light);
+
+  /* Text */
+  --color-text-heading:    var(--il-graphite);
+  --color-text-body:       var(--il-graphite);
+  --color-text-muted:      var(--il-gray-mid);
+
+  /* Borders */
+  --color-border-subtle:   var(--il-border-subtle);
+  --color-border-soft:     var(--il-border-soft);
+  --color-nav-glass:       var(--il-nav-glass);
+
+  /* === TIPOGRAFIA === */
+
+  /* Headlines: Space Grotesk — geométrica, tech-forward */
+  --font-heading:  var(--il-font-heading);
+  /* Body: Inter — máxima legibilidade em tela */
+  --font-body:     var(--il-font-body);
+  /* Mono: JetBrains Mono — snippets técnicos */
+  --font-mono:     var(--il-font-mono);
+
+  /* Pesos */
+  --fw-light:    300;
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* Tracking */
+  --tracking-tight: -0.02em;
+  --tracking-caps:   0.08em;
+
+  /* Leading */
+  --leading-tight:       1.2;
+  --leading-body:        1.5;
+  --leading-comfortable: 1.7;
+
+  /* Font sizes — escala idêntica ao Pareto para consistência */
+  --fs-xs:   12px;
+  --fs-sm:   13px;
+  --fs-base: 15px;
+  --fs-md:   17px;
+  --fs-lg:   20px;
+  --fs-xl:   24px;
+  --fs-2xl:  28px;
+  --fs-3xl:  36px;
+  --fs-4xl:  44px;
+  --fs-5xl:  56px;
+
+  /* === FORMA === */
+
+  /* Radii — mais tight que Pareto (8/12 vs 10/16): transmite precisão técnica */
+  --radius-sm:   var(--il-radius-sm);
+  --radius-md:   var(--il-radius-md);
+  --radius-lg:   var(--il-radius-lg);
+  --radius-pill: var(--il-radius-pill);
+
+  /* Shadows — navy como base (mais sofisticado que black puro) */
+  --shadow-sm: var(--il-shadow-sm);
+  --shadow-md: var(--il-shadow-md);
+  --shadow-lg: var(--il-shadow-lg);
+
+  /* === LAYOUT === */
+  --container-max: 1400px;
+  --modal-max:      640px;
+  --modal-max-h:    85vh;
+
+  /* === SPACING — escala idêntica ao Pareto === */
+  --space-1:  1px;
+  --space-6:  6px;
+  --space-8:  8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-60: 60px;
+}

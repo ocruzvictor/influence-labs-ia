@@ -1,0 +1,123 @@
+tool:
+  schema_version: 1.0
+  id: memory
+  type: mcp
+  name: Memory MCP (Knowledge Graph)
+  version: 1.0.0
+  description: Persistent memory management via knowledge graph — stores entities, relations, and observations across sessions. Eliminates context repetition and enables agents to build cumulative knowledge over time.
+  knowledge_strategy: declarative
+
+  capabilities:
+    - Create and manage persistent entities (people, projects, concepts, decisions)
+    - Define typed relations between entities
+    - Add observations to entities incrementally across sessions
+    - Query graph with semantic search
+    - Open specific nodes by name for targeted retrieval
+    - Delete stale entities, relations, or observations
+
+  use_cases:
+    - agent_memory: "Store agent context and decisions across AIOS sessions"
+    - client_history: "Retain client preferences and history for Studio Tirra agent"
+    - project_state: "Persist architectural decisions, patterns, and rationale"
+    - squad_coordination: "Share knowledge between agents without re-explaining context"
+    - kb_building: "Build incremental knowledge base for Influence Labs clients"
+
+  mcp_specific:
+    server_command: "npx -y @modelcontextprotocol/server-memory"
+    transport: stdio
+    environment_variables: []
+    health_check:
+      method: tool_call
+      command: read_graph
+      expected_response: "Returns current knowledge graph (empty or populated)"
+      timeout_ms: 5000
+
+  tools:
+    - id: create_entities
+      description: "Create new entities in the knowledge graph"
+      parameters:
+        - entities: "Array of entities with name, entityType, and observations"
+      notes:
+        - "entityType examples: person, project, decision, concept, constraint, pattern"
+        - "observations are string facts about the entity"
+        - "Names must be unique identifiers"
+
+    - id: create_relations
+      description: "Create typed relations between existing entities"
+      parameters:
+        - relations: "Array of {from, to, relationType} objects"
+      notes:
+        - "relationType examples: owns, depends_on, decided_by, blocks, uses, implements"
+        - "Both from and to entities must already exist"
+
+    - id: add_observations
+      description: "Add new observations (facts) to existing entities"
+      parameters:
+        - observations: "Array of {entityName, contents: string[]} objects"
+      notes:
+        - "Use to incrementally update entities as new information is discovered"
+        - "Contents are appended, not replaced"
+
+    - id: delete_entities
+      description: "Remove entities and all their relations from the graph"
+      parameters:
+        - entityNames: "Array of entity names to delete"
+
+    - id: delete_observations
+      description: "Remove specific observations from entities"
+      parameters:
+        - deletions: "Array of {entityName, observations: string[]} to remove"
+
+    - id: delete_relations
+      description: "Remove specific relations between entities"
+      parameters:
+        - relations: "Array of {from, to, relationType} to delete"
+
+    - id: read_graph
+      description: "Read the entire knowledge graph"
+      parameters: []
+      notes:
+        - "Returns all entities, relations, and observations"
+        - "Use search_nodes or open_nodes for targeted queries"
+
+    - id: search_nodes
+      description: "Search for entities and relations using a semantic query"
+      parameters:
+        - query: "Natural language search query"
+      notes:
+        - "Returns matching entities with their observations and relations"
+        - "Use this before read_graph to avoid loading full graph unnecessarily"
+
+    - id: open_nodes
+      description: "Retrieve specific entities by exact name"
+      parameters:
+        - names: "Array of entity names to retrieve"
+
+  workflow:
+    typical_usage:
+      - step: 1
+        action: "Check if relevant entities exist before creating"
+        example: "search_nodes({ query: 'Studio Tirra booking flow' })"
+      - step: 2
+        action: "Create entities for new concepts"
+        example: "create_entities([{ name: 'StudioTirra', entityType: 'project', observations: ['Beta client, São Caetano do Sul', 'Uses Evolution API + n8n'] }])"
+      - step: 3
+        action: "Link related entities"
+        example: "create_relations([{ from: 'StudioTirra', to: 'TrinksAPI', relationType: 'uses' }])"
+      - step: 4
+        action: "Add new observations as work progresses"
+        example: "add_observations([{ entityName: 'StudioTirra', contents: ['Deploy guide ready in docs/deploy/deploy-guide.md'] }])"
+
+  best_practices:
+    - "Always search_nodes before creating entities to avoid duplicates"
+    - "Use typed entityType values consistently (person, project, decision, pattern)"
+    - "Use relationType values that are verb-based: uses, owns, blocks, implements"
+    - "Store architectural decisions as entities with rationale in observations"
+    - "Prefer open_nodes when you know the exact entity name (faster than search)"
+    - "Delete stale observations instead of leaving conflicting facts"
+
+  limitations:
+    - "Graph is session-local by default — persistence depends on Docker volume mount"
+    - "No authentication required — available to all agents"
+    - "Large graphs may slow read_graph — prefer search_nodes for targeted queries"
+    - "Entity names are case-sensitive — enforce consistent naming convention"

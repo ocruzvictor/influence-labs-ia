@@ -1,0 +1,84 @@
+/**
+ * Pareto Training UI — Primitive Tokens
+ * Source: pareto-strict.tokens.css v1.0.0
+ * LAYER 1 — Não modificar. Valores brutos da marca Pareto.
+ */
+:root {
+  /* Brand */
+  --pareto-purple: #8800ff;
+  --pareto-lime:   #cdff00;
+
+  /* Ink (text) */
+  --pareto-ink-1:     #1c1c1c;
+  --pareto-ink-2:     #2d2d2d;
+  --pareto-ink-muted: #666666;
+
+  /* Surfaces */
+  --pareto-surface-1: #ffffff;
+  --pareto-surface-2: #f4f4f4;
+
+  /* Borders */
+  --pareto-border-subtle: rgba(0, 0, 0, 0.06);
+  --pareto-border-soft:   rgba(0, 0, 0, 0.10);
+
+  /* Overlay */
+  --pareto-nav-glass: rgba(255, 255, 255, 0.80);
+
+  /* Typography — Montserrat único (heading + body) */
+  --pareto-font: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+
+  /* Font weights */
+  --pareto-w-light:    300;
+  --pareto-w-regular:  400;
+  --pareto-w-medium:   500;
+  --pareto-w-semibold: 600;
+  --pareto-w-bold:     700;
+
+  /* Letter spacing */
+  --pareto-tracking-tight: -0.02em;
+  --pareto-tracking-caps:   0.08em;
+
+  /* Line heights */
+  --pareto-leading-tight:       1.2;
+  --pareto-leading-body:        1.5;
+  --pareto-leading-comfortable: 1.7;
+
+  /* Font sizes */
+  --pareto-fs-xs:   12px;
+  --pareto-fs-sm:   13px;
+  --pareto-fs-base: 15px;
+  --pareto-fs-md:   17px;
+  --pareto-fs-lg:   20px;
+  --pareto-fs-xl:   24px;
+  --pareto-fs-2xl:  28px;
+  --pareto-fs-3xl:  36px;
+  --pareto-fs-4xl:  44px;
+  --pareto-fs-5xl:  56px;
+
+  /* Radius */
+  --pareto-radius-sm:   10px;
+  --pareto-radius-md:   16px;
+  --pareto-radius-pill: 999px;
+
+  /* Shadows */
+  --pareto-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.20);
+  --pareto-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --pareto-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.20);
+
+  /* Spacing */
+  --pareto-space-1:  1px;
+  --pareto-space-6:  6px;
+  --pareto-space-8:  8px;
+  --pareto-space-12: 12px;
+  --pareto-space-16: 16px;
+  --pareto-space-24: 24px;
+  --pareto-space-32: 32px;
+  --pareto-space-40: 40px;
+  --pareto-space-48: 48px;
+  --pareto-space-60: 60px;
+
+  /* Layout */
+  --pareto-container-max: 1400px;
+  --pareto-modal-max:      640px;
+  --pareto-modal-max-h:    85vh;
+}
