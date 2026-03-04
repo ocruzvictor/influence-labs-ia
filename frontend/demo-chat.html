@@ -352,6 +352,10 @@
       inputEl.disabled = disabled;
     }
 
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     // === SEND MESSAGE ===
     async function sendMessage() {
       const text = inputEl.value.trim();
@@ -383,7 +387,13 @@
 
         const data = await res.json();
         hideTyping();
-        addMessage(data.response || 'Desculpe, nao consegui processar. Tente novamente!', 'received');
+        const responses = Array.isArray(data.responses) && data.responses.length
+          ? data.responses
+          : [data.response || 'Desculpe, nao consegui processar. Tente novamente!'];
+        for (let i = 0; i < responses.length; i += 1) {
+          addMessage(responses[i], 'received');
+          if (i < responses.length - 1) await sleep(300);
+        }
       } catch (err) {
         hideTyping();
         if (err.name === 'AbortError') {

@@ -34,6 +34,7 @@ const TRINKS_EST_ID = process.env.TRINKS_ESTABELECIMENTO_ID || '243868';
 const app = express();
 app.use(cors());
 app.use(express.json());
+const sessionState = new Map();
 
 // --- System Prompt (lean PACER ~800 tokens) ---
 const SYSTEM_PROMPT_BASE = `Voce e a Assistente Virtual do Studio Tirra, salao premium em Sao Caetano do Sul/SP. Empatica, proativa, consultiva. Supervisor: Gabriel Rocha. Tom caloroso, emojis moderados (😊 ✌🏻 😉).
@@ -49,6 +50,11 @@ REGRAS:
 - Msg final: endereco + estacionamento + valor
 - Escalar p/ Gabriel: reclamacao, conflito agenda, pedido de humano, recomendacao subjetiva
 - SE sem horarios → "Me fala qual dia voce prefere que eu verifico!"
+- Estilo WhatsApp: mensagens curtas, com no maximo 2-3 frases por bloco
+- Evite bloco unico gigante; se necessario, quebre em 2-4 blocos curtos separados por linha em branco
+- Nao se reapresente em toda resposta; apresente-se apenas no inicio da conversa
+- Em listas de servicos/precos: formato simples sem markdown (**), legivel no WhatsApp
+- Se houver preco diferente por profissional, explicite cada profissional e valor
 
 Para solicitar consulta de horarios, retorne: [BOOKING_REQUEST]{"action":"check_availability","date":"YYYY-MM-DD","professional_id":null}
 Para confirmar booking: [BOOKING_CONFIRM]{"action":"create_booking","client_name":"...","professional_id":123,"service_name":"...","date_time":"...","duration_minutes":60}
@@ -103,14 +109,17 @@ async function getProfessionals() {
 }
 
 // --- TESS helper ---
-async function callTESS(messages) {
+async function callTESS(messages, rootId) {
+  const body = { messages, wait_execution: true };
+  if (Number.isInteger(rootId)) body.root_id = rootId;
+
   const res = await fetch(TESS_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${TESS_TOKEN}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ messages, wait_execution: true }),
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(25000),
   });
   if (!res.ok) {
@@ -133,6 +142,20 @@ function extractTESSResponse(raw) {
   return '';
 }
 
+function extractTESSRootId(raw) {
+  const candidates = [
+    raw?.root_id,
+    raw?.responses?.[0]?.root_id,
+    raw?.data?.root_id,
+    raw?.execution?.root_id,
+  ];
+  for (const value of candidates) {
+    const num = Number(value);
+    if (Number.isInteger(num) && num > 0) return num;
+  }
+  return null;
+}
+
 function parseBookingTags(response) {
   let clientMessage = response;
   let bookingRequest = null;
@@ -151,6 +174,89 @@ function parseBookingTags(response) {
   }
 
   return { clientMessage, bookingRequest, bookingConfirm };
+}
+
+function removeRepeatedIntro(text) {
+  let out = text.trim();
+  out = out.replace(
+    /^(?:ol[áa]!\s*)?(?:bem[-\s]?vindo\(a\)[\s\S]{0,120}?(?:[.!?]\s+|$))(?:tudo bem\?\s*)?(?:meu nome[\s\S]{0,120}?(?:[.!?]\s+|$))?/i,
+    '',
+  ).trim();
+  out = out.replace(/^(?:como posso te ajudar(?: hoje)?\??|como posso te atender(?: hoje)?\??)\s*/i, '').trim();
+  return out;
+}
+
+function normalizeFormatting(text) {
+  let out = text.trim();
+  out = out.replace(/\*\*(.*?)\*\*/g, '$1');
+  out = out.replace(/^[ \t]*[\*\-][ \t]+/gm, '- ');
+  out = out.replace(/\n{3,}/g, '\n\n');
+  return out.trim();
+}
+
+function splitLongChunk(chunk, maxLen) {
+  if (chunk.length <= maxLen) return [chunk];
+  const sentences = chunk.match(/[^.!?]+[.!?]?/g)?.map(s => s.trim()).filter(Boolean) || [chunk];
+  const parts = [];
+  let current = '';
+  for (const sentence of sentences) {
+    if (!current) {
+      current = sentence;
+      continue;
+    }
+    if ((current + ' ' + sentence).length <= maxLen) {
+      current += ' ' + sentence;
+    } else {
+      parts.push(current);
+      current = sentence;
+    }
+  }
+  if (current) parts.push(current);
+  return parts;
+}
+
+function toWhatsappBlocks(text) {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  const roughBlocks = paragraphs.length ? paragraphs : [text.trim()];
+  const expanded = [];
+  for (const block of roughBlocks) {
+    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    const hasList = lines.some(l => l.startsWith('- '));
+    if (hasList || block.length <= 340) {
+      expanded.push(block);
+      continue;
+    }
+    expanded.push(...splitLongChunk(block, 300));
+  }
+
+  const compact = [];
+  for (const block of expanded) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+    const prev = compact[compact.length - 1];
+    if (prev && !prev.includes('\n') && !trimmed.includes('\n') && (prev.length + trimmed.length + 1 <= 300)) {
+      compact[compact.length - 1] = `${prev} ${trimmed}`;
+    } else {
+      compact.push(trimmed);
+    }
+  }
+
+  return compact.slice(0, 6);
+}
+
+function formatAssistantOutput(rawText, isFirstTurn) {
+  let text = normalizeFormatting(rawText);
+  if (!isFirstTurn) text = removeRepeatedIntro(text);
+  if (!text) text = 'Perfeito. Me diz o que voce prefere que eu te ajudo agora.';
+  const responses = toWhatsappBlocks(text);
+  return {
+    response: responses[0] || text,
+    responses: responses.length ? responses : [text],
+  };
 }
 
 // --- Booking execution (Trinks) ---
@@ -194,13 +300,15 @@ app.post('/webhook/demo-chat', async (req, res) => {
   try {
     // 1. Parse payload
     const { message, session_id, contact_name = 'Visitante' } = req.body;
+    const sessionId = String(session_id || 'anonymous');
+    const state = sessionState.get(sessionId) || { turn: 0, rootId: null };
 
     if (!message || !message.trim()) {
       return res.status(400).json({ response: 'Mensagem vazia', timestamp: new Date().toISOString() });
     }
 
     const messageText = message.trim();
-    console.log(`[${session_id}] ${contact_name}: "${messageText}"`);
+    console.log(`[${sessionId}] ${contact_name}: "${messageText}"`);
 
     // 2. Fetch Trinks data in parallel
     const today = new Date().toISOString().split('T')[0];
@@ -215,9 +323,11 @@ app.post('/webhook/demo-chat', async (req, res) => {
     const tessRaw = await callTESS([
       { role: 'system', content: SYSTEM_PROMPT_BASE + dynamicContext },
       { role: 'user', content: messageText },
-    ]);
+    ], state.rootId);
 
     const tessText = extractTESSResponse(tessRaw);
+    const rootId = extractTESSRootId(tessRaw);
+    if (rootId) state.rootId = rootId;
     if (!tessText) {
       console.error('[TESS] Empty response:', JSON.stringify(tessRaw).slice(0, 300));
       return res.json({
@@ -228,12 +338,15 @@ app.post('/webhook/demo-chat', async (req, res) => {
 
     // 4. Parse booking tags
     const { clientMessage, bookingRequest, bookingConfirm } = parseBookingTags(tessText);
+    const formatted = formatAssistantOutput(clientMessage, state.turn === 0);
     const hasBookingAction = !!(bookingRequest || bookingConfirm);
 
     // 5. If no booking action, return directly
     if (!hasBookingAction) {
-      console.log(`[${session_id}] Response (${Date.now() - startTime}ms): "${clientMessage.slice(0, 80)}..."`);
-      return res.json({ response: clientMessage, timestamp: new Date().toISOString() });
+      state.turn += 1;
+      sessionState.set(sessionId, state);
+      console.log(`[${sessionId}] Response (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
+      return res.json({ response: formatted.response, responses: formatted.responses, timestamp: new Date().toISOString() });
     }
 
     // 6. Execute booking (check availability or create)
@@ -244,23 +357,30 @@ app.post('/webhook/demo-chat', async (req, res) => {
       const tess2Raw = await callTESS([
         {
           role: 'system',
-          content: `Voce e a Assistente do Studio Tirra. Apresente os horarios abaixo de forma clara e acolhedora. NUNCA invente horarios. Use emojis moderados.\n\n${bookingResult.slots}`,
+          content: `Voce e a Assistente do Studio Tirra. Apresente os horarios abaixo de forma clara e acolhedora. NUNCA invente horarios. Use emojis moderados. Use estilo WhatsApp com blocos curtos e sem reapresentacao.\n\n${bookingResult.slots}`,
         },
         { role: 'user', content: messageText },
-      ]);
+      ], state.rootId);
 
       let response2 = extractTESSResponse(tess2Raw);
+      const rootId2 = extractTESSRootId(tess2Raw);
+      if (rootId2) state.rootId = rootId2;
       if (!response2) response2 = 'Vou verificar e ja te retorno!';
       // Clean any residual booking tags
       response2 = response2.replace(/\[BOOKING_(?:REQUEST|CONFIRM)\]\s*\n?{[\s\S]*?}/gi, '').trim();
+      const formatted2 = formatAssistantOutput(response2, state.turn === 0);
 
-      console.log(`[${session_id}] Response+booking (${Date.now() - startTime}ms): "${response2.slice(0, 80)}..."`);
-      return res.json({ response: response2, timestamp: new Date().toISOString() });
+      state.turn += 1;
+      sessionState.set(sessionId, state);
+      console.log(`[${sessionId}] Response+booking (${Date.now() - startTime}ms): "${formatted2.response.slice(0, 80)}..."`);
+      return res.json({ response: formatted2.response, responses: formatted2.responses, timestamp: new Date().toISOString() });
     }
 
     // 8. For booking_pending or other, return client message
-    console.log(`[${session_id}] Response+confirm (${Date.now() - startTime}ms): "${clientMessage.slice(0, 80)}..."`);
-    return res.json({ response: clientMessage, timestamp: new Date().toISOString() });
+    state.turn += 1;
+    sessionState.set(sessionId, state);
+    console.log(`[${sessionId}] Response+confirm (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
+    return res.json({ response: formatted.response, responses: formatted.responses, timestamp: new Date().toISOString() });
 
   } catch (err) {
     console.error('Handler error:', err);
