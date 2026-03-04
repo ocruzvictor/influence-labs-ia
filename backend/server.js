@@ -1,0 +1,287 @@
+/**
+ * Studio Tirra — Webchat Backend (substitui n8n cloud)
+ *
+ * Fluxo: POST /webhook/demo-chat
+ *   1. Parse payload { message, session_id, contact_name }
+ *   2. Consulta Trinks API em paralelo (horários + profissionais)
+ *   3. Monta contexto dinâmico compacto
+ *   4. Chama TESS API (agent 33200) com system prompt lean + contexto
+ *   5. Parse resposta — detecta [BOOKING_REQUEST] / [BOOKING_CONFIRM]
+ *   6. Se booking: consulta Trinks para horários específicos + 2ª chamada TESS
+ *   7. Retorna { response, timestamp }
+ */
+
+const express = require('express');
+const cors = require('cors');
+
+// --- Load .env (zero deps) ---
+try {
+  require('fs').readFileSync(__dirname + '/.env', 'utf8').split('\n').forEach(line => {
+    const match = line.match(/^([^#=]+)=(.*)$/);
+    if (match) {
+      const key = match[1].trim();
+      if (!process.env[key]) process.env[key] = match[2].trim();
+    }
+  });
+} catch {}
+
+const TESS_TOKEN = process.env.TESS_API_TOKEN;
+const TESS_URL = process.env.TESS_API_URL || 'https://api.tess.im/agents/33200/execute';
+const TRINKS_KEY = process.env.TRINKS_API_KEY;
+const TRINKS_API_BASE = process.env.TRINKS_API_BASE || 'https://api.trinks.com/v1';
+const TRINKS_EST_ID = process.env.TRINKS_ESTABELECIMENTO_ID || '243868';
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// --- System Prompt (lean PACER ~800 tokens) ---
+const SYSTEM_PROMPT_BASE = `Voce e a Assistente Virtual do Studio Tirra, salao premium em Sao Caetano do Sul/SP. Empatica, proativa, consultiva. Supervisor: Gabriel Rocha. Tom caloroso, emojis moderados (😊 ✌🏻 😉).
+
+INFO FIXA: Endereco R. Espirito Santo, 385 - Santo Antonio, SCS/SP | Estacionamento: rampa lateral | Horario: Ter-Sex 9h-19h, Sab 9h-18h | Pagamento: Cartao/PIX/Dinheiro | @studiotirra | Ter-Qua precos promocionais
+
+REGRAS:
+- NUNCA inventar horario/preco — usar APENAS dados abaixo
+- Mechas: NAO dar preco, oferecer Teste de Mechas gratuito primeiro
+- Visagismo: fluxo consultivo (entender objetivo → explicar → so depois preco R$750 3x s/juros)
+- Novo cliente: coletar nome, celular, email, nascimento
+- Confirmacao tripla antes de agendar
+- Msg final: endereco + estacionamento + valor
+- Escalar p/ Gabriel: reclamacao, conflito agenda, pedido de humano, recomendacao subjetiva
+- SE sem horarios → "Me fala qual dia voce prefere que eu verifico!"
+
+Para solicitar consulta de horarios, retorne: [BOOKING_REQUEST]{"action":"check_availability","date":"YYYY-MM-DD","professional_id":null}
+Para confirmar booking: [BOOKING_CONFIRM]{"action":"create_booking","client_name":"...","professional_id":123,"service_name":"...","date_time":"...","duration_minutes":60}
+
+--- DADOS TEMPO REAL (Trinks API) ---
+`;
+
+// --- Trinks helpers ---
+async function fetchTrinks(path) {
+  const url = `${TRINKS_API_BASE}${path}`;
+  const res = await fetch(url, {
+    headers: {
+      'X-Api-Key': TRINKS_KEY,
+      'estabelecimentoId': TRINKS_EST_ID,
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`Trinks ${res.status}: ${url}`);
+  return res.json();
+}
+
+async function getSlots(date) {
+  try {
+    const json = await fetchTrinks(`/agendamentos/profissionais/${date}`);
+    if (!json.data || !Array.isArray(json.data)) return 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
+    const available = json.data.filter(p => p.horariosVagos?.length > 0);
+    if (available.length === 0) return `HORARIOS VAGOS ${date}: Nenhum disponivel hoje.`;
+    let txt = `HORARIOS VAGOS ${date}:\n`;
+    for (const p of available) {
+      txt += `- ${p.nome}: ${p.horariosVagos.join(', ')}\n`;
+    }
+    return txt;
+  } catch (err) {
+    console.error('Trinks slots error:', err.message);
+    return 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
+  }
+}
+
+async function getProfessionals() {
+  try {
+    const json = await fetchTrinks('/profissionais');
+    if (!json.data || !Array.isArray(json.data)) return 'PROFISSIONAIS: Erro ao consultar.';
+    let txt = 'PROFISSIONAIS ATIVOS:\n';
+    for (const p of json.data) {
+      txt += `- ${p.apelido || p.nome} (ID ${p.id})\n`;
+    }
+    return txt;
+  } catch (err) {
+    console.error('Trinks professionals error:', err.message);
+    return 'PROFISSIONAIS: Erro ao consultar.';
+  }
+}
+
+// --- TESS helper ---
+async function callTESS(messages) {
+  const res = await fetch(TESS_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${TESS_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ messages, wait_execution: true }),
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`TESS ${res.status}: ${body}`);
+  }
+  return res.json();
+}
+
+function extractTESSResponse(raw) {
+  if (typeof raw === 'string') return raw;
+  // TESS format: { responses: [{ output: "..." }] }
+  if (raw.responses?.[0]?.output) return String(raw.responses[0].output);
+  if (raw.output) return String(raw.output);
+  if (raw.choices?.[0]?.message?.content) return raw.choices[0].message.content;
+  if (raw.response) return String(raw.response);
+  if (raw.text) return String(raw.text);
+  if (typeof raw.content === 'string') return raw.content;
+  if (Array.isArray(raw.content) && raw.content[0]?.text) return raw.content[0].text;
+  return '';
+}
+
+function parseBookingTags(response) {
+  let clientMessage = response;
+  let bookingRequest = null;
+  let bookingConfirm = null;
+
+  const reqMatch = response.match(/\[BOOKING_REQUEST\]\s*\n?({[\s\S]*?})/i);
+  if (reqMatch) {
+    try { bookingRequest = JSON.parse(reqMatch[1]); } catch {}
+    clientMessage = clientMessage.replace(reqMatch[0], '').trim();
+  }
+
+  const confMatch = response.match(/\[BOOKING_CONFIRM\]\s*\n?({[\s\S]*?})/i);
+  if (confMatch) {
+    try { bookingConfirm = JSON.parse(confMatch[1]); } catch {}
+    clientMessage = clientMessage.replace(confMatch[0], '').trim();
+  }
+
+  return { clientMessage, bookingRequest, bookingConfirm };
+}
+
+// --- Booking execution (Trinks) ---
+async function executeBooking(bookingRequest, bookingConfirm) {
+  if (bookingRequest?.action === 'check_availability') {
+    const date = bookingRequest.date;
+    try {
+      const json = await fetchTrinks(`/agendamentos/profissionais/${date}`);
+      let txt = `HORARIOS ${date}:\n`;
+      let found = false;
+      if (json.data) {
+        for (const p of json.data) {
+          if (bookingRequest.professional_id && p.id !== bookingRequest.professional_id) continue;
+          if (p.horariosVagos?.length) {
+            found = true;
+            txt += `- ${p.nome}: ${p.horariosVagos.join(', ')}\n`;
+          }
+        }
+      }
+      if (!found) txt += 'Nenhum horario disponivel.';
+      return { type: 'availability', slots: txt };
+    } catch (err) {
+      return { type: 'error', message: err.message };
+    }
+  }
+
+  if (bookingConfirm?.action === 'create_booking') {
+    return {
+      type: 'booking_pending',
+      message: `Booking para ${bookingConfirm.client_name}: ${bookingConfirm.service_name} em ${bookingConfirm.date_time}. Pendente ServicoEstabelecimentoId.`,
+    };
+  }
+
+  return null;
+}
+
+// --- Main endpoint ---
+app.post('/webhook/demo-chat', async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    // 1. Parse payload
+    const { message, session_id, contact_name = 'Visitante' } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ response: 'Mensagem vazia', timestamp: new Date().toISOString() });
+    }
+
+    const messageText = message.trim();
+    console.log(`[${session_id}] ${contact_name}: "${messageText}"`);
+
+    // 2. Fetch Trinks data in parallel
+    const today = new Date().toISOString().split('T')[0];
+    const [slots, profs] = await Promise.all([
+      getSlots(today),
+      getProfessionals(),
+    ]);
+
+    const dynamicContext = `${slots}\n${profs}`;
+
+    // 3. Call TESS (1st call)
+    const tessRaw = await callTESS([
+      { role: 'system', content: SYSTEM_PROMPT_BASE + dynamicContext },
+      { role: 'user', content: messageText },
+    ]);
+
+    const tessText = extractTESSResponse(tessRaw);
+    if (!tessText) {
+      console.error('[TESS] Empty response:', JSON.stringify(tessRaw).slice(0, 300));
+      return res.json({
+        response: 'Ola! Estou com uma dificuldade tecnica. Nosso atendimento humano entrara em contato em breve!',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // 4. Parse booking tags
+    const { clientMessage, bookingRequest, bookingConfirm } = parseBookingTags(tessText);
+    const hasBookingAction = !!(bookingRequest || bookingConfirm);
+
+    // 5. If no booking action, return directly
+    if (!hasBookingAction) {
+      console.log(`[${session_id}] Response (${Date.now() - startTime}ms): "${clientMessage.slice(0, 80)}..."`);
+      return res.json({ response: clientMessage, timestamp: new Date().toISOString() });
+    }
+
+    // 6. Execute booking (check availability or create)
+    const bookingResult = await executeBooking(bookingRequest, bookingConfirm);
+
+    // 7. If availability check, do 2nd TESS call with specific slots
+    if (bookingResult?.type === 'availability') {
+      const tess2Raw = await callTESS([
+        {
+          role: 'system',
+          content: `Voce e a Assistente do Studio Tirra. Apresente os horarios abaixo de forma clara e acolhedora. NUNCA invente horarios. Use emojis moderados.\n\n${bookingResult.slots}`,
+        },
+        { role: 'user', content: messageText },
+      ]);
+
+      let response2 = extractTESSResponse(tess2Raw);
+      if (!response2) response2 = 'Vou verificar e ja te retorno!';
+      // Clean any residual booking tags
+      response2 = response2.replace(/\[BOOKING_(?:REQUEST|CONFIRM)\]\s*\n?{[\s\S]*?}/gi, '').trim();
+
+      console.log(`[${session_id}] Response+booking (${Date.now() - startTime}ms): "${response2.slice(0, 80)}..."`);
+      return res.json({ response: response2, timestamp: new Date().toISOString() });
+    }
+
+    // 8. For booking_pending or other, return client message
+    console.log(`[${session_id}] Response+confirm (${Date.now() - startTime}ms): "${clientMessage.slice(0, 80)}..."`);
+    return res.json({ response: clientMessage, timestamp: new Date().toISOString() });
+
+  } catch (err) {
+    console.error('Handler error:', err);
+    return res.json({
+      response: 'Estou com uma dificuldade tecnica no momento. Tente novamente em instantes!',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'studio-tirra-webchat', uptime: process.uptime() });
+});
+
+// --- Start ---
+const port = process.env.PORT || 3001;
+app.listen(port, () => {
+  console.log(`\n🚀 Studio Tirra Webchat Backend`);
+  console.log(`   POST http://localhost:${port}/webhook/demo-chat`);
+  console.log(`   GET  http://localhost:${port}/health\n`);
+  if (!TESS_TOKEN) console.warn('⚠️  TESS_API_TOKEN not set!');
+  if (!TRINKS_KEY) console.warn('⚠️  TRINKS_API_KEY not set!');
+});
