@@ -27,6 +27,7 @@ try {
 
 const TESS_TOKEN = process.env.TESS_API_TOKEN;
 const TESS_URL = process.env.TESS_API_URL || 'https://api.tess.im/agents/33200/execute';
+const TESS_WORKSPACE_ID = process.env.TESS_WORKSPACE_ID;
 const TRINKS_KEY = process.env.TRINKS_API_KEY;
 const TRINKS_API_BASE = process.env.TRINKS_API_BASE || 'https://api.trinks.com/v1';
 const TRINKS_EST_ID = process.env.TRINKS_ESTABELECIMENTO_ID || '243868';
@@ -112,18 +113,23 @@ async function getProfessionals() {
 async function callTESS(messages, rootId) {
   const body = { messages, wait_execution: true };
   if (Number.isInteger(rootId)) body.root_id = rootId;
+  const headers = {
+    'Authorization': `Bearer ${TESS_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
+  if (TESS_WORKSPACE_ID) headers['x-workspace-id'] = String(TESS_WORKSPACE_ID);
 
   const res = await fetch(TESS_URL, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${TESS_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(25000),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
+    if (res.status === 404 && !TESS_WORKSPACE_ID) {
+      console.error('TESS 404 hint: configure TESS_WORKSPACE_ID to target the correct workspace.');
+    }
     throw new Error(`TESS ${res.status}: ${body}`);
   }
   return res.json();

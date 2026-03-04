@@ -19,5 +19,7 @@ services:
         value: "243868"
       - key: TESS_API_TOKEN
         sync: false
+      - key: TESS_WORKSPACE_ID
+        sync: false
       - key: TRINKS_API_KEY
         sync: false

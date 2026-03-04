@@ -20,9 +20,12 @@ No Render:
 No service criado, definir:
 
 - `TESS_API_TOKEN`
+- `TESS_WORKSPACE_ID` (recomendado quando o agente esta em workspace especifico)
 - `TRINKS_API_KEY`
 
 As demais variaveis ja entram pelo blueprint (`TESS_API_URL`, `TRINKS_API_BASE`, `TRINKS_ESTABELECIMENTO_ID`).
+
+Se aparecer `TESS 404`, geralmente e roteamento de workspace: configure `TESS_WORKSPACE_ID` com o ID do workspace do agente.
 
 ## 3) Validacao
 
