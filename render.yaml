@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: studio-tirra-webchat-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    autoDeploy: true
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: TESS_API_URL
+        value: https://api.tess.im/agents/33200/execute
+      - key: TRINKS_API_BASE
+        value: https://api.trinks.com/v1
+      - key: TRINKS_ESTABELECIMENTO_ID
+        value: "243868"
+      - key: TESS_API_TOKEN
+        sync: false
+      - key: TRINKS_API_KEY
+        sync: false
