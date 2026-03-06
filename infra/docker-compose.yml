@@ -111,7 +111,7 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   postgres:
-    image: postgres:${POSTGRES_IMAGE_TAG:-17.7-bookworm}
+    image: pgvector/pgvector:pg17
     container_name: postgres
     restart: unless-stopped
     environment:
