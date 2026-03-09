@@ -5,7 +5,7 @@
  *   1. Parse payload { message, session_id, contact_name }
  *   2. Consulta Trinks API em paralelo (horários + profissionais)
  *   3. Monta contexto dinâmico compacto
- *   4. Chama TESS API (agent 33200) com system prompt lean + contexto
+ *   4. Chama TESS API (agent configuravel) com system prompt lean + contexto
  *   5. Parse resposta — detecta [BOOKING_REQUEST] / [BOOKING_CONFIRM]
  *   6. Se booking: consulta Trinks para horários específicos + 2ª chamada TESS
  *   7. Retorna { response, timestamp }
@@ -26,8 +26,10 @@ try {
 } catch {}
 
 const TESS_TOKEN = process.env.TESS_API_TOKEN;
-const TESS_URL = process.env.TESS_API_URL || 'https://api.tess.im/agents/33200/execute';
-const TESS_WORKSPACE_ID = process.env.TESS_WORKSPACE_ID;
+const TESS_AGENT_ID = String(process.env.TESS_AGENT_ID || '33200');
+const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
+const TESS_URL = process.env.TESS_API_URL || `${TESS_API_BASE}/agents/${TESS_AGENT_ID}/execute`;
+// TESS workspace header removido — causa 403 na API TESS (testado 2026-03-09)
 const TRINKS_KEY = process.env.TRINKS_API_KEY;
 const TRINKS_API_BASE = process.env.TRINKS_API_BASE || 'https://api.trinks.com/v1';
 const TRINKS_EST_ID = process.env.TRINKS_ESTABELECIMENTO_ID || '243868';
@@ -117,7 +119,6 @@ async function callTESS(messages, rootId) {
     'Authorization': `Bearer ${TESS_TOKEN}`,
     'Content-Type': 'application/json',
   };
-  if (TESS_WORKSPACE_ID) headers['x-workspace-id'] = String(TESS_WORKSPACE_ID);
 
   const res = await fetch(TESS_URL, {
     method: 'POST',
@@ -127,10 +128,12 @@ async function callTESS(messages, rootId) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    if (res.status === 404 && !TESS_WORKSPACE_ID) {
-      console.error('TESS 404 hint: configure TESS_WORKSPACE_ID to target the correct workspace.');
-    }
-    throw new Error(`TESS ${res.status}: ${body}`);
+    const hints = {
+      403: `verifique permissao do token para agent ${TESS_AGENT_ID}`,
+      404: `endpoint nao encontrado (${TESS_URL}); verifique TESS_API_URL ou TESS_AGENT_ID (${TESS_AGENT_ID})`,
+    };
+    const hint = hints[res.status] ? ` | hint: ${hints[res.status]}` : '';
+    throw new Error(`TESS ${res.status}: ${body}${hint}`);
   }
   return res.json();
 }
@@ -399,7 +402,15 @@ app.post('/webhook/demo-chat', async (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'studio-tirra-webchat', uptime: process.uptime() });
+  res.json({
+    status: 'ok',
+    service: 'studio-tirra-webchat',
+    uptime: process.uptime(),
+    tess: {
+      agent_id: TESS_AGENT_ID,
+      url: TESS_URL,
+    },
+  });
 });
 
 // --- Start ---
@@ -408,6 +419,7 @@ app.listen(port, () => {
   console.log(`\n🚀 Studio Tirra Webchat Backend`);
   console.log(`   POST http://localhost:${port}/webhook/demo-chat`);
   console.log(`   GET  http://localhost:${port}/health\n`);
+  console.log(`   TESS agent: ${TESS_AGENT_ID}`);
   if (!TESS_TOKEN) console.warn('⚠️  TESS_API_TOKEN not set!');
   if (!TRINKS_KEY) console.warn('⚠️  TRINKS_API_KEY not set!');
 });
