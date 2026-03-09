@@ -12,7 +12,10 @@
       "name": "Meta Verificacao (GET)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [-1400, -120]
+      "position": [
+        -1400,
+        -120
+      ]
     },
     {
       "parameters": {
@@ -21,7 +24,12 @@
         "options": {
           "responseCode": 200,
           "responseHeaders": {
-            "entries": [{ "name": "Content-Type", "value": "text/plain" }]
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain"
+              }
+            ]
           }
         }
       },
@@ -29,7 +37,10 @@
       "name": "Responder hub.challenge",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [-1160, -120]
+      "position": [
+        -1160,
+        -120
+      ]
     },
     {
       "parameters": {
@@ -42,7 +53,10 @@
       "name": "Meta Mensagens (POST)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [-1400, 100]
+      "position": [
+        -1400,
+        100
+      ]
     },
     {
       "parameters": {
@@ -52,27 +66,43 @@
       "name": "Parse Payload Meta",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1160, 100]
+      "position": [
+        -1160,
+        100
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [{ "value1": "={{ $json.skip }}", "operation": "isTrue" }]
+          "boolean": [
+            {
+              "value1": "={{ $json.skip }}",
+              "operation": "isTrue"
+            }
+          ]
         }
       },
       "id": "if_skip",
       "name": "Ignorar?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [-920, 100]
+      "position": [
+        -920,
+        100
+      ]
     },
     {
-      "parameters": { "jsCode": "return [];" },
+      "parameters": {
+        "jsCode": "return [];"
+      },
       "id": "noop_skip",
       "name": "Ignorar (sem acao)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-680, 280]
+      "position": [
+        -680,
+        280
+      ]
     },
     {
       "parameters": {
@@ -81,17 +111,28 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Api-Key", "value": "O808z7HPzj4zFP0Y0j303xo4w315F2P6QslLUrr7" },
-            { "name": "estabelecimentoId", "value": "243868" }
+            {
+              "name": "X-Api-Key",
+              "value": "={{$env.TRINKS_API_KEY}}"
+            },
+            {
+              "name": "estabelecimentoId",
+              "value": "={{$env.TRINKS_SALON_ID}}"
+            }
           ]
         },
-        "options": { "timeout": 10000 }
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "fetch_trinks_slots",
       "name": "Trinks: Horarios Hoje",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-680, 0],
+      "position": [
+        -680,
+        0
+      ],
       "notes": "GET /v1/agendamentos/profissionais/{data} — horarios vagos"
     },
     {
@@ -101,17 +142,28 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Api-Key", "value": "O808z7HPzj4zFP0Y0j303xo4w315F2P6QslLUrr7" },
-            { "name": "estabelecimentoId", "value": "243868" }
+            {
+              "name": "X-Api-Key",
+              "value": "={{$env.TRINKS_API_KEY}}"
+            },
+            {
+              "name": "estabelecimentoId",
+              "value": "={{$env.TRINKS_SALON_ID}}"
+            }
           ]
         },
-        "options": { "timeout": 10000 }
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "fetch_trinks_profissionais",
       "name": "Trinks: Profissionais",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-680, 160],
+      "position": [
+        -680,
+        160
+      ],
       "notes": "GET /v1/profissionais — lista de profissionais ativos"
     },
     {
@@ -122,18 +174,27 @@
       "name": "Montar Contexto Dinamico",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-380, 100],
+      "position": [
+        -380,
+        100
+      ],
       "notes": "Combina slots + profissionais em texto compacto para injetar no TESS"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.tess.im/agents/33200/execute",
+        "url": "={{'https://api.tess.im/agents/' + ($env.TESS_AGENT_ID || '33200') + '/execute'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer 549342|5G44besREWO7WTTYPtO3gD56yiPINZGZIhGmnpiE598d9fa6" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.TESS_API_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -145,7 +206,10 @@
       "name": "TESS (Agente 33200)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-100, 100],
+      "position": [
+        -100,
+        100
+      ],
       "notes": "System prompt LEAN (~800 tokens fixo) + contexto dinamico variavel"
     },
     {
@@ -156,51 +220,79 @@
       "name": "Parse Resposta TESS",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [140, 100]
+      "position": [
+        140,
+        100
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [{ "value1": "={{ $json.hasBookingAction }}", "operation": "isTrue" }]
+          "boolean": [
+            {
+              "value1": "={{ $json.hasBookingAction }}",
+              "operation": "isTrue"
+            }
+          ]
         }
       },
       "id": "if_booking",
       "name": "Tem Booking?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [380, 100]
+      "position": [
+        380,
+        100
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const data = $json;\nconst TRINKS = 'https://api.trinks.com/v1';\nconst KEY = 'O808z7HPzj4zFP0Y0j303xo4w315F2P6QslLUrr7';\nconst headers = { 'X-Api-Key': KEY, 'estabelecimentoId': '243868' };\n\nlet result = null;\ntry {\n  if (data.bookingRequest?.action === 'check_availability') {\n    const date = data.bookingRequest.date;\n    const resp = await fetch(`${TRINKS}/agendamentos/profissionais/${date}`, { headers });\n    const json = await resp.json();\n    let txt = `HORARIOS ${date}:\\n`;\n    let found = false;\n    if (json.data) {\n      for (const p of json.data) {\n        if (data.bookingRequest.professional_id && p.id !== data.bookingRequest.professional_id) continue;\n        if (p.horariosVagos?.length) {\n          found = true;\n          txt += `- ${p.nome}: ${p.horariosVagos.join(', ')}\\n`;\n        }\n      }\n    }\n    if (!found) txt += 'Nenhum horario disponivel.';\n    result = { type: 'availability', slots: txt };\n  } else if (data.bookingConfirm?.action === 'create_booking') {\n    result = { type: 'booking_pending', message: `Booking para ${data.bookingConfirm.client_name}: ${data.bookingConfirm.service_name} em ${data.bookingConfirm.date_time}. Pendente ServicoEstabelecimentoId.` };\n  }\n} catch (err) {\n  result = { type: 'error', message: err.message };\n}\n\nreturn [{ json: { ...data, bookingResult: result, needsSecondCall: result?.type === 'availability' } }];"
+        "jsCode": "const data = $json;\nconst TRINKS = $env.TRINKS_API_BASE_URL || 'https://api.trinks.com/v1';\nconst KEY = $env.TRINKS_API_KEY;\nconst headers = { 'X-Api-Key': KEY, 'estabelecimentoId': String($env.TRINKS_SALON_ID || '') };\n\nlet result = null;\ntry {\n  if (data.bookingRequest?.action === 'check_availability') {\n    const date = data.bookingRequest.date;\n    const resp = await fetch(`${TRINKS}/agendamentos/profissionais/${date}`, { headers });\n    const json = await resp.json();\n    let txt = `HORARIOS ${date}:\\n`;\n    let found = false;\n    if (json.data) {\n      for (const p of json.data) {\n        if (data.bookingRequest.professional_id && p.id !== data.bookingRequest.professional_id) continue;\n        if (p.horariosVagos?.length) {\n          found = true;\n          txt += `- ${p.nome}: ${p.horariosVagos.join(', ')}\\n`;\n        }\n      }\n    }\n    if (!found) txt += 'Nenhum horario disponivel.';\n    result = { type: 'availability', slots: txt };\n  } else if (data.bookingConfirm?.action === 'create_booking') {\n    result = { type: 'booking_pending', message: `Booking para ${data.bookingConfirm.client_name}: ${data.bookingConfirm.service_name} em ${data.bookingConfirm.date_time}. Pendente ServicoEstabelecimentoId.` };\n  }\n} catch (err) {\n  result = { type: 'error', message: err.message };\n}\n\nreturn [{ json: { ...data, bookingResult: result, needsSecondCall: result?.type === 'availability' } }];"
       },
       "id": "execute_booking",
       "name": "Executar Booking Trinks",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [620, -20]
+      "position": [
+        620,
+        -20
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [{ "value1": "={{ $json.needsSecondCall }}", "operation": "isTrue" }]
+          "boolean": [
+            {
+              "value1": "={{ $json.needsSecondCall }}",
+              "operation": "isTrue"
+            }
+          ]
         }
       },
       "id": "if_needs_second_call",
       "name": "Precisa 2a Chamada?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [860, -20]
+      "position": [
+        860,
+        -20
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.tess.im/agents/33200/execute",
+        "url": "={{'https://api.tess.im/agents/' + ($env.TESS_AGENT_ID || '33200') + '/execute'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer 549342|5G44besREWO7WTTYPtO3gD56yiPINZGZIhGmnpiE598d9fa6" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.TESS_API_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -212,7 +304,10 @@
       "name": "TESS: Apresentar Horarios",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1100, -140],
+      "position": [
+        1100,
+        -140
+      ],
       "notes": "2a chamada TESS — prompt ultra-lean (~100 tokens) + slots especificos"
     },
     {
@@ -223,17 +318,26 @@
       "name": "Parse Resposta (Slots)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, -140]
+      "position": [
+        1340,
+        -140
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v21.0/[SEU_META_PHONE_NUMBER_ID]/messages",
+        "url": "={{'https://graph.facebook.com/' + ($env.META_GRAPH_VERSION || 'v21.0') + '/' + $env.META_PHONE_NUMBER_ID + '/messages'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer [SEU_META_ACCESS_TOKEN]" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.META_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -245,63 +349,192 @@
       "name": "Enviar Resposta (Meta API)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1580, 100]
+      "position": [
+        1580,
+        100
+      ]
     }
   ],
   "connections": {
     "Meta Verificacao (GET)": {
-      "main": [[{ "node": "Responder hub.challenge", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Responder hub.challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Meta Mensagens (POST)": {
-      "main": [[{ "node": "Parse Payload Meta", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Payload Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Payload Meta": {
-      "main": [[{ "node": "Ignorar?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Ignorar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Ignorar?": {
       "main": [
-        [{ "node": "Ignorar (sem acao)", "type": "main", "index": 0 }],
         [
-          { "node": "Trinks: Horarios Hoje", "type": "main", "index": 0 },
-          { "node": "Trinks: Profissionais", "type": "main", "index": 0 }
+          {
+            "node": "Ignorar (sem acao)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trinks: Horarios Hoje",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trinks: Profissionais",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Trinks: Horarios Hoje": {
-      "main": [[{ "node": "Montar Contexto Dinamico", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Montar Contexto Dinamico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Trinks: Profissionais": {
-      "main": [[{ "node": "Montar Contexto Dinamico", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Montar Contexto Dinamico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Montar Contexto Dinamico": {
-      "main": [[{ "node": "TESS (Agente 33200)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "TESS (Agente 33200)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "TESS (Agente 33200)": {
-      "main": [[{ "node": "Parse Resposta TESS", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Resposta TESS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Resposta TESS": {
-      "main": [[{ "node": "Tem Booking?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Tem Booking?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Tem Booking?": {
       "main": [
-        [{ "node": "Executar Booking Trinks", "type": "main", "index": 0 }],
-        [{ "node": "Enviar Resposta (Meta API)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Executar Booking Trinks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Resposta (Meta API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Executar Booking Trinks": {
-      "main": [[{ "node": "Precisa 2a Chamada?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Precisa 2a Chamada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Precisa 2a Chamada?": {
       "main": [
-        [{ "node": "TESS: Apresentar Horarios", "type": "main", "index": 0 }],
-        [{ "node": "Enviar Resposta (Meta API)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "TESS: Apresentar Horarios",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Resposta (Meta API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "TESS: Apresentar Horarios": {
-      "main": [[{ "node": "Parse Resposta (Slots)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Resposta (Slots)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Resposta (Slots)": {
-      "main": [[{ "node": "Enviar Resposta (Meta API)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta (Meta API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -314,6 +547,6 @@
   "id": "WF-META-01-bot-principal",
   "meta": {
     "templateCredsSetupCompleted": false,
-    "notes": "WORKFLOW v3 — LEAN PACER + TRINKS DINAMICO\n\nARQUITETURA DE CUSTO:\n- System prompt fixo: ~800 tokens (comportamento/regras apenas)\n- Contexto dinamico: ~200-400 tokens (slots + profissionais da API)\n- Total por chamada: ~1000-1200 tokens (vs ~4000 da v1)\n- Economia: ~70% por chamada TESS\n\nFLUXO:\n1. Meta Webhook recebe mensagem\n2. Parse payload (ignora status/non-text)\n3. Em PARALELO: busca slots + profissionais na API Trinks\n4. Monta contexto dinamico compacto\n5. TESS responde com prompt lean + dados tempo real\n6. Parse detecta tags [BOOKING_REQUEST] ou [BOOKING_CONFIRM]\n7. Se booking: executa na Trinks + 2a chamada TESS ultra-lean\n8. Envia resposta final via Meta API\n\nPLACEHOLDERS:\n- [SEU_META_PHONE_NUMBER_ID] no node 'Enviar Resposta'\n- [SEU_META_ACCESS_TOKEN] no mesmo node\n\nNOTA: Catalogo de servicos com precos deve ser configurado como KB no TESS dashboard (tess.im/dashboard > Agent 33200 > Knowledge Base), NAO no system prompt.\n\nVERIFY TOKEN META: studio-tirra-verify-2026\nWEBHOOK URL: https://paretogroup.app.n8n.cloud/webhook/meta-webhook"
+    "notes": "WORKFLOW v3 — LEAN PACER + TRINKS DINAMICO\n\nARQUITETURA DE CUSTO:\n- System prompt fixo: ~800 tokens (comportamento/regras apenas)\n- Contexto dinamico: ~200-400 tokens (slots + profissionais da API)\n- Total por chamada: ~1000-1200 tokens (vs ~4000 da v1)\n- Economia: ~70% por chamada TESS\n\nFLUXO:\n1. Meta Webhook recebe mensagem\n2. Parse payload (ignora status/non-text)\n3. Em PARALELO: busca slots + profissionais na API Trinks\n4. Monta contexto dinamico compacto\n5. TESS responde com prompt lean + dados tempo real\n6. Parse detecta tags [BOOKING_REQUEST] ou [BOOKING_CONFIRM]\n7. Se booking: executa na Trinks + 2a chamada TESS ultra-lean\n8. Envia resposta final via Meta API\n\nPARAMETRIZACAO via env (META_*, TRINKS_*, TESS_*).\n\nNOTA: Catalogo de servicos com precos deve ser configurado como KB no TESS dashboard (tess.im/dashboard > Agent 33200 > Knowledge Base), NAO no system prompt.\n\nVERIFY TOKEN META: via META_WEBHOOK_VERIFY_TOKEN\nWEBHOOK URL: configure no deploy ativo"
   }
 }

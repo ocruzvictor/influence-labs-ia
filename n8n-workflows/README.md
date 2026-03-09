@@ -1,61 +1,50 @@
-# n8n Workflows - Salon WhatsApp
+# n8n Workflows - Salon WhatsApp (Mode 2)
 
-## Arquivos
-- `WF-01-router.json`: Webhook principal, classificacao de intencao e roteamento.
-- `WF-02-receptionist.json`: Fluxo de agendamento/reagendamento/cancelamento.
-- `WF-03-faq.json`: FAQ com RAG local em `data/kb`.
-- `WF-04-sales.json`: Vendas proativas e follow-up.
-- `WF-05-human-takeover.json`: Escalacao para Chatwoot.
-- `WF-06-cron-jobs.json`: Lembretes, follow-up e reativacao.
+Arquitetura alvo: Meta Cloud API + Chatwoot + n8n.
+
+## Arquivos principais
+- `WF-01-router.json`: webhook principal, classificacao de intencao e roteamento.
+- `WF-02-receptionist.json`: agendamento/reagendamento/cancelamento via Trinks.
+- `WF-03-faq.json`: FAQ com RAG local em `data/rag/kb-index.json`.
+- `WF-04-sales.json`: vendas proativas e follow-up.
+- `WF-05-human-takeover.json`: escalacao para atendimento humano no Chatwoot.
+- `WF-06-cron-jobs.json`: lembretes, follow-up e reativacao.
+
+## Fluxos de apoio (opcionais)
+- `WF-META-01-bot-principal.json`
+- `WF-META-02-chatwoot-reply.json`
 
 ## Como importar
 1. Acesse n8n (`https://n8n.seudominio.com.br`).
-2. Menu `Workflows` -> `Import from file`.
-3. Importe cada JSON na ordem `WF-01` a `WF-06`.
-4. Abra cada workflow e valide os IDs de `Execute Workflow`:
-   - WF-01 chama: `WF-02-receptionist`, `WF-03-faq`, `WF-04-sales`, `WF-05-human-takeover`.
+2. Importe `WF-01` a `WF-06`.
+3. Ajuste IDs dos nodes `Execute Workflow` apos importacao.
+4. Ative somente depois de configurar env vars e testar.
 
-## Credenciais necessarias no n8n
-- `Postgres Main` (tipo Postgres): host `postgres`, db `n8n`, usuario `postgres`, senha `${POSTGRES_PASSWORD}`.
-- HTTP para Evolution API:
-  - Base URL em env: `EVOLUTION_BASE_URL=http://evolution-api:8080`
-  - `EVOLUTION_INSTANCE=<nome-da-instancia>`
-  - `EVOLUTION_API_KEY=<api-key>`
-- HTTP para OpenAI:
-  - `OPENAI_API_KEY`
-- HTTP para Anthropic (opcional, quando `LLM_PROVIDER=anthropic`):
-  - `ANTHROPIC_API_KEY`
-  - `ANTHROPIC_MODEL` (ex: `claude-3-5-sonnet-latest`)
-- HTTP para Chatwoot:
-  - `CHATWOOT_BASE_URL=https://chat.seudominio.com.br`
-  - `CHATWOOT_ACCOUNT_ID`
-  - `CHATWOOT_INBOX_ID`
-  - `CHATWOOT_INBOX_IDENTIFIER` (slug da inbox para endpoint public API)
-  - `CHATWOOT_ASSIGNEE_ID` (opcional, para auto-atribuicao)
-  - `CHATWOOT_API_TOKEN`
-
-## Variaveis de ambiente recomendadas no container n8n
-- `EVOLUTION_BASE_URL`
-- `EVOLUTION_INSTANCE`
-- `EVOLUTION_API_KEY`
+## Variaveis obrigatorias no container n8n
+- `META_PHONE_NUMBER_ID`
+- `META_ACCESS_TOKEN`
+- `META_GRAPH_VERSION` (ex: `v21.0`)
 - `LLM_PROVIDER` (`openai` ou `anthropic`)
-- `OPENAI_MODEL` (opcional; default `gpt-4o-mini`)
-- `ANTHROPIC_API_KEY` (opcional)
-- `ANTHROPIC_MODEL` (opcional)
 - `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `ANTHROPIC_API_KEY` (se usar Anthropic)
+- `ANTHROPIC_MODEL` (se usar Anthropic)
+- `TRINKS_API_BASE_URL`
+- `TRINKS_API_KEY`
+- `TRINKS_SALON_ID`
 - `CHATWOOT_BASE_URL`
 - `CHATWOOT_ACCOUNT_ID`
 - `CHATWOOT_INBOX_ID`
 - `CHATWOOT_INBOX_IDENTIFIER`
 - `CHATWOOT_ASSIGNEE_ID`
 - `CHATWOOT_API_TOKEN`
-- `KB_PATH=/data/kb`
-- `RAG_INDEX_PATH=/data/rag/kb-index.json`
-- `ALERT_WEBHOOK_URL` (opcional, alerta de erro no router)
+- `RAG_INDEX_PATH` (default: `/data/rag/kb-index.json`)
+- `ALERT_WEBHOOK_URL` (opcional)
+
+## Credenciais necessarias no n8n
+- `Postgres Main` (database: `influence_labs_salon`).
 
 ## Observacoes
-- Os workflows ja incluem fallback para handoff humano nos cenarios sensiveis.
-- `WF-03` usa RAG simples por keyword com `kb-index.json` (sem vector DB no MVP).
-- `WF-06` aplica checks de opt-out, frequencia (7 dias) e janela segura (08h-20h).
-- Todos iniciam com `active=false`; ative apenas apos configurar credenciais e testar.
-- Para producao, ajuste as queries SQL e os prompts para os dados reais da discovery.
+- Todos os envios WhatsApp dos fluxos principais usam Graph API oficial da Meta.
+- `WF-03` mantem RAG simples (sem vector DB) para MVP.
+- `WF-06` aplica janela segura (08h-20h), opt-out e controle de frequencia.

@@ -13,63 +13,90 @@
       "name": "Webhook In",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [-1320, 140]
+      "position": [
+        -1320,
+        140
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const body = $json.body ?? $json;\nconst message = body?.data?.message?.text || body?.message || '';\nconst rawPhone = body?.data?.key?.remoteJid || body?.phone || '';\nconst phone = rawPhone.replace(/[^0-9+@.]/g, '');\nreturn [{ json: { raw: body, message, phone } }];"
+        "jsCode": "const body = $json.body ?? $json;\n\n// Meta Cloud API payload\nconst metaValue = body?.entry?.[0]?.changes?.[0]?.value;\nconst metaMsg = metaValue?.messages?.[0];\nconst metaText = metaMsg?.text?.body;\nconst metaFrom = metaMsg?.from;\n\n// Legacy/Evolution payload fallback\nconst evolutionText = body?.data?.message?.text || body?.message;\nconst evolutionFrom = body?.data?.key?.remoteJid || body?.phone;\n\nconst message = metaText || evolutionText || '';\nconst rawPhone = metaFrom || evolutionFrom || '';\nconst phone = String(rawPhone).replace(/[^0-9]/g, '');\n\nif (!message || !phone) return [];\n\nreturn [{ json: { raw: body, message, phone } }];"
       },
       "id": "parse_incoming",
       "name": "Parse Incoming",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1100, 140]
+      "position": [
+        -1100,
+        140
+      ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT role, content, created_at\nFROM conversation_history\nWHERE client_phone = '{{ $json.phone }}'\nORDER BY created_at DESC\nLIMIT 5;"
+        "query": "INSERT INTO conversation_history (client_phone, role, content, intent, agent)\nVALUES ('{{ $json.phone }}', 'user', '{{ ($json.message || '').replace(/'/g, \"''\") }}', NULL, 'router_incoming');"
       },
-      "id": "load_history",
-      "name": "Load History",
+      "id": "save_incoming_message",
+      "name": "Save Incoming Message",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [-880, 140],
+      "position": [
+        -960,
+        140
+      ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const input = $items('Parse Incoming', 0, 0)[0].json;\nconst historyRows = items.map(i => i.json);\nconst historyText = historyRows.map(h => `${h.role}: ${h.content}`).join('\\n');\nconst provider = ($env.LLM_PROVIDER || 'openai').toLowerCase();\nconst systemPrompt = `# Router - System Prompt\\n\\n## PERSONA\\nVoce e um classificador de intencoes. Voce nao responde ao cliente. Voce apenas classifica a mensagem e retorna um JSON.\\n\\n## ACTION\\nClassifique cada mensagem recebida em exatamente UMA categoria:\\n- agendamento: marcar, reagendar, cancelar, consultar horario, confirmar\\n- faq: perguntas sobre precos, endereco, horario, servicos, pagamento\\n- vendas: resposta a promocao, interesse em servico novo, pedir sugestao\\n- reclamacao: insatisfacao, problema com servico anterior, critica\\n- humano: pedido explicito por humano, situacao ambigua, xingamento, assunto pessoal\\n\\n## CONTEXT\\nConsidere as ultimas 5 mensagens da conversa.\\n\\n## RESTRICTIONS\\n- Sempre retornar JSON valido com campos intent e confidence.\\n- Se confidence < 0.65, classificar como humano.\\n- Nunca gerar texto de resposta ao cliente.\\n- Nunca inventar categorias alem das 5 listadas.`;\nconst userPrompt = `Mensagem atual: ${input.message}\\n\\nHistorico:\\n${historyText || 'sem historico'}\\n\\nRetorne JSON com intent e confidence.`;\nreturn [{\n  json: {\n    ...input,\n    history: historyRows,\n    llm_provider: provider,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt\n  }\n}];"
+        "operation": "executeQuery",
+        "query": "SELECT role, content, created_at\nFROM conversation_history\nWHERE client_phone = '{{ $('Parse Incoming').first().json.phone }}'\nORDER BY created_at DESC\nLIMIT 5;",
+        "options": {}
+      },
+      "id": "load_history",
+      "name": "Load History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -880,
+        140
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $items('Parse Incoming', 0, 0)[0].json;\nconst historyRows = items.map(i => i.json);\nconst historyText = historyRows.map(h => `${h.role}: ${h.content}`).join('\\n');\nconst systemPrompt = `Voce e um classificador de intencoes para um salao de beleza. Retorne APENAS um JSON puro sem markdown.\\n\\nClassifique a mensagem em UMA destas categorias EXATAS (use o valor exato, sem variacao):\\n- agendamento\\n- faq\\n- vendas\\n- reclamacao\\n- humano\\n\\nDefinicoes:\\n- agendamento: marcar, reagendar, cancelar, consultar horario, confirmar servico\\n- faq: perguntas sobre precos, endereco, horario de funcionamento, servicos, pagamento\\n- vendas: resposta a promocao, interesse em servico novo, pedir sugestao\\n- reclamacao: insatisfacao, problema com servico, critica\\n- humano: pedido por atendente humano, situacao ambigua, xingamento\\n\\nRegras:\\n- Retorne SOMENTE JSON: {\"intent\": \"<categoria>\", \"confidence\": <0.0-1.0>}\\n- Use EXATAMENTE um dos 5 valores acima para intent\\n- Se confidence < 0.65, use intent \"humano\"\\n- Nunca responda ao cliente, apenas classifique`;\nconst userPrompt = `Mensagem: ${input.message}\\n\\nHistorico:\\n${historyText || 'sem historico'}\\n\\nRetorne JSON com intent e confidence.`;\nreturn [{\n  json: {\n    ...input,\n    history: historyRows,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt\n  }\n}];"
       },
       "id": "build_router_prompt",
       "name": "Build Router Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-660, 140]
+      "position": [
+        -660,
+        140
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$json.llm_provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://api.openai.com/v1/chat/completions'}}",
+        "url": "={{($vars.TESS_API_BASE || 'https://api.tess.im') + '/agents/' + ($vars.TESS_AGENT_ID || '33200') + '/execute'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
-            },
-            {
-              "name": "x-api-key",
-              "value": "={{$env.ANTHROPIC_API_KEY}}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "=Bearer {{$vars.TESS_API_TOKEN}}"
             },
             {
               "name": "Content-Type",
@@ -80,23 +107,29 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{$json.llm_provider === 'anthropic' ? JSON.stringify({model: $env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest', max_tokens: 200, temperature: 0.1, system: $json.system_prompt, messages: [{role: 'user', content: $json.user_prompt}]}) : JSON.stringify({model: $env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.1, messages: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}]})}}"
+        "body": "={{JSON.stringify({messages: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}], wait_execution: true})}}"
       },
       "id": "classify_intent",
       "name": "Classify Intent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-420, 140]
+      "position": [
+        -420,
+        140
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const source = $items('Build Router Prompt', 0, 0)[0].json;\nconst fallback = { intent: 'humano', confidence: 0.5, parse_error: true };\nlet text = '';\nconst raw = $json;\nif (raw.choices?.[0]?.message?.content) text = raw.choices[0].message.content;\nif (!text && Array.isArray(raw.content) && raw.content[0]?.text) text = raw.content[0].text;\nif (!text && raw.completion) text = raw.completion;\nlet parsed = fallback;\ntry {\n  parsed = { ...fallback, ...JSON.parse(text), parse_error: false };\n} catch (e) {\n  parsed = fallback;\n}\nif (!parsed.intent || typeof parsed.confidence !== 'number') parsed = fallback;\nif (parsed.confidence < 0.65) parsed.intent = 'humano';\nreturn [{ json: { ...source, intent: parsed.intent, confidence: parsed.confidence, parse_error: parsed.parse_error } }];"
+        "jsCode": "const source = $items('Build Router Prompt', 0, 0)[0].json;\nconst fallback = { intent: 'humano', confidence: 0.5, parse_error: true };\nlet text = '';\nconst raw = $json;\n// TESS response format\nif (raw.responses?.[0]?.output) text = raw.responses[0].output;\n// OpenAI fallback\nif (!text && raw.choices?.[0]?.message?.content) text = raw.choices[0].message.content;\n// Anthropic fallback\nif (!text && Array.isArray(raw.content) && raw.content[0]?.text) text = raw.content[0].text;\n// Extract JSON from markdown code block or raw JSON\nconst jsonMatch = text.match(/```(?:json)?\\s*([\\s\\S]*?)```/) || text.match(/(\\{[\\s\\S]*?\\})/);\nif (jsonMatch) text = jsonMatch[1].trim();\nlet parsed = fallback;\ntry {\n  parsed = { ...fallback, ...JSON.parse(text), parse_error: false };\n} catch (e) {\n  parsed = fallback;\n}\n// Normalize intent variations to canonical names\nconst intentMap = {\n  'agendar_servico': 'agendamento', 'agendar': 'agendamento', 'agendamento_servico': 'agendamento',\n  'reagendar': 'agendamento', 'cancelar': 'agendamento', 'booking': 'agendamento',\n  'pergunta': 'faq', 'duvida': 'faq', 'informacao': 'faq',\n  'venda': 'vendas', 'promocao': 'vendas',\n  'reclamação': 'reclamacao', 'complaint': 'reclamacao',\n  'human': 'humano', 'atendente': 'humano'\n};\nconst validIntents = ['agendamento', 'faq', 'vendas', 'reclamacao', 'humano'];\nif (parsed.intent && !validIntents.includes(parsed.intent)) {\n  parsed.intent = intentMap[parsed.intent] || 'humano';\n}\nif (!parsed.intent || typeof parsed.confidence !== 'number') parsed = fallback;\nif (parsed.confidence < 0.65) parsed.intent = 'humano';\nreturn [{ json: { ...source, intent: parsed.intent, confidence: parsed.confidence, parse_error: parsed.parse_error } }];"
       },
       "id": "parse_intent",
       "name": "Parse Intent",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-180, 140]
+      "position": [
+        -180,
+        140
+      ]
     },
     {
       "parameters": {
@@ -107,11 +140,14 @@
       "name": "Save Classified Intent",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [40, 140],
+      "position": [
+        40,
+        140
+      ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
@@ -120,7 +156,7 @@
         "conditions": {
           "boolean": [
             {
-              "value1": "={{$json.parse_error}}",
+              "value1": "={{ $('Parse Intent').first().json.parse_error }}",
               "operation": "isTrue"
             }
           ]
@@ -130,7 +166,10 @@
       "name": "If Parse Error",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [260, 140]
+      "position": [
+        260,
+        140
+      ]
     },
     {
       "parameters": {
@@ -156,12 +195,15 @@
       "name": "Notify Router Error",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [500, 260]
+      "position": [
+        500,
+        260
+      ]
     },
     {
       "parameters": {
         "dataType": "string",
-        "value1": "={{$json.intent}}",
+        "value1": "={{ $('Parse Intent').first().json.intent }}",
         "rules": {
           "values": [
             {
@@ -192,7 +234,10 @@
       "name": "Switch Intent",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [500, 20]
+      "position": [
+        500,
+        20
+      ]
     },
     {
       "parameters": {
@@ -203,7 +248,10 @@
       "name": "Call WF-02 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
-      "position": [760, -140]
+      "position": [
+        760,
+        -140
+      ]
     },
     {
       "parameters": {
@@ -214,7 +262,10 @@
       "name": "Call WF-03 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
-      "position": [760, -60]
+      "position": [
+        760,
+        -60
+      ]
     },
     {
       "parameters": {
@@ -225,7 +276,10 @@
       "name": "Call WF-04 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
-      "position": [760, 20]
+      "position": [
+        760,
+        20
+      ]
     },
     {
       "parameters": {
@@ -236,77 +290,208 @@
       "name": "Call WF-05 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
-      "position": [760, 120]
+      "position": [
+        760,
+        120
+      ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO conversation_history (client_phone, role, content, intent, agent)\nVALUES ('{{ $json.phone }}', 'system', 'router dispatched to {{ $json.intent }}', '{{ $json.intent }}', 'router');"
+        "query": "INSERT INTO conversation_history (client_phone, role, content, intent, agent)\nVALUES ('{{ $('Parse Incoming').first().json.phone }}', 'system', 'router dispatched to {{ $('Parse Intent').first().json.intent }}', '{{ $('Parse Intent').first().json.intent }}', 'router');"
       },
       "id": "save_history",
       "name": "Save History",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [1020, 20],
+      "position": [
+        1020,
+        20
+      ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     }
   ],
   "connections": {
     "Webhook In": {
-      "main": [[{ "node": "Parse Incoming", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Incoming",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Incoming": {
-      "main": [[{ "node": "Load History", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Save Incoming Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Load History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Load History": {
-      "main": [[{ "node": "Build Router Prompt", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build Router Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build Router Prompt": {
-      "main": [[{ "node": "Classify Intent", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Classify Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Classify Intent": {
-      "main": [[{ "node": "Parse Intent", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Intent": {
-      "main": [[{ "node": "Save Classified Intent", "type": "main", "index": 0 }]]
-    },
-    "Save Classified Intent": {
-      "main": [[{ "node": "If Parse Error", "type": "main", "index": 0 }]]
-    },
-    "If Parse Error": {
       "main": [
-        [{ "node": "Notify Router Error", "type": "main", "index": 0 }],
-        [{ "node": "Switch Intent", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Save Classified Intent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Switch Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Notify Router Error": {
-      "main": [[{ "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Switch Intent": {
       "main": [
-        [{ "node": "Call WF-02 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-03 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-04 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Call WF-02 [AJUSTAR ID APOS IMPORT]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call WF-03 [AJUSTAR ID APOS IMPORT]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call WF-04 [AJUSTAR ID APOS IMPORT]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Call WF-02 [AJUSTAR ID APOS IMPORT]": {
-      "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Call WF-03 [AJUSTAR ID APOS IMPORT]": {
-      "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Call WF-04 [AJUSTAR ID APOS IMPORT]": {
-      "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Call WF-05 [AJUSTAR ID APOS IMPORT]": {
-      "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

@@ -40,6 +40,7 @@ services:
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL}
       TESS_API_TOKEN: ${TESS_API_TOKEN}
       TESS_AGENT_ID: ${TESS_AGENT_ID}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
     volumes:
       - n8n_data:/home/node/.n8n
       - ../data/rag:/data/rag:ro

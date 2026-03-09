@@ -1,44 +1,46 @@
 /**
- * Influence Labs — Primitive Tokens v1.0
+ * Influence Labs — Primitive Tokens v2.0 (Warm Authority)
  * LAYER 1 — Valores brutos da marca Influence Labs.
- * Decisões: Uma (@ux-design-expert) | Arquitetura: Aria (@architect)
- * Não referenciar diretamente nos componentes — usar semantic.css
+ * Direction: Warm Authority — Anthropic + Vercel DNA
+ * Decisões: Uma (@ux-design-expert)
  */
 :root {
   /* Brand colors */
-  --il-navy:  #0E1A2B; /* Identidade da marca — logos, navbars, footers */
-  --il-teal:  #0E7C86; /* Primária interativa — CTAs, links, botões */
-  --il-coral: #F06A4A; /* Accent — badges, alertas, pontos de atenção */
+  --il-navy:        #1A1A2E; /* Identidade — logos, navbars, footers, botões primários */
+  --il-indigo:      #4338CA; /* Accent — ponte visual com Pareto (#8000FF), links, hovers */
+  --il-terracotta:  #D4622B; /* Warm accent — badges, tags urgência, pontos de atenção */
+  --il-forest:      #2D6A4F; /* Success — badges resultado, KPIs positivos */
 
-  /* Surfaces */
-  --il-white:      #FFFFFF;
-  --il-ice:        #F7FAFC;
-  --il-gray-light: #E6EDF3;
+  /* Surfaces — Warm Authority base */
+  --il-bg:          #F5F3EE; /* Off-white quente — fundo principal */
+  --il-white:       #FFFFFF; /* Cards, modais, superfícies elevadas */
+  --il-surface-alt: #EDEAE3; /* Seções alternadas, surface muted */
 
   /* Text */
-  --il-graphite: #1D2733;
-  --il-gray-mid: #718096;
+  --il-text:        #1A1A1A; /* Texto principal */
+  --il-text-muted:  #6B7280; /* Texto secundário, placeholders */
 
-  /* Borders (navy-based, mais sofisticado que black puro) */
-  --il-border-subtle: rgba(14, 26, 43, 0.06);
-  --il-border-soft:   rgba(14, 26, 43, 0.12);
+  /* Borders (navy-based) */
+  --il-border-subtle: rgba(26, 26, 46, 0.08);
+  --il-border-soft:   rgba(26, 26, 46, 0.14);
 
-  /* Overlay */
-  --il-nav-glass: rgba(255, 255, 255, 0.85);
+  /* Nav glass */
+  --il-nav-glass: rgba(245, 243, 238, 0.90);
 
-  /* Typography */
-  --il-font-heading: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Typography — Hybrid: DM Serif Display (hero) + DM Sans (sub) + Inter (body) */
+  --il-font-hero:    'DM Serif Display', Georgia, 'Times New Roman', serif;
+  --il-font-heading: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --il-font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --il-font-mono:    'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 
-  /* Radius — mais tight que Pareto: precisão técnica */
-  --il-radius-sm:   8px;
-  --il-radius-md:   12px;
-  --il-radius-lg:   20px;
+  /* Radius — flat/mínimo (Vercel/Anthropic precision) */
+  --il-radius-sm:   4px;
+  --il-radius-md:   6px;
+  --il-radius-lg:   8px;
   --il-radius-pill: 999px;
 
-  /* Shadows — navy como base (mais sofisticado que black puro) */
-  --il-shadow-sm: 0 1px 4px rgba(14, 26, 43, 0.12);
-  --il-shadow-md: 0 8px 24px rgba(14, 26, 43, 0.14);
-  --il-shadow-lg: 0 20px 48px rgba(14, 26, 43, 0.18);
+  /* Shadows — navy como base, suaves e difusas */
+  --il-shadow-sm: 0 1px 3px rgba(26, 26, 46, 0.08);
+  --il-shadow-md: 0 4px 16px rgba(26, 26, 46, 0.10);
+  --il-shadow-lg: 0 12px 40px rgba(26, 26, 46, 0.14);
 }

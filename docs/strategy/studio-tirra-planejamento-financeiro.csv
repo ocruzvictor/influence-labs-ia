@@ -1,0 +1,4 @@
+Cenario,VPS_KVM2_Base_R$,Cupom_VPS_pct,VPS_KVM2_Final_R$,n8n_Community_R$,Chatwoot_Community_R$,Evolution_API_R$,Tess_Pro_Oficial_R$,Dominio_R$,Hospedagem_existente_R$,Fixo_total_R$,Msg_Meta_Utility,Msg_Meta_Service_0R$,Msg_Meta_Marketing,Custo_Utility_R$,Custo_Marketing_R$,Variavel_Meta_R$,Total_mensal_R$
+KVM2 Contratacao (cupom 10%) + Perfil Leve,38.99,0.10,=B2*(1-C2),0,0,0,79,0,0,=SUM(D2:J2),1200,600,120,0.04,0.33,=L2*O2+N2*P2,=K2+Q2
+KVM2 Renovacao + Perfil Moderado,77.99,0,=B3*(1-C3),0,0,0,79,0,0,=SUM(D3:J3),2500,1500,250,0.04,0.33,=L3*O3+N3*P3,=K3+Q3
+KVM2 Renovacao + Perfil Alto,77.99,0,=B4*(1-C4),0,0,0,79,0,0,=SUM(D4:J4),4000,3000,400,0.04,0.33,=L4*O4+N4*P4,=K4+Q4

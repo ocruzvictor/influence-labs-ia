@@ -11,15 +11,17 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20
-      - key: TESS_API_URL
-        value: https://api.tess.im/agents/33200/execute
+      - key: TESS_API_BASE
+        value: https://api.tess.im
+      - key: TESS_AGENT_ID
+        value: "27005"
+      - key: TESS_WORKSPACE_ID
+        value: "1269475"
       - key: TRINKS_API_BASE
         value: https://api.trinks.com/v1
       - key: TRINKS_ESTABELECIMENTO_ID
         value: "243868"
       - key: TESS_API_TOKEN
-        sync: false
-      - key: TESS_WORKSPACE_ID
         sync: false
       - key: TRINKS_API_KEY
         sync: false
