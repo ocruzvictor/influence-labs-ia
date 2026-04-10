@@ -54,6 +54,23 @@
       flex-shrink: 0;
     }
 
+    .chat-header-info { flex: 1; }
+
+    .btn-reset {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.8);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: var(--font-body);
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .btn-reset:hover { border-color: var(--terracotta); color: var(--white); }
+
     .chat-avatar {
       width: 42px;
       height: 42px;
@@ -264,6 +281,7 @@
           Assistente Virtual
         </div>
       </div>
+      <button class="btn-reset" onclick="resetSession()" title="Iniciar nova conversa">Nova conversa</button>
     </div>
 
     <!-- Messages -->
@@ -305,12 +323,13 @@
       localStorage.getItem('st_webhook_url') ||
       (window.location.hostname === 'localhost' ? LOCAL_WEBHOOK_URL : DEFAULT_PROD_WEBHOOK_URL);
     if (WEBHOOK_PARAM) localStorage.setItem('st_webhook_url', WEBHOOK_PARAM);
-    const WELCOME_MESSAGE = 'Ola! Sou a assistente virtual do Studio Tirra. Posso te ajudar com agendamentos, informacoes sobre nossos servicos ou tirar suas duvidas. Como posso te ajudar? \u{1F60A}';
 
     // === STATE ===
     const sessionId = localStorage.getItem('st_session') || crypto.randomUUID();
     localStorage.setItem('st_session', sessionId);
     let sending = false;
+    const conversationHistory = [];
+    let lastMessage = '';
 
     // === DOM ===
     const messagesEl = document.getElementById('messages');
@@ -357,18 +376,22 @@
     }
 
     // === SEND MESSAGE ===
-    async function sendMessage() {
-      const text = inputEl.value.trim();
+    async function sendMessage(retryText) {
+      const text = retryText || inputEl.value.trim();
       if (!text || sending) return;
 
-      addMessage(text, 'sent');
-      inputEl.value = '';
+      if (!retryText) {
+        addMessage(text, 'sent');
+        inputEl.value = '';
+      }
+      lastMessage = text;
+      conversationHistory.push({ role: 'user', content: text });
       setDisabled(true);
       showTyping();
 
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
+        const timeout = setTimeout(() => controller.abort(), 45000);
 
         const res = await fetch(WEBHOOK_URL, {
           method: 'POST',
@@ -376,7 +399,8 @@
           body: JSON.stringify({
             message: text,
             session_id: sessionId,
-            contact_name: 'Visitante'
+            contact_name: 'Visitante',
+            history: conversationHistory.slice(-20)
           }),
           signal: controller.signal
         });
@@ -390,14 +414,17 @@
         const responses = Array.isArray(data.responses) && data.responses.length
           ? data.responses
           : [data.response || 'Desculpe, nao consegui processar. Tente novamente!'];
+        const fullResponse = responses.join('\n\n');
+        conversationHistory.push({ role: 'assistant', content: fullResponse });
         for (let i = 0; i < responses.length; i += 1) {
           addMessage(responses[i], 'received');
           if (i < responses.length - 1) await sleep(300);
         }
       } catch (err) {
         hideTyping();
+        conversationHistory.pop(); // remove failed user message
         if (err.name === 'AbortError') {
-          addMessage('Ops, demorou um pouco mais que o esperado. Pode tentar de novo? \u{1F605}', 'received');
+          addMessage('Ops, demorou um pouco mais que o esperado. <a href="#" onclick="retrySend(event)">Tentar de novo?</a>', 'received');
         } else {
           addMessage('Estou com uma dificuldade tecnica no momento. Tente novamente em instantes!', 'received');
         }
@@ -405,6 +432,17 @@
         setDisabled(false);
         inputEl.focus();
       }
+    }
+
+    function retrySend(e) {
+      if (e) e.preventDefault();
+      if (lastMessage) sendMessage(lastMessage);
+    }
+
+    function resetSession() {
+      localStorage.removeItem('st_session');
+      localStorage.removeItem('st_webhook_url');
+      location.reload();
     }
 
     // === EVENTS ===
@@ -417,7 +455,6 @@
     });
 
     // === INIT ===
-    addMessage(WELCOME_MESSAGE, 'received');
     inputEl.focus();
   </script>
 </body>

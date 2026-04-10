@@ -4,8 +4,8 @@
  * Fluxo: POST /webhook/demo-chat
  *   1. Parse payload { message, session_id, contact_name }
  *   2. Consulta Trinks API em paralelo (horários + profissionais)
- *   3. Monta contexto dinâmico compacto
- *   4. Chama TESS API (agent configuravel) com system prompt lean + contexto
+ *   3. Monta contexto dinamico compacto
+ *   4. Chama TESS API (agent configuravel) com contexto dinamico da Trinks
  *   5. Parse resposta — detecta [BOOKING_REQUEST] / [BOOKING_CONFIRM]
  *   6. Se booking: consulta Trinks para horários específicos + 2ª chamada TESS
  *   7. Retorna { response, timestamp }
@@ -38,32 +38,97 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 const sessionState = new Map();
+const SALON_TIME_ZONE = 'America/Sao_Paulo';
+const WEEKDAY_NAMES_PT = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
 
-// --- System Prompt (lean PACER ~800 tokens) ---
-const SYSTEM_PROMPT_BASE = `Voce e a Assistente Virtual do Studio Tirra, salao premium em Sao Caetano do Sul/SP. Empatica, proativa, consultiva. Supervisor: Gabriel Rocha. Tom caloroso, emojis moderados (😊 ✌🏻 😉).
+function getDatePartsInSalonTimeZone(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SALON_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(date);
+  const pick = (type) => parts.find((part) => part.type === type)?.value;
+  return {
+    year: pick('year'),
+    month: pick('month'),
+    day: pick('day'),
+  };
+}
 
-INFO FIXA: Endereco R. Espirito Santo, 385 - Santo Antonio, SCS/SP | Estacionamento: rampa lateral | Horario: Ter-Sex 9h-19h, Sab 9h-18h | Pagamento: Cartao/PIX/Dinheiro | @studiotirra | Ter-Qua precos promocionais
+function getTodayIsoInSalonTimeZone() {
+  const { year, month, day } = getDatePartsInSalonTimeZone();
+  return `${year}-${month}-${day}`;
+}
 
-REGRAS:
-- NUNCA inventar horario/preco — usar APENAS dados abaixo
-- Mechas: NAO dar preco, oferecer Teste de Mechas gratuito primeiro
-- Visagismo: fluxo consultivo (entender objetivo → explicar → so depois preco R$750 3x s/juros)
-- Novo cliente: coletar nome, celular, email, nascimento
-- Confirmacao tripla antes de agendar
-- Msg final: endereco + estacionamento + valor
-- Escalar p/ Gabriel: reclamacao, conflito agenda, pedido de humano, recomendacao subjetiva
-- SE sem horarios → "Me fala qual dia voce prefere que eu verifico!"
-- Estilo WhatsApp: mensagens curtas, com no maximo 2-3 frases por bloco
-- Evite bloco unico gigante; se necessario, quebre em 2-4 blocos curtos separados por linha em branco
-- Nao se reapresente em toda resposta; apresente-se apenas no inicio da conversa
-- Em listas de servicos/precos: formato simples sem markdown (**), legivel no WhatsApp
-- Se houver preco diferente por profissional, explicite cada profissional e valor
+function addDaysToIsoDate(dateStr, days) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days, 12));
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, '0'),
+    String(date.getUTCDate()).padStart(2, '0'),
+  ].join('-');
+}
 
-Para solicitar consulta de horarios, retorne: [BOOKING_REQUEST]{"action":"check_availability","date":"YYYY-MM-DD","professional_id":null}
-Para confirmar booking: [BOOKING_CONFIRM]{"action":"create_booking","client_name":"...","professional_id":123,"service_name":"...","date_time":"...","duration_minutes":60}
+function getWeekdayNamePt(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  return WEEKDAY_NAMES_PT[date.getUTCDay()];
+}
 
---- DADOS TEMPO REAL (Trinks API) ---
-`;
+function formatDateLabel(dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ''))) return String(dateStr || 'data nao informada');
+  const [, month, day] = dateStr.split('-');
+  return `${day}/${month} (${getWeekdayNamePt(dateStr)})`;
+}
+
+function formatFullDateLabel(dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ''))) return String(dateStr || 'data nao informada');
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year} (${getWeekdayNamePt(dateStr)})`;
+}
+
+function evictOldSessions() {
+  if (sessionState.size <= 500) return;
+  const sorted = [...sessionState.entries()].sort((a, b) => (a[1].lastAccess || 0) - (b[1].lastAccess || 0));
+  sorted.slice(0, 100).forEach(([key]) => sessionState.delete(key));
+}
+
+function getNextBusinessDays(count) {
+  const dates = [];
+  let cursor = getTodayIsoInSalonTimeZone();
+  while (dates.length < count) {
+    const day = new Date(`${cursor}T12:00:00Z`).getUTCDay(); // 0=Dom, 1=Seg
+    if (day !== 0 && day !== 1) dates.push(cursor);
+    cursor = addDaysToIsoDate(cursor, 1);
+  }
+  return dates;
+}
+
+const DYNAMIC_CONTEXT_PREFIX = 'CONTEXTO DINAMICO - TRINKS (dados em tempo real):';
+
+function buildDynamicContext(businessDays, slotsText, professionalsText) {
+  return [
+    DYNAMIC_CONTEXT_PREFIX,
+    `HOJE: ${formatFullDateLabel(getTodayIsoInSalonTimeZone())}`,
+    'HORARIO DE FUNCIONAMENTO: Ter-Sex 9h-19h | Sab 9h-18h | Dom-Seg FECHADO',
+    `DATAS COM DADOS DISPONIVEIS: ${businessDays.map(formatDateLabel).join(', ')}`,
+    '',
+    slotsText,
+    professionalsText,
+  ].join('\n');
+}
+
+function buildAvailabilityContext(slotsText) {
+  return [
+    'CONTEXTO DINAMICO - DISPONIBILIDADE CONFIRMADA VIA TRINKS:',
+    `HOJE: ${formatFullDateLabel(getTodayIsoInSalonTimeZone())}`,
+    '',
+    String(slotsText || '').trim(),
+  ].join('\n');
+}
 
 // --- Trinks helpers ---
 async function fetchTrinks(path) {
@@ -84,10 +149,10 @@ async function getSlots(date) {
     const json = await fetchTrinks(`/agendamentos/profissionais/${date}`);
     if (!json.data || !Array.isArray(json.data)) return 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
     const available = json.data.filter(p => p.horariosVagos?.length > 0);
-    if (available.length === 0) return `HORARIOS VAGOS ${date}: Nenhum disponivel hoje.`;
-    let txt = `HORARIOS VAGOS ${date}:\n`;
+    if (available.length === 0) return `HORARIOS VAGOS ${formatDateLabel(date)}:\n- Nenhum horario disponivel.`;
+    let txt = `HORARIOS VAGOS ${formatDateLabel(date)}:\n`;
     for (const p of available) {
-      txt += `- ${p.nome}: ${p.horariosVagos.join(', ')}\n`;
+      txt += `- ${p.apelido || p.nome}: ${p.horariosVagos.join(', ')}\n`;
     }
     return txt;
   } catch (err) {
@@ -274,14 +339,14 @@ async function executeBooking(bookingRequest, bookingConfirm) {
     const date = bookingRequest.date;
     try {
       const json = await fetchTrinks(`/agendamentos/profissionais/${date}`);
-      let txt = `HORARIOS ${date}:\n`;
+      let txt = `HORARIOS VAGOS ${formatDateLabel(date)}:\n`;
       let found = false;
       if (json.data) {
         for (const p of json.data) {
           if (bookingRequest.professional_id && p.id !== bookingRequest.professional_id) continue;
           if (p.horariosVagos?.length) {
             found = true;
-            txt += `- ${p.nome}: ${p.horariosVagos.join(', ')}\n`;
+            txt += `- ${p.apelido || p.nome}: ${p.horariosVagos.join(', ')}\n`;
           }
         }
       }
@@ -305,33 +370,53 @@ async function executeBooking(bookingRequest, bookingConfirm) {
 // --- Main endpoint ---
 app.post('/webhook/demo-chat', async (req, res) => {
   const startTime = Date.now();
+  const globalTimeout = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error(`[TIMEOUT] Global 28s timeout hit`);
+      res.json({ response: 'Estou demorando mais que o normal. Pode tentar de novo?', timestamp: new Date().toISOString() });
+    }
+  }, 28000);
 
   try {
     // 1. Parse payload
-    const { message, session_id, contact_name = 'Visitante' } = req.body;
+    const { message, session_id, contact_name = 'Visitante', history: incomingHistoryRaw } = req.body;
     const sessionId = String(session_id || 'anonymous');
-    const state = sessionState.get(sessionId) || { turn: 0, rootId: null };
-
+    const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [] };
     if (!message || !message.trim()) {
       return res.status(400).json({ response: 'Mensagem vazia', timestamp: new Date().toISOString() });
     }
 
     const messageText = message.trim();
+    // Merge client-side history as fallback (Render cold-start loses sessionState)
+    if (state.history.length === 0 && Array.isArray(incomingHistoryRaw) && incomingHistoryRaw.length > 0) {
+      state.history = incomingHistoryRaw.filter(m => m.role && m.content).slice(-20);
+    }
     console.log(`[${sessionId}] ${contact_name}: "${messageText}"`);
 
-    // 2. Fetch Trinks data in parallel
-    const today = new Date().toISOString().split('T')[0];
-    const [slots, profs] = await Promise.all([
-      getSlots(today),
+    // 2. Fetch Trinks data in parallel (next 5 business days)
+    const businessDays = getNextBusinessDays(5);
+    const [slotsResults, profsResult] = await Promise.allSettled([
+      Promise.all(businessDays.map(date => getSlots(date))),
       getProfessionals(),
     ]);
 
-    const dynamicContext = `${slots}\n${profs}`;
+    const slotsAll = slotsResults.status === 'fulfilled'
+      ? slotsResults.value.join('\n')
+      : 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
+    const profs = profsResult.status === 'fulfilled'
+      ? profsResult.value
+      : 'PROFISSIONAIS: Erro ao consultar.';
+    const dynamicContext = buildDynamicContext(businessDays, slotsAll, profs);
 
-    // 3. Call TESS (1st call)
+    // 3. Call TESS (1st call) — with conversation history
+    const lastEntry = state.history[state.history.length - 1];
+    if (lastEntry?.role !== 'user' || lastEntry.content !== messageText) {
+      state.history.push({ role: 'user', content: messageText });
+    }
+    const historyWindow = state.history.slice(-20);
     const tessRaw = await callTESS([
-      { role: 'system', content: SYSTEM_PROMPT_BASE + dynamicContext },
-      { role: 'user', content: messageText },
+      { role: 'system', content: dynamicContext },
+      ...historyWindow,
     ], state.rootId);
 
     const tessText = extractTESSResponse(tessRaw);
@@ -352,8 +437,11 @@ app.post('/webhook/demo-chat', async (req, res) => {
 
     // 5. If no booking action, return directly
     if (!hasBookingAction) {
+      state.history.push({ role: 'assistant', content: clientMessage });
       state.turn += 1;
+      state.lastAccess = Date.now();
       sessionState.set(sessionId, state);
+      evictOldSessions();
       console.log(`[${sessionId}] Response (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
       return res.json({ response: formatted.response, responses: formatted.responses, timestamp: new Date().toISOString() });
     }
@@ -366,7 +454,7 @@ app.post('/webhook/demo-chat', async (req, res) => {
       const tess2Raw = await callTESS([
         {
           role: 'system',
-          content: `Voce e a Assistente do Studio Tirra. Apresente os horarios abaixo de forma clara e acolhedora. NUNCA invente horarios. Use emojis moderados. Use estilo WhatsApp com blocos curtos e sem reapresentacao.\n\n${bookingResult.slots}`,
+          content: buildAvailabilityContext(bookingResult.slots),
         },
         { role: 'user', content: messageText },
       ], state.rootId);
@@ -379,24 +467,34 @@ app.post('/webhook/demo-chat', async (req, res) => {
       response2 = response2.replace(/\[BOOKING_(?:REQUEST|CONFIRM)\]\s*\n?{[\s\S]*?}/gi, '').trim();
       const formatted2 = formatAssistantOutput(response2, state.turn === 0);
 
+      state.history.push({ role: 'assistant', content: response2 });
       state.turn += 1;
+      state.lastAccess = Date.now();
       sessionState.set(sessionId, state);
+      evictOldSessions();
       console.log(`[${sessionId}] Response+booking (${Date.now() - startTime}ms): "${formatted2.response.slice(0, 80)}..."`);
       return res.json({ response: formatted2.response, responses: formatted2.responses, timestamp: new Date().toISOString() });
     }
 
     // 8. For booking_pending or other, return client message
+    state.history.push({ role: 'assistant', content: clientMessage });
     state.turn += 1;
+    state.lastAccess = Date.now();
     sessionState.set(sessionId, state);
+    evictOldSessions();
     console.log(`[${sessionId}] Response+confirm (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
     return res.json({ response: formatted.response, responses: formatted.responses, timestamp: new Date().toISOString() });
 
   } catch (err) {
     console.error('Handler error:', err);
-    return res.json({
-      response: 'Estou com uma dificuldade tecnica no momento. Tente novamente em instantes!',
-      timestamp: new Date().toISOString(),
-    });
+    if (!res.headersSent) {
+      return res.json({
+        response: 'Estou com uma dificuldade tecnica no momento. Tente novamente em instantes!',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } finally {
+    clearTimeout(globalTimeout);
   }
 });
 

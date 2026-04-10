@@ -1,19 +1,18 @@
 status:
   branch: feat/mcp-tools-config
   modifiedFiles:
-    - .aios/project-status.yaml
     - backend/server.js
-    - design-system/tokens/primitives/il-primitives.css
-    - design-system/tokens/semantic.css
-    - design-system/tokens/themes/influence-labs.css
-  modifiedFilesTotalCount: 52
+    - docs/tess-agent-prompt.md
+    - frontend/demo-chat.html
+    - n8n-workflows/WF-DEMO-01-webchat.json
+  modifiedFilesTotalCount: 4
   recentCommits:
-    - 'fix: support tess workspace header for execute endpoint'
-    - 'feat: improve chat response style and session behavior for webchat'
+    - 'chore(security): restore .aios/handoffs/ to .gitignore'
+    - 'fix(n8n): webhook e2e WF-01→WF-02→TESS + sync VPS infra'
   currentEpic: null
   currentStory: null
-  lastUpdate: '2026-03-06T01:48:37.815Z'
+  lastUpdate: '2026-03-09T20:10:35.205Z'
   isGitRepo: true
-timestamp: 1772761717817
+timestamp: 1773087035207
 ttl: 60
-gitFingerprint: 1772252448296.85:1772654833754.9866
+gitFingerprint: 1772252448296.85:1773077340994.41
