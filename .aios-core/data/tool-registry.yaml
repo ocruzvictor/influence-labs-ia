@@ -303,6 +303,44 @@ tools:
         - timestamp
         - url
       max_rows: 20
+  memory:
+    tier: 3
+    layer: L4
+    defer: true
+    essential: false # Session-specific: persistent knowledge graph across sessions
+    tokenCost: 300
+    category: memory-knowledge
+    ptc_eligible: false  # ADR-3: MCP tools excluded from PTC/batch blocks
+    keywords:
+      - memory
+      - knowledge-graph
+      - entities
+      - relations
+      - context-persistence
+    mcp_server: docker-gateway
+    filter:
+      type: content
+      max_tokens: 3000
+
+  sequential-thinking:
+    tier: 3
+    layer: L4
+    defer: true
+    essential: false # Task-specific: complex reasoning chains
+    tokenCost: 500
+    category: reasoning
+    ptc_eligible: false  # ADR-3: MCP tools excluded from PTC/batch blocks
+    keywords:
+      - reasoning
+      - sequential
+      - thinking
+      - complex-analysis
+      - trade-offs
+    mcp_server: docker-gateway
+    filter:
+      type: content
+      max_tokens: 2000
+
   nogic:
     tier: 3
     layer: L4
@@ -426,6 +464,7 @@ profiles:
     deferred:
       - playwright
       - exa
+      - sequential-thinking
 
   architect:
     always_loaded:
@@ -440,6 +479,7 @@ profiles:
       - context7
       - git
       - coderabbit
+      - sequential-thinking
     deferred:
       - supabase-cli
       - railway-cli
@@ -455,7 +495,9 @@ profiles:
     frequently_used:
       - exa
       - context7
+      - memory
     deferred:
+      - sequential-thinking
       - google-workspace
 
   devops:

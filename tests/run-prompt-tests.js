@@ -52,6 +52,22 @@ function ensure(condition, message) {
   }
 }
 
+function qualityFixChecks() {
+  const backend = readText(path.join(ROOT, 'backend', 'server.js'));
+  ensure(/const DYNAMIC_CONTEXT_PREFIX\s*=/.test(backend), 'backend/server.js deve usar DYNAMIC_CONTEXT_PREFIX');
+  ensure(backend.includes('HOJE:'), 'backend/server.js deve incluir HOJE no contexto dinamico');
+  ensure(backend.includes('formatDateLabel'), 'backend/server.js deve formatar datas em portugues');
+  ensure(!/const SYSTEM_PROMPT_BASE\s*=/.test(backend), 'backend/server.js nao deve manter SYSTEM_PROMPT_BASE legado');
+
+  const frontend = readText(path.join(ROOT, 'frontend', 'demo-chat.html'));
+  ensure(!/const WELCOME_MESSAGE\s*=/.test(frontend), 'frontend/demo-chat.html nao deve ter welcome message fixa');
+  ensure(!/addMessage\(WELCOME_MESSAGE,\s*'received'\)/.test(frontend), 'frontend/demo-chat.html nao deve pre-carregar mensagem do assistente');
+
+  const tessPrompt = readText(path.join(ROOT, 'docs', 'tess-agent-prompt.md'));
+  ensure(tessPrompt.includes('REGRA ABSOLUTA DE DADOS:'), 'docs/tess-agent-prompt.md deve documentar REGRA ABSOLUTA DE DADOS');
+  ensure(tessPrompt.includes('CONTEXTO DINAMICO'), 'docs/tess-agent-prompt.md deve referenciar CONTEXTO DINAMICO');
+}
+
 function lintChecks() {
   const targets = [
     'tests/prompt-tests.json',
@@ -80,6 +96,7 @@ function lintChecks() {
     process.exit(1);
   }
 
+  qualityFixChecks();
   console.log('Lint checks OK');
 }
 
@@ -111,6 +128,7 @@ function typeChecks() {
     ensure(Array.isArray(test.expected_contains), `faq_tests[${idx}].expected_contains deve ser array`);
   });
 
+  qualityFixChecks();
   console.log('Type checks OK');
 }
 
@@ -360,7 +378,7 @@ async function callAnthropic(systemPrompt, userInput, model) {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY nao configurada');
 
   const payload = {
-    model: model || 'claude-3-5-sonnet-latest',
+    model: model || 'claude-sonnet-4-6',
     max_tokens: 400,
     temperature: 0.1,
     system: systemPrompt,

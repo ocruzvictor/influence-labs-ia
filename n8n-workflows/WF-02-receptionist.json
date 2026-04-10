@@ -14,7 +14,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $json;\ninput.phone = (input.phone || '').replace(/[^0-9+@.]/g, '');\nconst msg = (input.message || '').toLowerCase();\nconst now = new Date();\nconst tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);\nconst isoToday = now.toISOString().slice(0, 10);\nconst isoTomorrow = tomorrow.toISOString().slice(0, 10);\n\nlet requested_date = isoToday;\nif (msg.includes('amanha')) requested_date = isoTomorrow;\n\nconst serviceDurations = {\n  'corte masculino': 60,\n  'corte feminino': 120,\n  'cabelo e barba': 60,\n  'barba': 30,\n  'visagismo': 120,\n  'mechas': 330,\n  'progressiva': 120,\n  'manicure': 60,\n  'pedicure': 60\n};\n\nlet service = '';\nObject.keys(serviceDurations).forEach((name) => {\n  if (msg.includes(name)) service = name;\n});\n\nlet professional = '';\nconst aliases = {\n  'tiago': 'Tiago Rocha',\n  'andre': 'Andre de Oliveira',\n  'erick': 'Erick Barros',\n  'eli': 'Eliane Santana',\n  'malu': 'Maria Luiza',\n  'maluzinha': 'Maria Luiza',\n  'giovanna': 'Giovanna Ferraz',\n  'jackie': 'Jaqueline Aprigio',\n  'fefe': 'Fernanda de Sousa',\n  'fernanda': 'Fernanda de Sousa'\n};\nObject.keys(aliases).forEach((alias) => {\n  if (msg.includes(alias)) professional = aliases[alias];\n});\n\nconst duration_minutes = serviceDurations[service] || 60;\n\nreturn [{\n  json: {\n    ...input,\n    requested_date,\n    service: service || null,\n    professional: professional || null,\n    duration_minutes,\n    work_start: '09:00',\n    work_end: '19:00'\n  }\n}];"
+        "jsCode": "const input = $json;\ninput.phone = (input.phone || '').replace(/[^0-9]/g, '');\nconst msg = (input.message || '').toLowerCase();\nconst now = new Date();\nconst tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);\nconst isoToday = now.toISOString().slice(0, 10);\nconst isoTomorrow = tomorrow.toISOString().slice(0, 10);\n\nlet requested_date = isoToday;\nif (msg.includes('amanha')) requested_date = isoTomorrow;\n\nconst serviceDurations = {\n  'corte masculino': 60,\n  'corte feminino': 120,\n  'cabelo e barba': 60,\n  'barba': 30,\n  'visagismo': 120,\n  'mechas': 330,\n  'progressiva': 120,\n  'manicure': 60,\n  'pedicure': 60\n};\n\nlet service = '';\nObject.keys(serviceDurations).forEach((name) => {\n  if (msg.includes(name)) service = name;\n});\n\nlet professional = '';\nconst aliases = {\n  'tiago': 'Tiago Rocha',\n  'andre': 'Andre de Oliveira',\n  'erick': 'Erick Barros',\n  'eli': 'Eliane Santana',\n  'malu': 'Maria Luiza',\n  'maluzinha': 'Maria Luiza',\n  'giovanna': 'Giovanna Ferraz',\n  'jackie': 'Jaqueline Aprigio',\n  'fefe': 'Fernanda de Sousa',\n  'fernanda': 'Fernanda de Sousa'\n};\nObject.keys(aliases).forEach((alias) => {\n  if (msg.includes(alias)) professional = aliases[alias];\n});\n\nconst duration_minutes = serviceDurations[service] || 60;\n\nreturn [{\n  json: {\n    ...input,\n    requested_date,\n    service: service || null,\n    professional: professional || null,\n    duration_minutes,\n    work_start: '09:00',\n    work_end: '19:00'\n  }\n}];"
       },
       "id": "parse_context",
       "name": "Parse Booking Context",
@@ -40,42 +40,25 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "={{($env.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/appointments/availability\"}}",
+        "url": "={{($vars.TRINKS_API_BASE_URL || 'https://api.trinks.com/v1') + '/agendamentos/profissionais/' + $json.requested_date}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.TRINKS_API_KEY}}"
+              "name": "X-Api-Key",
+              "value": "={{$vars.TRINKS_API_KEY}}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "date",
-              "value": "={{$json.requested_date}}"
-            },
-            {
-              "name": "professional",
-              "value": "={{$json.professional || \"\"}}"
-            },
-            {
-              "name": "duration_minutes",
-              "value": "={{$json.duration_minutes || 60}}"
+              "name": "estabelecimentoId",
+              "value": "={{$vars.TRINKS_SALON_ID || '243868'}}"
             }
           ]
         }
@@ -91,7 +74,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $items('Parse Booking Context', 0, 0)[0].json;\n\nlet availableSlots = [];\nif (Array.isArray(items) && items.length > 0) {\n  const raw = items[0].json || {};\n  if (Array.isArray(raw.slots)) {\n    availableSlots = raw.slots.map((s) => s.time || s.start_time || s).filter(Boolean);\n  } else if (Array.isArray(raw.data?.slots)) {\n    availableSlots = raw.data.slots.map((s) => s.time || s.start_time || s).filter(Boolean);\n  } else {\n    availableSlots = items.map(i => i.json.available_time).filter(Boolean);\n  }\n}\n\nconst systemPrompt = `# Recepcionista - Studio Tirra\\n\\n## PERSONA\\nAssistente Virtual Studio Tirra. Empatica, objetiva e consultiva.\\n\\n## ACTION\\nGerenciar agendamento, reagendamento, cancelamento, consulta e confirmacao.\\n\\n## REGRAS\\n- Nunca inventar horarios.\\n- Sempre validar disponibilidade no Trinks.\\n- Confirmacao tripla obrigatoria.\\n- Em caso de conflito/reclamacao, escalar para Gabriel.\\n\\nRetorne JSON com campos: action, response_text, service, professional, date, time, duration_minutes.`;\n\nconst userPrompt = `Mensagem cliente: ${input.message}\\nData solicitada: ${input.requested_date}\\nServico detectado: ${input.service || 'nao identificado'}\\nProfissional detectado: ${input.professional || 'nao identificado'}\\nAVAILABLE_SLOTS: ${availableSlots.join(', ') || 'sem vagas'}\\n\\nResponda somente JSON.`;\n\nreturn [{\n  json: {\n    ...input,\n    available_slots: availableSlots,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    llm_provider: ($env.LLM_PROVIDER || 'openai').toLowerCase()\n  }\n}];"
+        "jsCode": "const input = $items('Parse Booking Context', 0, 0)[0].json;\n\nlet availableSlots = [];\nlet slotsSummary = '';\nconst raw = items[0].json || {};\nif (raw.data && Array.isArray(raw.data)) {\n  const available = raw.data.filter(p => p.horariosVagos && p.horariosVagos.length > 0);\n  if (available.length > 0) {\n    const parts = [];\n    for (const p of available) {\n      parts.push(`${p.apelido || p.nome}: ${p.horariosVagos.join(', ')}`);\n      availableSlots = availableSlots.concat(p.horariosVagos);\n    }\n    slotsSummary = parts.join(' | ');\n  }\n}\n\nconst systemPrompt = `# Recepcionista - Studio Tirra\\n\\n## PERSONA\\nAssistente Virtual Studio Tirra. Empatica, objetiva e consultiva.\\n\\n## ACTION\\nGerenciar agendamento, reagendamento, cancelamento, consulta e confirmacao.\\n\\n## REGRAS\\n- Nunca inventar horarios.\\n- Sempre validar disponibilidade no Trinks.\\n- Confirmacao tripla obrigatoria.\\n- Em caso de conflito/reclamacao, escalar para Gabriel.\\n\\nRetorne JSON com campos: action, response_text, service, professional, date, time, duration_minutes.`;\n\nconst userPrompt = `Mensagem cliente: ${input.message}\\nData solicitada: ${input.requested_date}\\nServico detectado: ${input.service || 'nao identificado'}\\nProfissional detectado: ${input.professional || 'nao identificado'}\\nHORARIOS VAGOS: ${slotsSummary || 'sem vagas'}\\n\\nResponda somente JSON.`;\n\nreturn [{\n  json: {\n    ...input,\n    available_slots: availableSlots,\n    slots_summary: slotsSummary,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt\n  }\n}];"
       },
       "id": "build_prompt",
       "name": "Build Prompt",
@@ -105,21 +88,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$json.llm_provider === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://api.openai.com/v1/chat/completions'}}",
+        "url": "={{($vars.TESS_API_BASE || 'https://api.tess.im') + '/agents/' + ($vars.TESS_AGENT_ID || '33200') + '/execute'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
-            },
-            {
-              "name": "x-api-key",
-              "value": "={{$env.ANTHROPIC_API_KEY}}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "=Bearer {{$vars.TESS_API_TOKEN}}"
             },
             {
               "name": "Content-Type",
@@ -130,10 +105,10 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{$json.llm_provider === 'anthropic' ? JSON.stringify({model: $env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest', max_tokens: 500, temperature: 0.2, system: $json.system_prompt, messages: [{role: 'user', content: $json.user_prompt}]}) : JSON.stringify({model: $env.OPENAI_MODEL || 'gpt-4o-mini', temperature: 0.2, messages: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}]})}}"
+        "body": "={{JSON.stringify({messages: [{role: 'system', content: $json.system_prompt}, {role: 'user', content: $json.user_prompt}], wait_execution: true})}}"
       },
       "id": "call_llm",
-      "name": "Call LLM",
+      "name": "Call TESS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -143,7 +118,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const source = $items('Build Prompt', 0, 0)[0].json;\nlet payload = {\n  action: 'consultar',\n  response_text: 'Vou verificar com a equipe e ja te retorno!',\n  service: source.service || 'Corte feminino',\n  professional: source.professional || 'Carla',\n  date: source.requested_date,\n  time: source.available_slots?.[0] || null,\n  duration_minutes: source.duration_minutes || 60\n};\n\nlet text = '';\nif ($json.choices?.[0]?.message?.content) text = $json.choices[0].message.content;\nif (!text && Array.isArray($json.content) && $json.content[0]?.text) text = $json.content[0].text;\n\ntry {\n  payload = { ...payload, ...JSON.parse(text) };\n} catch (e) {}\n\nconst allowed = ['agendar', 'reagendar', 'cancelar', 'consultar', 'confirmar'];\nif (!allowed.includes(payload.action)) payload.action = 'consultar';\n\nif (payload.action === 'agendar' && payload.time && !source.available_slots.includes(payload.time)) {\n  payload.action = 'consultar';\n  payload.response_text = `Esse horario nao esta disponivel. Tenho: ${source.available_slots.join(', ')}. Qual prefere?`;\n}\n\nif (!payload.response_text) {\n  payload.response_text = 'Perfeito. Vou te ajudar com isso agora.';\n}\npayload.response_text = (payload.response_text || '').replace(/'/g, \"''\");\n\nreturn [{ json: { ...source, ...payload } }];"
+        "jsCode": "const source = $items('Build Prompt', 0, 0)[0].json;\nlet payload = {\n  action: 'consultar',\n  response_text: 'Vou verificar com a equipe e ja te retorno!',\n  service: source.service || null,\n  professional: source.professional || null,\n  date: source.requested_date,\n  time: source.available_slots?.[0] || null,\n  duration_minutes: source.duration_minutes || 60\n};\n\nlet text = '';\nconst raw = $json;\nif (raw.responses?.[0]?.output) text = String(raw.responses[0].output);\nelse if (raw.output) text = String(raw.output);\nelse if (raw.choices?.[0]?.message?.content) text = raw.choices[0].message.content;\nelse if (Array.isArray(raw.content) && raw.content[0]?.text) text = raw.content[0].text;\nelse if (raw.response) text = String(raw.response);\nelse if (raw.text) text = String(raw.text);\n\ntry {\n  payload = { ...payload, ...JSON.parse(text) };\n} catch (e) {\n  payload.response_text = text || payload.response_text;\n}\n\nconst allowed = ['agendar', 'reagendar', 'cancelar', 'consultar', 'confirmar'];\nif (!allowed.includes(payload.action)) payload.action = 'consultar';\n\nif (payload.action === 'agendar' && payload.time && !source.available_slots.includes(payload.time)) {\n  payload.action = 'consultar';\n  payload.response_text = `Esse horario nao esta disponivel. Tenho: ${source.available_slots.join(', ')}. Qual prefere?`;\n}\n\nif (!payload.response_text) {\n  payload.response_text = 'Perfeito. Vou te ajudar com isso agora.';\n}\npayload.response_text = (payload.response_text || '').replace(/'/g, \"''\");\n\nreturn [{ json: { ...source, ...payload } }];"
       },
       "id": "parse_action",
       "name": "Parse Action",
@@ -196,13 +171,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{($env.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/appointments\"}}",
+        "url": "={{($vars.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/appointments\"}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.TRINKS_API_KEY}}"
+              "name": "X-Api-Key",
+              "value": "={{$vars.TRINKS_API_KEY}}"
+            },
+            {
+              "name": "estabelecimentoId",
+              "value": "={{$vars.TRINKS_SALON_ID || '243868'}}"
             },
             {
               "name": "Content-Type",
@@ -226,13 +205,17 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "={{($env.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/appointments/rebook\"}}",
+        "url": "={{($vars.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/appointments/rebook\"}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.TRINKS_API_KEY}}"
+              "name": "X-Api-Key",
+              "value": "={{$vars.TRINKS_API_KEY}}"
+            },
+            {
+              "name": "estabelecimentoId",
+              "value": "={{$vars.TRINKS_SALON_ID || '243868'}}"
             },
             {
               "name": "Content-Type",
@@ -256,13 +239,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{($env.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/appointments/cancel\"}}",
+        "url": "={{($vars.TRINKS_API_BASE_URL || \"https://api.trinks.com/v1\") + \"/appointments/cancel\"}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "=Bearer {{$env.TRINKS_API_KEY}}"
+              "name": "X-Api-Key",
+              "value": "={{$vars.TRINKS_API_KEY}}"
+            },
+            {
+              "name": "estabelecimentoId",
+              "value": "={{$vars.TRINKS_SALON_ID || '243868'}}"
             },
             {
               "name": "Content-Type",
@@ -286,19 +273,23 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "url": "={{'https://graph.facebook.com/' + ($vars.META_GRAPH_VERSION || 'v21.0') + '/' + $vars.META_PHONE_NUMBER_ID + '/messages'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "apikey",
-              "value": "={{$env.EVOLUTION_API_KEY}}"
+              "name": "Authorization",
+              "value": "=Bearer {{$vars.META_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"{{$json.response_text}}\"}"
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{$json.phone}}\",\"type\":\"text\",\"text\":{\"body\":\"{{$json.response_text}}\"}}"
       },
       "id": "send_reply",
       "name": "Send Reply",
@@ -324,8 +315,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     }
@@ -379,14 +370,14 @@
       "main": [
         [
           {
-            "node": "Call LLM",
+            "node": "Call TESS",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Call LLM": {
+    "Call TESS": {
       "main": [
         [
           {

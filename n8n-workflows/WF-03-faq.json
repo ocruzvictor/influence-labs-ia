@@ -7,17 +7,23 @@
       "name": "Execute Workflow Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1,
-      "position": [-1060, 120]
+      "position": [
+        -1060,
+        120
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const fs = require('fs');\n\nfunction normalize(text) {\n  return String(text || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction tokenize(text) {\n  const stop = new Set(['a','as','o','os','de','da','do','das','dos','e','em','no','na','nos','nas','que','com','para','por','uma','um','ao','aos']);\n  return normalize(text).split(' ').filter(t => t.length > 1 && !stop.has(t));\n}\n\nconst input = $json;\ninput.phone = (input.phone || '').replace(/[^0-9+@.]/g, '');\nconst query = input.message || '';\nconst tokens = tokenize(query);\nconst indexPath = process.env.RAG_INDEX_PATH || '/data/rag/kb-index.json';\nlet entries = [];\n\ntry {\n  const raw = fs.readFileSync(indexPath, 'utf8');\n  entries = JSON.parse(raw).entries || [];\n} catch (e) {\n  entries = [];\n}\n\nconst scored = entries.map((entry) => {\n  const content = normalize(entry.content || '');\n  const section = normalize(entry.section || '');\n  const keywords = (entry.keywords || []).map(normalize);\n  let score = 0;\n  for (const token of tokens) {\n    if (keywords.some(k => k.includes(token))) score += 5;\n    if (section.includes(token)) score += 3;\n    if (content.includes(token)) score += 2;\n  }\n  if (content.includes(normalize(query))) score += 8;\n  return { ...entry, score };\n}).filter(e => e.score > 0).sort((a, b) => b.score - a.score);\n\nconst top = scored.slice(0, 3);\nconst bestScore = top[0]?.score || 0;\nconst ragConfident = bestScore >= 6;\nconst ragContext = top.map((t, i) => `[${i + 1}] ${t.source} :: ${t.section}\\n${t.content}`).join('\\n\\n') || 'Sem trechos relevantes na KB.';\n\nreturn [{\n  json: {\n    ...input,\n    rag_matches: top,\n    rag_best_score: bestScore,\n    rag_confident: ragConfident,\n    rag_context: ragContext,\n    llm_provider: ($env.LLM_PROVIDER || 'openai').toLowerCase()\n  }\n}];"
+        "jsCode": "const fs = require('fs');\n\nfunction normalize(text) {\n  return String(text || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction tokenize(text) {\n  const stop = new Set(['a','as','o','os','de','da','do','das','dos','e','em','no','na','nos','nas','que','com','para','por','uma','um','ao','aos']);\n  return normalize(text).split(' ').filter(t => t.length > 1 && !stop.has(t));\n}\n\nconst input = $json;\ninput.phone = (input.phone || '').replace(/[^0-9]/g, '');\nconst query = input.message || '';\nconst tokens = tokenize(query);\nconst indexPath = process.env.RAG_INDEX_PATH || '/data/rag/kb-index.json';\nlet entries = [];\n\ntry {\n  const raw = fs.readFileSync(indexPath, 'utf8');\n  entries = JSON.parse(raw).entries || [];\n} catch (e) {\n  entries = [];\n}\n\nconst scored = entries.map((entry) => {\n  const content = normalize(entry.content || '');\n  const section = normalize(entry.section || '');\n  const keywords = (entry.keywords || []).map(normalize);\n  let score = 0;\n  for (const token of tokens) {\n    if (keywords.some(k => k.includes(token))) score += 5;\n    if (section.includes(token)) score += 3;\n    if (content.includes(token)) score += 2;\n  }\n  if (content.includes(normalize(query))) score += 8;\n  return { ...entry, score };\n}).filter(e => e.score > 0).sort((a, b) => b.score - a.score);\n\nconst top = scored.slice(0, 3);\nconst bestScore = top[0]?.score || 0;\nconst ragConfident = bestScore >= 6;\nconst ragContext = top.map((t, i) => `[${i + 1}] ${t.source} :: ${t.section}\\n${t.content}`).join('\\n\\n') || 'Sem trechos relevantes na KB.';\n\nreturn [{\n  json: {\n    ...input,\n    rag_matches: top,\n    rag_best_score: bestScore,\n    rag_confident: ragConfident,\n    rag_context: ragContext,\n    llm_provider: ($env.LLM_PROVIDER || 'openai').toLowerCase()\n  }\n}];"
       },
       "id": "rag_search",
       "name": "RAG Search KB",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-820, 120]
+      "position": [
+        -820,
+        120
+      ]
     },
     {
       "parameters": {
@@ -27,7 +33,10 @@
       "name": "Build FAQ Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-600, 120]
+      "position": [
+        -600,
+        120
+      ]
     },
     {
       "parameters": {
@@ -63,7 +72,10 @@
       "name": "FAQ LLM",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-360, 120]
+      "position": [
+        -360,
+        120
+      ]
     },
     {
       "parameters": {
@@ -73,7 +85,10 @@
       "name": "Parse FAQ Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-120, 120]
+      "position": [
+        -120,
+        120
+      ]
     },
     {
       "parameters": {
@@ -91,30 +106,40 @@
       "name": "If Confident",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [120, 120]
+      "position": [
+        120,
+        120
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "url": "={{'https://graph.facebook.com/' + ($env.META_GRAPH_VERSION || 'v21.0') + '/' + $env.META_PHONE_NUMBER_ID + '/messages'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "apikey",
-              "value": "={{$env.EVOLUTION_API_KEY}}"
+              "name": "Authorization",
+              "value": "=Bearer {{$env.META_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"{{$json.answer}}\"}"
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{$json.phone}}\",\"type\":\"text\",\"text\":{\"body\":\"{{$json.answer}}\"}}"
       },
       "id": "send_faq",
       "name": "Send FAQ Response",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [360, 40]
+      "position": [
+        360,
+        40
+      ]
     },
     {
       "parameters": {
@@ -125,7 +150,10 @@
       "name": "Call WF-05 [AJUSTAR ID APOS IMPORT]",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
-      "position": [360, 200]
+      "position": [
+        360,
+        200
+      ]
     },
     {
       "parameters": {
@@ -136,42 +164,113 @@
       "name": "Save History",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [600, 120],
+      "position": [
+        600,
+        120
+      ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     }
   ],
   "connections": {
     "Execute Workflow Trigger": {
-      "main": [[{ "node": "RAG Search KB", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "RAG Search KB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "RAG Search KB": {
-      "main": [[{ "node": "Build FAQ Prompt", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build FAQ Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build FAQ Prompt": {
-      "main": [[{ "node": "FAQ LLM", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "FAQ LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "FAQ LLM": {
-      "main": [[{ "node": "Parse FAQ Output", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse FAQ Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse FAQ Output": {
-      "main": [[{ "node": "If Confident", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "If Confident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "If Confident": {
       "main": [
-        [{ "node": "Send FAQ Response", "type": "main", "index": 0 }],
-        [{ "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Send FAQ Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Send FAQ Response": {
-      "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Call WF-05 [AJUSTAR ID APOS IMPORT]": {
-      "main": [[{ "node": "Save History", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

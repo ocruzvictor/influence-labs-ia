@@ -1,35 +1,8 @@
 services:
-  evolution-api:
-    image: atendai/evolution-api:${EVOLUTION_IMAGE_TAG:-v2.3.7}
-    container_name: evolution-api
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      AUTHENTICATION_TYPE: apikey
-      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
-      DATABASE_ENABLED: "true"
-      DATABASE_PROVIDER: postgresql
-      DATABASE_CONNECTION_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/evolution
-      CACHE_REDIS_ENABLED: "true"
-      CACHE_REDIS_URI: redis://redis:6379/0
-      RABBITMQ_ENABLED: "false"
-      PROVIDER_ENABLED: "true"
-      PROVIDER_HOST: https://graph.facebook.com
-      PROVIDER_PREFIX: v21.0
-      SERVER_URL: https://api.${BASE_DOMAIN}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
   n8n:
     image: n8nio/n8n:${N8N_IMAGE_TAG:-2.7.4}
     container_name: n8n
     restart: unless-stopped
-    ports:
-      - "5678:5678"
     environment:
       N8N_BASIC_AUTH_ACTIVE: "true"
       N8N_BASIC_AUTH_USER: ${N8N_USER}
@@ -45,6 +18,29 @@ services:
       N8N_PROTOCOL: https
       WEBHOOK_URL: https://n8n.${BASE_DOMAIN}/
       GENERIC_TIMEZONE: America/Sao_Paulo
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL}
+      TRINKS_API_BASE_URL: ${TRINKS_API_BASE_URL}
+      TRINKS_API_KEY: ${TRINKS_API_KEY}
+      TRINKS_SALON_ID: ${TRINKS_SALON_ID}
+      CHATWOOT_BASE_URL: ${CHATWOOT_BASE_URL}
+      CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID}
+      CHATWOOT_INBOX_ID: ${CHATWOOT_INBOX_ID}
+      CHATWOOT_INBOX_IDENTIFIER: ${CHATWOOT_INBOX_IDENTIFIER}
+      CHATWOOT_ASSIGNEE_ID: ${CHATWOOT_ASSIGNEE_ID}
+      CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN}
+      META_PHONE_NUMBER_ID: ${META_PHONE_NUMBER_ID}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN}
+      RAG_INDEX_PATH: ${RAG_INDEX_PATH}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL}
+      TESS_API_TOKEN: ${TESS_API_TOKEN}
+      TESS_AGENT_ID: ${TESS_AGENT_ID}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
     volumes:
       - n8n_data:/home/node/.n8n
       - ../data/rag:/data/rag:ro
@@ -58,8 +54,6 @@ services:
     restart: unless-stopped
     entrypoint: docker/entrypoints/rails.sh
     command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
-    ports:
-      - "3000:3000"
     environment:
       RAILS_ENV: production
       SECRET_KEY_BASE: ${CHATWOOT_SECRET}
@@ -94,38 +88,6 @@ services:
       redis:
         condition: service_healthy
 
-  typebot-builder:
-    image: baptistearno/typebot-builder:${TYPEBOT_IMAGE_TAG:-3.15.1}
-    container_name: typebot-builder
-    restart: unless-stopped
-    ports:
-      - "3001:3000"
-    environment:
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/typebot
-      NEXTAUTH_URL: https://builder.${BASE_DOMAIN}
-      NEXTAUTH_SECRET: ${TYPEBOT_AUTH_SECRET}
-      ENCRYPTION_SECRET: ${TYPEBOT_ENCRYPTION_SECRET}
-      ADMIN_EMAIL: ${TYPEBOT_ADMIN_EMAIL}
-      DISABLE_SIGNUP: "true"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  typebot-viewer:
-    image: baptistearno/typebot-viewer:${TYPEBOT_IMAGE_TAG:-3.15.1}
-    container_name: typebot-viewer
-    restart: unless-stopped
-    ports:
-      - "3002:3000"
-    environment:
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/typebot
-      NEXTAUTH_URL: https://builder.${BASE_DOMAIN}
-      NEXTAUTH_SECRET: ${TYPEBOT_AUTH_SECRET}
-      ENCRYPTION_SECRET: ${TYPEBOT_ENCRYPTION_SECRET}
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   nginx:
     image: nginx:alpine
     container_name: nginx
@@ -136,9 +98,8 @@ services:
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - certbot_webroot:/var/www/certbot:ro
-      - certbot_certs:/etc/letsencrypt:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-      - evolution-api
       - chatwoot
       - n8n
 
@@ -151,11 +112,9 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   postgres:
-    image: postgres:${POSTGRES_IMAGE_TAG:-17.7-bookworm}
+    image: pgvector/pgvector:pg17
     container_name: postgres
     restart: unless-stopped
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
@@ -172,8 +131,6 @@ services:
     image: redis:${REDIS_IMAGE_TAG:-7.4.7-alpine}
     container_name: redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data

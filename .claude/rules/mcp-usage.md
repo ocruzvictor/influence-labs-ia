@@ -37,6 +37,8 @@ AIOS uses Docker MCP Toolkit as the primary MCP infrastructure:
 | **EXA** | Web search, research, company/competitor analysis |
 | **Context7** | Library documentation lookup |
 | **Apify** | Web scraping, Actors, social media data extraction |
+| **Memory** | Persistent knowledge graph — entities, relations, observations across sessions |
+| **Sequential Thinking** | Structured reasoning chains for complex multi-constraint problems |
 
 ## CRITICAL: Tool Selection Priority
 
@@ -136,6 +138,58 @@ mcp__docker-gateway__fetch-apify-docs              # Fetch documentation page
 | Scrape specific website | Apify (`call-actor`) |
 | Social media data extraction | Apify (use specialized Actors) |
 | Library documentation | Context7 |
+
+## Memory MCP Usage (via Docker)
+
+### Use Memory for:
+1. Persisting entities, decisions, and observations **across sessions** (eliminates context repetition)
+2. Storing architectural decisions with rationale for @architect and @aios-master
+3. Maintaining client history for Studio Tirra WhatsApp agent
+4. Squad knowledge sharing — agents read each other's stored context
+5. Building incremental knowledge base for Influence Labs client projects
+
+### Access pattern:
+```
+mcp__docker-gateway__create_entities
+mcp__docker-gateway__create_relations
+mcp__docker-gateway__add_observations
+mcp__docker-gateway__search_nodes
+mcp__docker-gateway__open_nodes
+mcp__docker-gateway__read_graph
+mcp__docker-gateway__delete_entities
+mcp__docker-gateway__delete_observations
+mcp__docker-gateway__delete_relations
+```
+
+### ALWAYS search before creating:
+```
+mcp__docker-gateway__search_nodes({ query: "..." })  # check first
+mcp__docker-gateway__create_entities([...])           # only if not found
+```
+
+---
+
+## Sequential Thinking MCP Usage (via Docker)
+
+### Use Sequential Thinking for:
+1. Architecture decisions with 3+ trade-offs or constraints
+2. Spec pipeline validation — verifying completeness step by step
+3. QA analysis — systematically mapping failure modes and edge cases
+4. Brownfield assessment — reasoning through technical debt dimensions
+5. Debug flows — elimination-based root cause analysis
+
+### NEVER use Sequential Thinking for:
+- Simple lookups, CRUD operations, or straightforward tasks
+- Tasks that can be answered with a single clear response
+- Anything that doesn't involve competing constraints or ambiguity
+
+### Access pattern:
+```
+mcp__docker-gateway__sequentialthinking
+```
+
+### Token cost note:
+Each thought step costs ~500 tokens. Use only when reasoning quality matters more than token efficiency (complex decisions, architecture reviews, QA gate analysis).
 
 ---
 

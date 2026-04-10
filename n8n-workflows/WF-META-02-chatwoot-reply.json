@@ -1,0 +1,150 @@
+{
+  "name": "Studio Tirra — Chatwoot → WhatsApp (Resposta Humana)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatwoot-tirra",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook_chatwoot",
+      "name": "Chatwoot Webhook (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtra apenas mensagens de agentes humanos enviadas no Chatwoot\n// Ignora mensagens do bot, eventos de criacao de conversa, etc.\nconst body = $json.body ?? $json;\n\nconst eventType = body.event;\nconst messageType = body.message_type; // 'outgoing' = agente enviou\nconst contentType = body.content_type;\nconst content = body.content;\nconst conversationId = body.conversation?.id;\nconst inboxId = body.inbox_id;\n\n// So processa: novo outgoing message (agente respondeu)\nif (eventType !== 'message_created') {\n  return [{ json: { skip: true, reason: 'evento_ignorado_' + eventType } }];\n}\n\nif (messageType !== 'outgoing') {\n  return [{ json: { skip: true, reason: 'nao_e_resposta_do_agente' } }];\n}\n\nif (!content || !content.trim()) {\n  return [{ json: { skip: true, reason: 'conteudo_vazio' } }];\n}\n\n// Extrai numero do cliente a partir dos atributos da conversa\n// O numero foi armazenado como atributo quando a conversa foi criada\nconst phone = body.conversation?.meta?.sender?.phone_number\n  || body.meta?.sender?.phone_number\n  || body.conversation?.additional_attributes?.from\n  || null;\n\nif (!phone) {\n  return [{ json: { skip: true, reason: 'sem_numero_destinatario' } }];\n}\n\n// Normaliza numero (remove + e espacos)\nconst phoneCleaned = phone.replace(/[^0-9]/g, '');\n\nreturn [{ json: {\n  skip: false,\n  to: phoneCleaned,\n  content: content.trim(),\n  conversationId,\n  inboxId\n} }];"
+      },
+      "id": "parse_chatwoot_event",
+      "name": "Parse Evento Chatwoot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.skip }}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "if_skip_chatwoot",
+      "name": "Ignorar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evento ignorado — nenhuma acao necessaria\nreturn [];"
+      },
+      "id": "noop_chatwoot",
+      "name": "Ignorar (sem acao)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{'https://graph.facebook.com/' + ($env.META_GRAPH_VERSION || 'v21.0') + '/' + $env.META_PHONE_NUMBER_ID + '/messages'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.META_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  messaging_product: 'whatsapp',\n  to: $json.to,\n  type: 'text',\n  text: { body: $json.content }\n}) }}"
+      },
+      "id": "send_human_reply",
+      "name": "Enviar Resposta Humana (Meta API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -480,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Chatwoot Webhook (POST)": {
+      "main": [
+        [
+          {
+            "node": "Parse Evento Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Evento Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Ignorar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ignorar?": {
+      "main": [
+        [
+          {
+            "node": "Ignorar (sem acao)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Resposta Humana (Meta API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "active": false,
+  "id": "WF-META-02-chatwoot-reply",
+  "meta": {
+    "notes": "PLACEHOLDERS A PREENCHER:\n1. Node 'Enviar Resposta Humana': substitua \nEste workflow recebe eventos do Chatwoot (quando agente humano responde) e envia a resposta ao cliente via WhatsApp."
+  }
+}

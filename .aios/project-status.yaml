@@ -1,19 +1,18 @@
 status:
-  branch: main
+  branch: feat/mcp-tools-config
   modifiedFiles:
-    - .codex/agents/aios-master.md
-    - .codex/agents/analyst.md
-    - .codex/agents/architect.md
-    - .codex/agents/data-engineer.md
-    - .codex/agents/dev.md
-  modifiedFilesTotalCount: 30
+    - backend/server.js
+    - docs/tess-agent-prompt.md
+    - frontend/demo-chat.html
+    - n8n-workflows/WF-DEMO-01-webchat.json
+  modifiedFilesTotalCount: 4
   recentCommits:
-    - 'chore: sync AIOS framework to latest upstream'
-    - 'chore: initial commit — AIOS framework setup'
+    - 'chore(security): restore .aios/handoffs/ to .gitignore'
+    - 'fix(n8n): webhook e2e WF-01→WF-02→TESS + sync VPS infra'
   currentEpic: null
   currentStory: null
-  lastUpdate: '2026-02-25T02:48:21.800Z'
+  lastUpdate: '2026-03-09T20:10:35.205Z'
   isGitRepo: true
-timestamp: 1771987701805
+timestamp: 1773087035207
 ttl: 60
-gitFingerprint: 1771904641743.7695:1771905449356.49
+gitFingerprint: 1772252448296.85:1773077340994.41

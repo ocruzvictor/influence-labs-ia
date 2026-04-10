@@ -1,0 +1,87 @@
+/**
+ * Design System — Entry Point
+ * Influence Labs + Pareto | 4-Layer Token Architecture
+ *
+ * ORDEM DE IMPORT: primitivos → semântico → temas
+ * Componentes importam apenas este arquivo.
+ *
+ * Uso:
+ *   <html data-brand="influence-labs">  → IL brand (default)
+ *   <html data-brand="pareto">          → Pareto brand
+ *
+ * Google Fonts (adicionar no <head>):
+ *   DM Serif Display + DM Sans + Inter + JetBrains Mono → IL
+ *   Montserrat → Pareto
+ */
+
+/* LAYER 1 — Primitivos (valores brutos) */
+@import './tokens/primitives/pareto-primitives.css';
+@import './tokens/primitives/il-primitives.css';
+
+/* LAYER 2 — Semântico (aliases com defaults IL) */
+@import './tokens/semantic.css';
+
+/* LAYER 3 — Temas (sobrescrevem semântico por brand) */
+@import './tokens/themes/influence-labs.css';
+@import './tokens/themes/pareto.css';
+
+/* LAYER 4 — Componentes (usar quando existirem) */
+/* @import './components/index.css'; */
+
+/* === RESET BASE === */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-regular);
+  line-height: var(--leading-body);
+  color: var(--color-text-body);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1 {
+  font-family: var(--font-hero);
+  font-weight: var(--fw-regular);
+  line-height: 1.10;
+  letter-spacing: -0.01em;
+  color: var(--color-text-heading);
+}
+
+h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--fw-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-heading);
+}
+
+code, kbd, pre, samp {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img, video {
+  max-width: 100%;
+  display: block;
+}

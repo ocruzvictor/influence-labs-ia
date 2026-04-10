@@ -1,0 +1,80 @@
+tool:
+  schema_version: 1.0
+  id: sequential-thinking
+  type: mcp
+  name: Sequential Thinking MCP
+  version: 1.0.0
+  description: Dynamic problem-solving via structured thought sequences. Enables agents to break complex tasks into explicit reasoning steps with revision capability — reducing alucinação and improving output quality on multi-constraint problems.
+  knowledge_strategy: declarative
+
+  capabilities:
+    - Break complex problems into explicit, numbered thought steps
+    - Revise previous thoughts when new information changes the analysis
+    - Branch into alternative reasoning paths
+    - Synthesize final answer only after complete reasoning chain
+    - Prevent premature conclusions on ambiguous problems
+
+  use_cases:
+    - architecture_decisions: "Reason through trade-offs before recommending tech choices"
+    - spec_pipeline: "Validate specs against acceptance criteria step by step"
+    - qa_analysis: "Systematically identify failure modes and edge cases"
+    - brownfield_assessment: "Structure technical debt analysis across multiple dimensions"
+    - story_estimation: "Break down complexity before giving confidence score"
+    - debug_flow: "Trace root cause through elimination steps"
+
+  mcp_specific:
+    server_command: "npx -y @modelcontextprotocol/server-sequentialthinking"
+    transport: stdio
+    environment_variables: []
+    health_check:
+      method: tool_call
+      command: sequentialthinking
+      expected_response: "Accepts thought input, returns structured reasoning step"
+      timeout_ms: 5000
+
+  tools:
+    - id: sequentialthinking
+      description: "Process a single thought in a reasoning chain — call repeatedly to build the full analysis"
+      parameters:
+        - thought: "The current reasoning step content"
+        - nextThoughtNeeded: "Boolean — true if more steps required, false when ready to conclude"
+        - thoughtNumber: "Sequential index of this thought (1, 2, 3...)"
+        - totalThoughtsEstimate: "Estimated total number of thoughts needed"
+        - isRevision: "Boolean — true if this thought revises a previous one"
+        - revisesThought: "Number of the thought being revised (if isRevision=true)"
+        - branchFromThought: "Thought number this branches from (for parallel reasoning paths)"
+        - branchId: "Identifier for this branch (e.g., 'option-a', 'option-b')"
+      notes:
+        - "Call sequentially until nextThoughtNeeded=false"
+        - "Use isRevision=true when earlier analysis was wrong — do not hide revisions"
+        - "Use branching for comparing mutually exclusive approaches"
+        - "Final thought should synthesize conclusions, not add new analysis"
+
+  workflow:
+    typical_usage:
+      - step: 1
+        action: "Frame the problem in thought 1"
+        example: "sequentialthinking({ thought: 'Problem: Studio Tirra needs a booking confirmation flow via WhatsApp. Constraints: Trinks API, Evolution API. I need to reason through the integration points.', thoughtNumber: 1, totalThoughtsEstimate: 5, nextThoughtNeeded: true })"
+      - step: 2
+        action: "Analyze each dimension in subsequent thoughts"
+        example: "sequentialthinking({ thought: 'Trinks API supports webhook callbacks. Evolution API can receive them and forward via WhatsApp. I will verify if n8n can bridge both...', thoughtNumber: 2, nextThoughtNeeded: true })"
+      - step: 3
+        action: "Revise if needed"
+        example: "sequentialthinking({ thought: 'Correction on thought 2: Trinks webhooks require HTTPS endpoint. n8n cloud handles this but self-hosted needs ngrok or VPS.', thoughtNumber: 3, isRevision: true, revisesThought: 2, nextThoughtNeeded: true })"
+      - step: 4
+        action: "Conclude with synthesized answer"
+        example: "sequentialthinking({ thought: 'Final: Use n8n cloud edition for HTTPS webhook, Evolution API for WhatsApp delivery, Trinks webhook for booking events. Estimated 2 days to implement.', thoughtNumber: 5, nextThoughtNeeded: false })"
+
+  best_practices:
+    - "Use for problems with 3+ constraints or trade-offs — not for simple lookups"
+    - "Set totalThoughtsEstimate conservatively — can always add more"
+    - "Always revise explicitly when earlier reasoning was wrong — do not carry forward mistakes"
+    - "Use branching when comparing 2+ mutually exclusive architectural options"
+    - "Keep each thought focused on ONE aspect — avoid combining multiple analyses per step"
+    - "Final thought should be a clean synthesis, not continuation of analysis"
+
+  limitations:
+    - "Each tool call adds latency — do not use for simple, clear-cut problems"
+    - "Not a replacement for domain knowledge — reasoning quality depends on input quality"
+    - "Token cost scales linearly with number of thoughts"
+    - "Tool works best when problem constraints are explicitly stated in thought 1"

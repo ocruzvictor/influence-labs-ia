@@ -1,0 +1,87 @@
+/**
+ * Influence Labs — Brand Theme v2.0 (Warm Authority)
+ * LAYER 3B — Mapeia primitivos IL → tokens semânticos
+ * Uso: <html data-brand="influence-labs"> (default)
+ */
+:root,
+:root[data-brand="influence-labs"] {
+  /* === CORES === */
+  --color-brand:           var(--il-navy);
+  --color-primary:         var(--il-navy);
+  --color-accent:          var(--il-indigo);
+  --color-warm:            var(--il-terracotta);
+  --color-success:         var(--il-forest);
+
+  --color-bg:              var(--il-bg);
+  --color-surface:         var(--il-white);
+  --color-surface-subtle:  var(--il-surface-alt);
+  --color-surface-muted:   #E5E2DA;
+
+  --color-text-heading:    var(--il-text);
+  --color-text-body:       var(--il-text);
+  --color-text-muted:      var(--il-text-muted);
+
+  --color-border-subtle:   var(--il-border-subtle);
+  --color-border-soft:     var(--il-border-soft);
+  --color-nav-glass:       var(--il-nav-glass);
+
+  /* === TIPOGRAFIA === */
+  --font-hero:     var(--il-font-hero);
+  --font-heading:  var(--il-font-heading);
+  --font-body:     var(--il-font-body);
+  --font-mono:     var(--il-font-mono);
+
+  --fw-light:    300;
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  --tracking-tight:   -0.02em;
+  --tracking-normal:   0;
+  --tracking-caps:     0.06em;
+
+  --leading-tight:       1.15;
+  --leading-body:        1.6;
+  --leading-comfortable: 1.75;
+
+  --fs-xs:   12px;
+  --fs-sm:   13px;
+  --fs-base: 16px;
+  --fs-md:   18px;
+  --fs-lg:   22px;
+  --fs-xl:   28px;
+  --fs-2xl:  36px;
+  --fs-3xl:  44px;
+  --fs-4xl:  56px;
+  --fs-5xl:  72px;
+
+  /* === FORMA — flat, preciso === */
+  --radius-sm:   var(--il-radius-sm);
+  --radius-md:   var(--il-radius-md);
+  --radius-lg:   var(--il-radius-lg);
+  --radius-pill: var(--il-radius-pill);
+
+  --shadow-sm: var(--il-shadow-sm);
+  --shadow-md: var(--il-shadow-md);
+  --shadow-lg: var(--il-shadow-lg);
+
+  /* === LAYOUT === */
+  --container-max: 1400px;
+  --modal-max:      640px;
+  --modal-max-h:    85vh;
+
+  /* === SPACING (número = pixels) === */
+  --space-1:  1px;
+  --space-4:  4px;
+  --space-6:  6px;
+  --space-8:  8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-60: 60px;
+}

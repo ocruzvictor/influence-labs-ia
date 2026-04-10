@@ -40,9 +40,7 @@ echo "=== Status dos servicos ==="
 $COMPOSE_CMD ps
 
 echo "=== Testando endpoints locais ==="
-curl -s -o /dev/null -w "Evolution API: %{http_code}\n" http://localhost:8080/ || true
-curl -s -o /dev/null -w "n8n: %{http_code}\n" http://localhost:5678/ || true
-curl -s -o /dev/null -w "Chatwoot: %{http_code}\n" http://localhost:3000/ || true
-curl -s -o /dev/null -w "Typebot Viewer: %{http_code}\n" http://localhost:3002/ || true
+$COMPOSE_CMD exec -T n8n sh -lc 'wget -q --spider http://localhost:5678 || exit 1' && echo "n8n: ok" || echo "n8n: erro"
+$COMPOSE_CMD exec -T chatwoot sh -lc 'wget -q --spider http://localhost:3000 || exit 1' && echo "Chatwoot: ok" || echo "Chatwoot: erro"
 
 echo "=== Deploy completo ==="

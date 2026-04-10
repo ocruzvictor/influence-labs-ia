@@ -1,0 +1,1889 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-brand="influence-labs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Influence Labs – Agentes de IA para WhatsApp Business</title>
+  <meta name="description" content="Atendimento automático por WhatsApp com IA para agendar, vender e responder clientes com você no controle.">
+  <meta name="keywords" content="agente ia whatsapp, automação atendimento whatsapp, ia para salão, ia para clínica, chatbot whatsapp business">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Influence Labs – Agentes de IA para WhatsApp Business">
+  <meta property="og:description" content="Atendimento automático por WhatsApp com IA para agendar, vender e responder clientes com você no controle.">
+  <meta property="og:type" content="website">
+
+  <!-- Google Fonts: DM Serif Display + DM Sans + Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Design System (4-Layer Token Architecture) -->
+  <link rel="stylesheet" href="../design-system/index.css">
+
+  <style>
+    /* =========================================
+       LAYOUT UTILITIES
+    ========================================= */
+    .container {
+      width: 100%;
+      max-width: var(--container-max);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    @media (max-width: 768px) {
+      .container { padding: 0 16px; }
+    }
+
+    /* =========================================
+       NAVBAR
+    ========================================= */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--color-nav-glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .nav__inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .nav__logo {
+      font-family: var(--font-heading);
+      font-weight: var(--fw-bold);
+      font-size: 22px;
+      color: var(--color-brand);
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .nav__logo em {
+      font-style: normal;
+      color: var(--color-accent);
+    }
+
+    .nav__links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav__links a {
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-body);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav__links a:hover {
+      color: var(--color-accent);
+      text-decoration: none;
+    }
+
+    .nav__cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #25D366;
+      color: white;
+      font-family: var(--font-heading);
+      font-weight: 600;
+      font-size: 14px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+
+    .nav__cta:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      text-decoration: none;
+      color: white;
+    }
+
+    @media (max-width: 768px) {
+      .nav__links { display: none; }
+    }
+
+    /* =========================================
+       BUTTONS
+    ========================================= */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: var(--font-heading);
+      font-weight: 600;
+      font-size: 16px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      border-radius: 6px;
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+    }
+
+    .btn-primary {
+      background: var(--color-brand);
+      color: white;
+      padding: 14px 28px;
+    }
+
+    .btn-primary:hover {
+      background: #2D2D4E;
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+      text-decoration: none;
+      color: white;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--color-brand);
+      padding: 14px 28px;
+      border: 1.5px solid var(--color-border-soft);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--color-brand);
+      background: rgba(26, 26, 46, 0.04);
+      text-decoration: none;
+      color: var(--color-brand);
+    }
+
+    .btn-wapp {
+      background: #25D366;
+      color: white;
+      padding: 16px 40px;
+      font-size: 18px;
+      border-radius: 999px;
+    }
+
+    .btn-wapp:hover {
+      opacity: 0.9;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(37, 211, 102, 0.30);
+      text-decoration: none;
+      color: white;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: white;
+      padding: 14px 28px;
+      border: 1.5px solid rgba(255, 255, 255, 0.30);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.6);
+      text-decoration: none;
+      color: white;
+    }
+
+    /* =========================================
+       SECTION BASE
+    ========================================= */
+    .section {
+      padding: 64px 0;
+    }
+
+    @media (min-width: 1024px) {
+      .section { padding: 96px 0; }
+    }
+
+    .section--dark {
+      background: var(--color-brand);
+      color: white;
+    }
+
+    .section--subtle {
+      background: var(--color-surface-subtle);
+    }
+
+    .section-label {
+      display: inline-block;
+      font-family: var(--font-heading);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      background: rgba(67, 56, 202, 0.08);
+      border: 1px solid rgba(67, 56, 202, 0.15);
+      padding: 5px 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+
+    .section--dark .section-label {
+      color: rgba(255, 255, 255, 0.70);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .section-heading {
+      font-family: var(--font-heading);
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      line-height: 1.15;
+    }
+
+    @media (min-width: 1024px) {
+      .section-heading { font-size: 44px; }
+    }
+
+    .section-sub {
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 1.6;
+      color: var(--color-text-muted);
+      max-width: 600px;
+    }
+
+    .section--dark .section-sub {
+      color: rgba(255, 255, 255, 0.60);
+    }
+
+    /* =========================================
+       HERO
+    ========================================= */
+    #hero {
+      padding: 80px 0 64px;
+      overflow: hidden;
+    }
+
+    @media (min-width: 1024px) {
+      #hero { padding: 120px 0 96px; }
+    }
+
+    .hero__grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+
+    @media (min-width: 1024px) {
+      .hero__grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .hero__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      background: var(--color-surface-subtle);
+      border: 1px solid var(--color-border-soft);
+      padding: 6px 14px;
+      border-radius: 999px;
+      margin-bottom: 24px;
+    }
+
+    .hero__badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      flex-shrink: 0;
+    }
+
+    .hero__headline {
+      font-family: var(--font-hero);
+      font-size: 38px;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      line-height: 1.10;
+      color: var(--color-text-heading);
+      margin-bottom: 24px;
+    }
+
+    @media (min-width: 1024px) {
+      .hero__headline { font-size: 64px; }
+    }
+
+    .hero__headline em {
+      font-style: italic;
+      color: var(--color-accent);
+    }
+
+    .hero__sub {
+      font-size: 18px;
+      line-height: 1.7;
+      color: var(--color-text-muted);
+      margin-bottom: 40px;
+      max-width: 520px;
+    }
+
+    .hero__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .hero__trust {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-muted);
+    }
+
+    .trust-check {
+      width: 18px;
+      height: 18px;
+      background: var(--color-accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    /* WhatsApp Mockup */
+    .wapp-mockup {
+      background: white;
+      border-radius: 20px;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      max-width: 340px;
+      margin: 0 auto;
+      border: 1px solid var(--color-border-subtle);
+    }
+
+    .wapp-header {
+      background: #075E54;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .wapp-avatar {
+      width: 40px;
+      height: 40px;
+      background: #128C7E;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .wapp-info-name {
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .wapp-info-status {
+      font-family: var(--font-body);
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.65);
+    }
+
+    .wapp-body {
+      background: #ECE5DD;
+      padding: 12px 12px 16px;
+      min-height: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .wapp-time-stamp {
+      text-align: center;
+      font-size: 11px;
+      color: rgba(0,0,0,0.45);
+      margin: 6px 0;
+      background: rgba(255,255,255,0.6);
+      border-radius: 999px;
+      padding: 2px 8px;
+      align-self: center;
+    }
+
+    .wapp-msg {
+      max-width: 86%;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .wapp-msg--in {
+      background: white;
+      align-self: flex-start;
+      border-radius: 0 8px 8px 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    }
+
+    .wapp-msg--out {
+      background: #DCF8C6;
+      align-self: flex-end;
+      border-radius: 8px 0 8px 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.10);
+    }
+
+    .wapp-msg-time {
+      font-size: 10px;
+      color: rgba(0,0,0,0.4);
+      margin-top: 3px;
+      text-align: right;
+    }
+
+    .wapp-typing {
+      background: white;
+      padding: 8px 12px;
+      border-radius: 0 8px 8px 8px;
+      align-self: flex-start;
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    }
+
+    .wapp-dot {
+      width: 6px;
+      height: 6px;
+      background: #90949c;
+      border-radius: 50%;
+      animation: wapp-bounce 1.2s infinite ease-in-out;
+    }
+
+    .wapp-dot:nth-child(2) { animation-delay: 0.16s; }
+    .wapp-dot:nth-child(3) { animation-delay: 0.32s; }
+
+    @keyframes wapp-bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-5px); opacity: 1; }
+    }
+
+    /* =========================================
+       PROBLEM
+    ========================================= */
+    .pain-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin: 40px 0;
+    }
+
+    @media (min-width: 768px) {
+      .pain-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .pain-card {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      padding: 24px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+
+    .pain-card:hover {
+      background: rgba(255, 255, 255, 0.09);
+    }
+
+    .pain-card__icon {
+      font-size: 30px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .pain-card__text {
+      font-size: 16px;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.80);
+    }
+
+    .pain-proof {
+      border-top: 1px solid rgba(255, 255, 255, 0.10);
+      padding-top: 32px;
+      font-size: 20px;
+      color: rgba(255, 255, 255, 0.70);
+      line-height: 1.7;
+      font-family: var(--font-hero);
+      font-style: italic;
+      max-width: 700px;
+    }
+
+    /* =========================================
+       SOLUTION
+    ========================================= */
+    .solutions-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+      margin-top: 48px;
+    }
+
+    @media (min-width: 640px) {
+      .solutions-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .solution-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: 8px;
+      padding: 32px;
+      transition: box-shadow 0.25s, transform 0.25s, border-color 0.25s;
+    }
+
+    .solution-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-3px);
+      border-color: var(--color-border-soft);
+    }
+
+    .solution-card__icon {
+      width: 48px;
+      height: 48px;
+      background: rgba(67, 56, 202, 0.08);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+
+    .solution-card__title {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--color-text-heading);
+      margin-bottom: 12px;
+    }
+
+    .solution-card__text {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--color-text-muted);
+    }
+
+    /* =========================================
+       HOW IT WORKS
+    ========================================= */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 40px;
+      margin-top: 48px;
+    }
+
+    @media (min-width: 1024px) {
+      .steps-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .step__number {
+      font-family: var(--font-hero);
+      font-size: 64px;
+      font-weight: 400;
+      color: rgba(67, 56, 202, 0.12);
+      line-height: 1;
+      margin-bottom: 16px;
+      letter-spacing: -0.03em;
+    }
+
+    .step__badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      background: rgba(67, 56, 202, 0.08);
+      border: 1px solid rgba(67, 56, 202, 0.15);
+      padding: 3px 10px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+
+    .step__title {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--color-text-heading);
+      margin-bottom: 12px;
+    }
+
+    .step__text {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--color-text-muted);
+    }
+
+    /* =========================================
+       RESULTS
+    ========================================= */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+      margin: 48px 0;
+    }
+
+    @media (min-width: 768px) {
+      .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .kpi-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      padding: 32px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .kpi-value {
+      font-family: var(--font-hero);
+      font-size: 56px;
+      font-weight: 400;
+      color: white;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+
+    .kpi-label {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.65);
+      line-height: 1.5;
+    }
+
+    .kpi-note {
+      display: block;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.35);
+      margin-top: 6px;
+    }
+
+    .results-disclaimer {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.40);
+      max-width: 640px;
+      line-height: 1.7;
+    }
+
+    /* =========================================
+       PRICING
+    ========================================= */
+    .pricing-box {
+      max-width: 560px;
+      margin: 48px auto 0;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-soft);
+      border-radius: 8px;
+      padding: 48px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .pricing-from {
+      font-size: 16px;
+      color: var(--color-text-muted);
+      margin-bottom: 8px;
+    }
+
+    .pricing-price {
+      font-family: var(--font-heading);
+      font-size: 44px;
+      font-weight: 700;
+      color: var(--color-text-heading);
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      line-height: 1;
+    }
+
+    .pricing-price small {
+      font-size: 20px;
+      font-weight: 400;
+      color: var(--color-text-muted);
+    }
+
+    .pricing-note {
+      font-size: 16px;
+      color: var(--color-text-muted);
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+
+    /* =========================================
+       CASE STUDY
+    ========================================= */
+    .case-card {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 32px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: 8px;
+      padding: 32px;
+      margin-top: 48px;
+      max-width: 860px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    @media (min-width: 768px) {
+      .case-card {
+        grid-template-columns: 1fr 1fr;
+        padding: 48px;
+      }
+    }
+
+    .case-card__title {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--color-text-heading);
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+
+    .case-card__block-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 8px;
+    }
+
+    .case-card__block-text {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--color-text-muted);
+      margin-bottom: 20px;
+    }
+
+    .case-kpis {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .case-kpi-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(67, 56, 202, 0.08);
+      color: var(--color-accent);
+      border: 1px solid rgba(67, 56, 202, 0.15);
+      font-family: var(--font-heading);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 6px;
+    }
+
+    .case-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .case-tag {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      background: var(--color-surface-subtle);
+      padding: 2px 10px;
+      border-radius: 999px;
+    }
+
+    .case-disclaimer {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      line-height: 1.7;
+      opacity: 0.7;
+    }
+
+    /* =========================================
+       PRICING ANCHOR
+    ========================================= */
+    .pricing-anchor {
+      font-size: 14px;
+      color: var(--color-accent);
+      font-weight: 500;
+      background: rgba(67, 56, 202, 0.06);
+      border: 1px solid rgba(67, 56, 202, 0.12);
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 24px;
+      line-height: 1.7;
+    }
+
+    /* =========================================
+       PARA QUEM (SECTORS)
+    ========================================= */
+    .sectors-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+      margin-top: 48px;
+    }
+
+    @media (min-width: 640px) {
+      .sectors-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .sector-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: 8px;
+      padding: 24px;
+      transition: box-shadow 0.25s, border-color 0.25s;
+    }
+
+    .sector-card:hover {
+      box-shadow: var(--shadow-sm);
+      border-color: var(--color-border-soft);
+    }
+
+    .sector-card__icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+
+    .sector-card__title {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--color-text-heading);
+      margin-bottom: 8px;
+    }
+
+    .sector-card__text {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--color-text-muted);
+    }
+
+    /* =========================================
+       FAQ
+    ========================================= */
+    .faq-list {
+      margin-top: 48px;
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .faq-item {
+      border: 1px solid var(--color-border-soft);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--color-surface);
+    }
+
+    .faq-item summary {
+      padding: 20px 24px;
+      font-family: var(--font-heading);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text-heading);
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      transition: background 0.2s;
+      user-select: none;
+    }
+
+    .faq-item summary:hover {
+      background: var(--color-surface-subtle);
+    }
+
+    .faq-item summary::after {
+      content: '+';
+      font-size: 24px;
+      font-weight: 300;
+      color: var(--color-accent);
+      flex-shrink: 0;
+      transition: transform 0.25s ease;
+      line-height: 1;
+    }
+
+    .faq-item[open] summary::after {
+      transform: rotate(45deg);
+    }
+
+    .faq-item[open] summary {
+      background: var(--color-surface-subtle);
+    }
+
+    .faq-answer {
+      padding: 0 24px 24px;
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--color-text-muted);
+      background: var(--color-surface-subtle);
+    }
+
+    .faq-item summary::-webkit-details-marker { display: none; }
+
+    /* =========================================
+       CTA FINAL
+    ========================================= */
+    #cta-final {
+      text-align: center;
+    }
+
+    #cta-final .section-heading { color: white; }
+
+    .cta-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 40px;
+    }
+
+    /* =========================================
+       FOOTER
+    ========================================= */
+    .footer {
+      background: #12121E;
+      padding: 64px 0 32px;
+    }
+
+    .footer__grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 40px;
+      margin-bottom: 48px;
+    }
+
+    @media (min-width: 768px) {
+      .footer__grid { grid-template-columns: 2fr 1fr 1fr; }
+    }
+
+    .footer__brand {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .footer__tagline {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.40);
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .footer__powered {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.25);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .footer__powered-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      opacity: 0.5;
+    }
+
+    .footer__col-heading {
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.40);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .footer__links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer__links a {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.50);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer__links a:hover {
+      color: white;
+      text-decoration: none;
+    }
+
+    .footer__bottom {
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+      padding-top: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .footer__copy {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.25);
+    }
+
+    .footer__social {
+      display: flex;
+      gap: 16px;
+    }
+
+    .footer__social a {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.40);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer__social a:hover {
+      color: white;
+    }
+
+    /* =========================================
+       ANIMATIONS & ATMOSPHERE
+    ========================================= */
+
+    /* Grain texture overlay for depth */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.028;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    /* Staggered entrance animations */
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(28px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideInLeft {
+      from {
+        opacity: 0;
+        transform: translateX(-32px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .hero__badge {
+      animation: fadeUp 0.6s ease-out both;
+      animation-delay: 0.1s;
+    }
+
+    .hero__headline {
+      animation: fadeUp 0.7s ease-out both;
+      animation-delay: 0.25s;
+    }
+
+    .hero__sub {
+      animation: fadeUp 0.7s ease-out both;
+      animation-delay: 0.4s;
+    }
+
+    .hero__actions {
+      animation: fadeUp 0.7s ease-out both;
+      animation-delay: 0.55s;
+    }
+
+    .hero__trust {
+      animation: fadeUp 0.6s ease-out both;
+      animation-delay: 0.7s;
+    }
+
+    .wapp-mockup {
+      animation: fadeUp 0.8s ease-out both;
+      animation-delay: 0.5s;
+    }
+
+    /* Card hover lift with glow */
+    .solution-card {
+      position: relative;
+    }
+
+    .solution-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 8px;
+      background: radial-gradient(
+        ellipse at var(--mouse-x, 50%) var(--mouse-y, 50%),
+        rgba(67, 56, 202, 0.06) 0%,
+        transparent 70%
+      );
+      opacity: 0;
+      transition: opacity 0.4s;
+      pointer-events: none;
+    }
+
+    .solution-card:hover::before {
+      opacity: 1;
+    }
+
+    /* Subtle gradient accent line on dark sections */
+    .section--dark {
+      position: relative;
+    }
+
+    .section--dark::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(67, 56, 202, 0.4) 30%,
+        rgba(212, 98, 43, 0.3) 70%,
+        transparent 100%
+      );
+    }
+
+    /* Step numbers with gradient */
+    .step__number {
+      background: linear-gradient(
+        180deg,
+        rgba(67, 56, 202, 0.15) 0%,
+        rgba(67, 56, 202, 0.03) 100%
+      );
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* KPI value glow effect */
+    .kpi-value {
+      text-shadow: 0 0 40px rgba(255, 255, 255, 0.10);
+    }
+
+    /* Hero headline italic accent with underline decoration */
+    .hero__headline em {
+      position: relative;
+    }
+
+    .hero__headline em::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--color-accent), rgba(67, 56, 202, 0.2));
+      border-radius: 2px;
+      transform: scaleX(0);
+      transform-origin: left;
+      animation: underlineReveal 0.6s ease-out forwards;
+      animation-delay: 0.9s;
+    }
+
+    @keyframes underlineReveal {
+      to { transform: scaleX(1); }
+    }
+
+    /* WhatsApp mockup floating effect */
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .wapp-mockup {
+      animation: fadeUp 0.8s ease-out both, float 6s ease-in-out infinite;
+      animation-delay: 0.5s, 1.5s;
+    }
+
+    /* Pain card icon subtle pulse on hover */
+    .pain-card:hover .pain-card__icon {
+      animation: pulse 0.5s ease;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    /* FAQ item smooth open transition */
+    .faq-answer {
+      animation: fadeIn 0.3s ease;
+    }
+
+    /* Pricing box subtle gradient border */
+    .pricing-box {
+      position: relative;
+      background: var(--color-surface);
+      overflow: hidden;
+    }
+
+    .pricing-box::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(
+        90deg,
+        var(--color-accent),
+        var(--color-warm),
+        var(--color-accent)
+      );
+    }
+
+    /* Sector card icon float on hover */
+    .sector-card:hover .sector-card__icon {
+      transform: translateY(-3px);
+      transition: transform 0.3s ease;
+    }
+
+    .sector-card__icon {
+      transition: transform 0.3s ease;
+    }
+
+    /* CTA final section with subtle radial gradient */
+    #cta-final {
+      background: radial-gradient(
+        ellipse at 50% 0%,
+        rgba(67, 56, 202, 0.15) 0%,
+        transparent 60%
+      ), var(--color-brand);
+    }
+
+    /* Trust check items entrance */
+    .trust-item:nth-child(1) { animation-delay: 0.7s; }
+    .trust-item:nth-child(2) { animation-delay: 0.8s; }
+    .trust-item:nth-child(3) { animation-delay: 0.9s; }
+
+    /* Smooth scrolling */
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Nav transition on scroll (via JS) */
+    .nav--scrolled {
+      box-shadow: 0 1px 8px rgba(26, 26, 46, 0.06);
+    }
+
+    /* =========================================
+       ACCESSIBILITY
+    ========================================= */
+    :focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- =========================================
+       NAVBAR
+  ========================================= -->
+  <nav class="nav" role="navigation" aria-label="Navegação principal">
+    <div class="container">
+      <div class="nav__inner">
+        <a href="#" class="nav__logo" aria-label="Influence Labs — Início">
+          Influence<em>Labs</em>
+        </a>
+        <ul class="nav__links" role="list">
+          <li role="listitem"><a href="#como-funciona">Como funciona</a></li>
+          <li role="listitem"><a href="#resultados">Resultados</a></li>
+          <li role="listitem"><a href="#faq">FAQ</a></li>
+        </ul>
+        <a
+          href="https://wa.me/5511964540007?text=Olá%2C%20gostaria%20de%20saber%20mais%20sobre%20a%20Influence%20Labs"
+          class="nav__cta"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Falar com a Influence Labs no WhatsApp"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Falar no WhatsApp
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main-content">
+
+    <!-- =========================================
+         HERO
+    ========================================= -->
+    <section id="hero" aria-labelledby="hero-headline">
+      <div class="container">
+        <div class="hero__grid">
+
+          <!-- Conteúdo -->
+          <div>
+            <div class="hero__badge" aria-label="Parceria">
+              <span class="hero__badge-dot" aria-hidden="true"></span>
+              Licenciada Pareto — rede com +366 projetos de IA entregues
+            </div>
+
+            <h1 class="hero__headline" id="hero-headline">
+              Seu negócio atendendo clientes <em>24/7</em> pelo WhatsApp com IA.
+            </h1>
+
+            <p class="hero__sub">
+              A Influence Labs implementa agentes de IA que agendam, vendem e respondem dúvidas no seu número. Em 30 dias, sua operação começa a escalar com você no controle.
+            </p>
+
+            <div class="hero__actions">
+              <a
+                href="https://wa.me/5511964540007?text=Quero%20saber%20mais%20sobre%20a%20Influence%20Labs"
+                class="btn btn-wapp"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                Quero saber mais
+              </a>
+              <a href="#como-funciona" class="btn btn-secondary">
+                Ver como funciona em 30 dias
+              </a>
+            </div>
+
+            <div class="hero__trust" role="list" aria-label="Garantias">
+              <div class="trust-item" role="listitem">
+                <div class="trust-check" aria-hidden="true">✓</div>
+                API oficial da Meta
+              </div>
+              <div class="trust-item" role="listitem">
+                <div class="trust-check" aria-hidden="true">✓</div>
+                IA + humano no mesmo fluxo
+              </div>
+              <div class="trust-item" role="listitem">
+                <div class="trust-check" aria-hidden="true">✓</div>
+                Implementação orientada a KPI
+              </div>
+            </div>
+          </div>
+
+          <!-- Mockup WhatsApp -->
+          <div role="img" aria-label="Demonstração de conversa no WhatsApp com agente IA da Influence Labs">
+            <div class="wapp-mockup">
+              <div class="wapp-header">
+                <div class="wapp-avatar" aria-hidden="true">🤖</div>
+                <div>
+                  <div class="wapp-info-name">Studio Tirra</div>
+                  <div class="wapp-info-status">Agente IA · Online agora</div>
+                </div>
+              </div>
+              <div class="wapp-body">
+                <div class="wapp-time-stamp">Hoje, 21:03</div>
+                <div class="wapp-msg wapp-msg--in">
+                  Oi! Quero agendar um corte para amanhã. Tem horário?
+                  <div class="wapp-msg-time">21:03</div>
+                </div>
+                <div class="wapp-msg wapp-msg--out">
+                  Olá! 😊 Temos horários disponíveis amanhã: 10h, 14h e 16h30. Qual prefere?
+                  <div class="wapp-msg-time">21:03</div>
+                </div>
+                <div class="wapp-msg wapp-msg--in">
+                  14h perfeito! Com qual profissional?
+                  <div class="wapp-msg-time">21:04</div>
+                </div>
+                <div class="wapp-msg wapp-msg--out">
+                  Às 14h temos a Camila disponível. Confirmo o agendamento para amanhã às 14h com ela?
+                  <div class="wapp-msg-time">21:04</div>
+                </div>
+                <div class="wapp-msg wapp-msg--in">
+                  Sim, pode confirmar! ✅
+                  <div class="wapp-msg-time">21:05</div>
+                </div>
+                <div class="wapp-typing" aria-label="Agente digitando">
+                  <div class="wapp-dot"></div>
+                  <div class="wapp-dot"></div>
+                  <div class="wapp-dot"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================
+         PROBLEMA
+    ========================================= -->
+    <section id="problema" class="section section--dark" aria-labelledby="problema-heading">
+      <div class="container">
+        <span class="section-label">O problema</span>
+        <h2 class="section-heading" id="problema-heading">
+          Quantos clientes você perdeu essa semana por demora no WhatsApp?
+        </h2>
+        <p class="section-sub">
+          Quando a mensagem chega fora do horário, a oportunidade não espera. E no horário comercial, sua equipe já está no limite entre atendimento presencial, telefone e WhatsApp.
+        </p>
+
+        <div class="pain-grid">
+          <div class="pain-card">
+            <span class="pain-card__icon" aria-hidden="true">🌙</span>
+            <p class="pain-card__text">
+              Cliente manda mensagem às 21h e fecha com o concorrente antes de você responder.
+            </p>
+          </div>
+          <div class="pain-card">
+            <span class="pain-card__icon" aria-hidden="true">📱</span>
+            <p class="pain-card__text">
+              Recepção sobrecarregada gera resposta lenta e falhas de follow-up que custam recompra.
+            </p>
+          </div>
+          <div class="pain-card">
+            <span class="pain-card__icon" aria-hidden="true">💸</span>
+            <p class="pain-card__text">
+              Oportunidades de reativação ficam esquecidas na pilha de conversas sem acompanhamento.
+            </p>
+          </div>
+        </div>
+
+        <blockquote class="pain-proof">
+          "Negócios que respondem mais rápido convertem mais. O ponto não é mandar mais mensagens — é responder com contexto, consistência e tempo de resposta baixo."
+        </blockquote>
+      </div>
+    </section>
+
+    <!-- =========================================
+         SOLUÇÃO
+    ========================================= -->
+    <section id="solucao" class="section section--subtle" aria-labelledby="solucao-heading">
+      <div class="container">
+        <span class="section-label">A solução</span>
+        <h2 class="section-heading" id="solucao-heading">
+          Um time de IA no seu WhatsApp.<br>Pronto em 30 dias.
+        </h2>
+        <p class="section-sub">
+          Agentes especializados que trabalham 24/7, aprendem com o seu negócio e escalam para o humano quando necessário.
+        </p>
+
+        <div class="solutions-grid">
+          <div class="solution-card">
+            <div class="solution-card__icon" aria-hidden="true">📅</div>
+            <h3 class="solution-card__title">Recepcionista IA</h3>
+            <p class="solution-card__text">
+              Agenda, reagenda e cancela com as regras do seu negócio. Consulta horários disponíveis e confirma atendimento sem inventar informação.
+            </p>
+          </div>
+          <div class="solution-card">
+            <div class="solution-card__icon" aria-hidden="true">💬</div>
+            <h3 class="solution-card__title">Vendedor IA</h3>
+            <p class="solution-card__text">
+              Envia lembretes, faz follow-up pós-atendimento e reativa clientes inativos com mensagens proativas dentro de regras anti-spam.
+            </p>
+          </div>
+          <div class="solution-card">
+            <div class="solution-card__icon" aria-hidden="true">🔍</div>
+            <h3 class="solution-card__title">FAQ IA</h3>
+            <p class="solution-card__text">
+              Responde perguntas de serviços, valores e funcionamento com base na sua base de conhecimento real. Escala para humano quando o caso exige.
+            </p>
+          </div>
+          <div class="solution-card">
+            <div class="solution-card__icon" aria-hidden="true">🎛️</div>
+            <h3 class="solution-card__title">Controle Humano</h3>
+            <p class="solution-card__text">
+              Você acompanha conversas em tempo real e entra quando quiser. A IA acelera o time. Não substitui critério.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================
+         COMO FUNCIONA
+    ========================================= -->
+    <section id="como-funciona" class="section" aria-labelledby="como-funciona-heading">
+      <div class="container">
+        <span class="section-label">Como funciona</span>
+        <h2 class="section-heading" id="como-funciona-heading">
+          3 passos. 30 dias. Resultado real.
+        </h2>
+        <p class="section-sub">
+          Sem promessa vazia. Definimos o que vai ser medido antes de começar.
+        </p>
+
+        <div class="steps-grid">
+          <div class="step">
+            <div class="step__number" aria-hidden="true">01</div>
+            <span class="step__badge">Semana 1</span>
+            <h3 class="step__title">Discovery</h3>
+            <p class="step__text">
+              Mapeamos serviços, regras, profissionais, políticas e tom de voz. O objetivo é sua IA falar como seu negócio fala.
+            </p>
+          </div>
+          <div class="step">
+            <div class="step__number" aria-hidden="true">02</div>
+            <span class="step__badge">Semanas 2 e 3</span>
+            <h3 class="step__title">Build</h3>
+            <p class="step__text">
+              Configuramos fluxos, prompts e automações. Testamos cenários críticos antes de qualquer ativação em produção.
+            </p>
+          </div>
+          <div class="step">
+            <div class="step__number" aria-hidden="true">03</div>
+            <span class="step__badge">Semana 4</span>
+            <h3 class="step__title">Go-Live</h3>
+            <p class="step__text">
+              Entramos em operação com rollout progressivo. Monitoramos indicadores e ajustamos em ciclo curto.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================
+         RESULTADOS
+    ========================================= -->
+    <section id="resultados" class="section section--dark" aria-labelledby="resultados-heading">
+      <div class="container">
+        <span class="section-label">Resultados</span>
+        <h2 class="section-heading" id="resultados-heading">
+          Resultados operacionais que importam.
+        </h2>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-value">+70%</div>
+            <p class="kpi-label">
+              Aumento no ticket médio
+              <span class="kpi-note">com agente conversacional via WhatsApp</span>
+            </p>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value">-30%</div>
+            <p class="kpi-label">
+              Redução no abandono
+              <span class="kpi-note">atendimento IA com contexto personalizado</span>
+            </p>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value">&lt;30s</div>
+            <p class="kpi-label">
+              Tempo médio de resposta
+              <span class="kpi-note">24/7, sem custo de plantão</span>
+            </p>
+          </div>
+        </div>
+
+        <p class="results-disclaimer">
+          Resultados de projetos da rede Pareto com agentes conversacionais em operações reais. A Influence Labs é licenciada oficial da metodologia Pareto, com acesso à mesma tecnologia e processos validados em +366 projetos.
+        </p>
+      </div>
+    </section>
+
+    <!-- =========================================
+         CASE STUDY
+    ========================================= -->
+    <section id="case" class="section section--subtle" aria-labelledby="case-heading">
+      <div class="container">
+        <div style="text-align:center">
+          <span class="section-label">Case da rede</span>
+          <h2 class="section-heading" id="case-heading">
+            Agente WhatsApp que aumentou ticket médio em 70%
+          </h2>
+        </div>
+
+        <div class="case-card">
+          <div>
+            <div class="case-card__block-label">Desafio</div>
+            <p class="case-card__block-text">
+              Personal stylist com alto volume de mensagens no WhatsApp perdia oportunidades de upsell por não conseguir responder com contexto personalizado em tempo real.
+            </p>
+            <div class="case-card__block-label">Solução</div>
+            <p class="case-card__block-text">
+              Agente conversacional com RAG que acessa histórico de compras e preferências do cliente, sugerindo combinações e novidades relevantes durante o atendimento.
+            </p>
+          </div>
+          <div>
+            <div class="case-kpis">
+              <span class="case-kpi-badge">+70% ticket médio</span>
+              <span class="case-kpi-badge">-30% abandono</span>
+            </div>
+            <div class="case-tags">
+              <span class="case-tag">RAG</span>
+              <span class="case-tag">Agentes</span>
+              <span class="case-tag">WhatsApp API</span>
+            </div>
+            <p class="case-disclaimer">
+              Projeto da rede Pareto com metodologia aplicada pela Influence Labs.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================
+         PRICING
+    ========================================= -->
+    <section id="pricing" class="section" aria-labelledby="pricing-heading">
+      <div class="container">
+        <div style="text-align:center">
+          <span class="section-label">Investimento</span>
+          <h2 class="section-heading" id="pricing-heading">
+            Investimento acessível. Retorno mensurável.
+          </h2>
+        </div>
+
+        <div class="pricing-box">
+          <div class="pricing-anchor">
+            Clientes da rede recuperam de R$ 8k a R$ 12k/mês em operações automatizadas
+          </div>
+          <p class="pricing-note">
+            Escopo alinhado ao seu momento operacional.<br>
+            Sem promessa vazia: definimos KPI antes de iniciar.
+          </p>
+          <a
+            href="https://wa.me/5511964540007?text=Gostaria%20de%20receber%20uma%20proposta%20personalizada%20da%20Influence%20Labs"
+            class="btn btn-primary"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Receber proposta personalizada
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================
+         PARA QUEM
+    ========================================= -->
+    <section id="para-quem" class="section" aria-labelledby="para-quem-heading">
+      <div class="container">
+        <div style="text-align:center">
+          <span class="section-label">Para quem</span>
+          <h2 class="section-heading" id="para-quem-heading">
+            IA conversacional para diferentes operações
+          </h2>
+        </div>
+
+        <div class="sectors-grid">
+          <div class="sector-card">
+            <div class="sector-card__icon" aria-hidden="true">💇</div>
+            <div class="sector-card__title">Salões & Clínicas</div>
+            <p class="sector-card__text">Agendamento automático, FAQ de serviços e confirmação de horários via WhatsApp.</p>
+          </div>
+          <div class="sector-card">
+            <div class="sector-card__icon" aria-hidden="true">🍽️</div>
+            <div class="sector-card__title">Restaurantes</div>
+            <p class="sector-card__text">Reservas, cardápio digital e atendimento de pedidos direto na conversa.</p>
+          </div>
+          <div class="sector-card">
+            <div class="sector-card__icon" aria-hidden="true">🏠</div>
+            <div class="sector-card__title">Imobiliárias</div>
+            <p class="sector-card__text">Qualificação de leads, envio de imóveis compatíveis e agendamento de visitas.</p>
+          </div>
+          <div class="sector-card">
+            <div class="sector-card__icon" aria-hidden="true">📋</div>
+            <div class="sector-card__title">Serviços profissionais</div>
+            <p class="sector-card__text">Orçamento automatizado, follow-up inteligente e triagem de demandas.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================
+         FAQ
+    ========================================= -->
+    <section id="faq" class="section section--subtle" aria-labelledby="faq-heading">
+      <div class="container">
+        <div style="text-align:center">
+          <span class="section-label">Dúvidas frequentes</span>
+          <h2 class="section-heading" id="faq-heading">Perguntas e respostas</h2>
+        </div>
+
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Meus clientes vão perceber que é robô?</summary>
+            <p class="faq-answer">Nossos agentes são treinados com o contexto e tom do seu negócio. E quando a conversa pede sensibilidade adicional, a escala para humano é imediata.</p>
+          </details>
+          <details class="faq-item">
+            <summary>E se a IA errar?</summary>
+            <p class="faq-answer">A operação nasce com fallback e handoff humano. Você monitora tudo e pode assumir a conversa a qualquer momento.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Preciso trocar de número?</summary>
+            <p class="faq-answer">Não. A implementação usa API oficial da Meta no seu número de WhatsApp Business existente.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Quanto tempo leva para ficar pronto?</summary>
+            <p class="faq-answer">30 dias no modelo padrão: Discovery (semana 1), Build (semanas 2 e 3), Go-Live (semana 4).</p>
+          </details>
+          <details class="faq-item">
+            <summary>É seguro para o número do negócio?</summary>
+            <p class="faq-answer">Sim. Trabalhamos com API oficial da Meta e boas práticas de compliance operacional.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Serve para meu tipo de negócio?</summary>
+            <p class="faq-answer">Se o seu atendimento é majoritariamente por WhatsApp, existe fit inicial para mapear e pilotar. Conversamos para entender o seu contexto antes de qualquer proposta.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================
+         CTA FINAL
+    ========================================= -->
+    <section id="cta-final" class="section section--dark" aria-labelledby="cta-heading">
+      <div class="container">
+        <span class="section-label">Próximo passo</span>
+        <h2 class="section-heading" id="cta-heading">
+          Pronto para ativar seu time de IA?
+        </h2>
+        <p class="section-sub">
+          Converse com a Influence Labs e veja como ficaria o fluxo para o seu negócio.
+        </p>
+
+        <div class="cta-actions">
+          <a
+            href="https://wa.me/5511964540007?text=Olá!%20Quero%20ativar%20meu%20time%20de%20IA%20com%20a%20Influence%20Labs"
+            class="btn btn-wapp"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            Falar no WhatsApp
+          </a>
+          <a href="#" class="btn btn-ghost">
+            Agendar demonstração
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =========================================
+       FOOTER
+  ========================================= -->
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer__grid">
+        <div>
+          <div class="footer__brand">Influence Labs</div>
+          <p class="footer__tagline">Agentes de IA para negócios brasileiros de médio porte.</p>
+          <span class="footer__powered">
+            <span class="footer__powered-dot" aria-hidden="true"></span>
+            Licenciada oficial Pareto — rede com +366 projetos e +146 clientes desde 2013
+          </span>
+        </div>
+        <div>
+          <h3 class="footer__col-heading">Empresa</h3>
+          <ul class="footer__links" role="list">
+            <li role="listitem"><a href="#">Sobre</a></li>
+            <li role="listitem"><a href="#">Contato</a></li>
+            <li role="listitem"><a href="#">Política de Privacidade</a></li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="footer__col-heading">Redes</h3>
+          <ul class="footer__links" role="list">
+            <li role="listitem"><a href="#" target="_blank" rel="noopener noreferrer">LinkedIn</a></li>
+            <li role="listitem"><a href="#" target="_blank" rel="noopener noreferrer">Instagram</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer__bottom">
+        <p class="footer__copy">© 2026 Influence Labs. Todos os direitos reservados.</p>
+        <div class="footer__social" aria-label="Redes sociais">
+          <a href="#" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+          <a href="#" target="_blank" rel="noopener noreferrer">Instagram</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Nav scroll shadow
+    const nav = document.querySelector('.nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('nav--scrolled', window.scrollY > 20);
+    }, { passive: true });
+
+    // Card radial glow follow mouse
+    document.querySelectorAll('.solution-card').forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty('--mouse-x', ((e.clientX - rect.left) / rect.width * 100) + '%');
+        card.style.setProperty('--mouse-y', ((e.clientY - rect.top) / rect.height * 100) + '%');
+      });
+    });
+  </script>
+</body>
+</html>

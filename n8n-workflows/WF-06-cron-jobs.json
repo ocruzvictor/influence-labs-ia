@@ -97,19 +97,23 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "url": "={{'https://graph.facebook.com/' + ($env.META_GRAPH_VERSION || 'v21.0') + '/' + $env.META_PHONE_NUMBER_ID + '/messages'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "apikey",
-              "value": "={{$env.EVOLUTION_API_KEY}}"
+              "name": "Authorization",
+              "value": "=Bearer {{$env.META_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"Oi {{$json.name}}! Lembrete do seu horario amanha: {{$json.service}} as {{$json.time}} com {{$json.professional}}.\"}"
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{$json.phone}}\",\"type\":\"text\",\"text\":{\"body\":\"Oi {{$json.name}}! Lembrete do seu horario amanha: {{$json.service}} as {{$json.time}} com {{$json.professional}}.\"}}"
       },
       "id": "send_reminder",
       "name": "Send Reminder",
@@ -135,8 +139,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
@@ -155,8 +159,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
@@ -256,19 +260,23 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "url": "={{'https://graph.facebook.com/' + ($env.META_GRAPH_VERSION || 'v21.0') + '/' + $env.META_PHONE_NUMBER_ID + '/messages'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "apikey",
-              "value": "={{$env.EVOLUTION_API_KEY}}"
+              "name": "Authorization",
+              "value": "=Bearer {{$env.META_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"Oi {{$json.name}}! Tudo bem? Queria saber se voce gostou do seu {{$json.service}}. Se quiser, te ajudo com um novo horario.\"}"
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{$json.phone}}\",\"type\":\"text\",\"text\":{\"body\":\"Oi {{$json.name}}! Tudo bem? Queria saber se voce gostou do seu {{$json.service}}. Se quiser, te ajudo com um novo horario.\"}}"
       },
       "id": "send_followup",
       "name": "Send Follow-up",
@@ -294,8 +302,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
@@ -314,8 +322,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
@@ -354,8 +362,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
@@ -395,19 +403,23 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "url": "={{'https://graph.facebook.com/' + ($env.META_GRAPH_VERSION || 'v21.0') + '/' + $env.META_PHONE_NUMBER_ID + '/messages'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "apikey",
-              "value": "={{$env.EVOLUTION_API_KEY}}"
+              "name": "Authorization",
+              "value": "=Bearer {{$env.META_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"Oi {{$json.name}}! Faz tempo que nao te vemos por aqui. Quer que eu veja horarios para {{$json.last_service || 'seu proximo atendimento'}}?\"}"
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{$json.phone}}\",\"type\":\"text\",\"text\":{\"body\":\"Oi {{$json.name}}! Faz tempo que nao te vemos por aqui. Quer que eu veja horarios para {{$json.last_service || 'seu proximo atendimento'}}?\"}}"
       },
       "id": "send_reactivation",
       "name": "Send Reactivation",
@@ -433,8 +445,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
@@ -453,8 +465,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },

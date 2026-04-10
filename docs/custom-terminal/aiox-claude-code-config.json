@@ -1,0 +1,218 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "created": "2026-03-05T01:45:03.714804",
+    "user": "Alan",
+    "environment": "macOS M1 + zsh + Claude Code",
+    "profiles": [
+      "dev",
+      "architect",
+      "orchestrator"
+    ]
+  },
+  "theme": {
+    "name": "aiox-modern-minimal",
+    "mode": "dark",
+    "contrast": "high",
+    "dynamic_context": true,
+    "font": "Roboto Mono",
+    "font_size": 12,
+    "colors": {
+      "primary": "#D1FF00",
+      "secondary": "#050505",
+      "accent": "#A3FF00",
+      "danger": "#FF4D6D",
+      "warning": "#FFB703",
+      "success": "#10B981",
+      "info": "#0EA5E9",
+      "background": "#0F172A",
+      "text_primary": "#F8FAFC",
+      "text_secondary": "#94A3B8",
+      "divider": "#334155"
+    },
+    "dynamic_colors": {
+      "dev_mode": {
+        "border": "#10B981",
+        "status_bg": "#065F46"
+      },
+      "architect_mode": {
+        "border": "#0EA5E9",
+        "status_bg": "#0C4A6E"
+      },
+      "orchestrator_mode": {
+        "border": "#D1FF00",
+        "status_bg": "#78350F"
+      }
+    }
+  },
+  "layout": {
+    "borders": {
+      "enabled": true,
+      "style": "dynamic",
+      "default_style": "modern"
+    },
+    "spacing": {
+      "padding_top": 1,
+      "padding_left": 2,
+      "padding_right": 2
+    }
+  },
+  "branding": {
+    "logo_ascii": [
+      "▲ │ ◆ ✕",
+      "  │   ",
+      "━━━━━━"
+    ],
+    "text_logo": "aiox",
+    "use_logo": "simple",
+    "logo_color": "primary"
+  },
+  "status_line": {
+    "enabled": true,
+    "position": "bottom",
+    "refresh_interval_ms": 500,
+    "segments": {
+      "left": [
+        {
+          "id": "project",
+          "label": "📁",
+          "value": "${project_name}",
+          "color": "primary"
+        },
+        {
+          "id": "environment",
+          "label": "🌍",
+          "value": "${env_label}",
+          "color": "info",
+          "dynamic_color": true
+        }
+      ],
+      "center": [
+        {
+          "id": "current_agent",
+          "label": "🤖",
+          "value": "${agent_name}",
+          "color": "accent"
+        },
+        {
+          "id": "context_window",
+          "label": "📊",
+          "value": "${tokens_used}/${tokens_max}",
+          "color": "warning"
+        }
+      ],
+      "right": [
+        {
+          "id": "model",
+          "label": "🧠",
+          "value": "${model_name}",
+          "color": "primary"
+        },
+        {
+          "id": "cost",
+          "label": "💰",
+          "value": "${cost_session}",
+          "color": "warning",
+          "format": "$0.00"
+        },
+        {
+          "id": "agents_status",
+          "label": "⚙️",
+          "value": "${active_agents_count}/${total_agents}",
+          "color": "success"
+        }
+      ]
+    },
+    "separator": "│"
+  },
+  "shortcuts": {
+    "quick_commands": {
+      "dev_status": "aiox status --dev",
+      "start_dev": "aiox run dev --agent=dev",
+      "start_architect": "aiox run --agent=architect",
+      "cost_report": "aiox report --type=cost --session",
+      "context_check": "aiox context --verbose"
+    }
+  },
+  "monitoring": {
+    "enabled": true,
+    "token_usage": {
+      "enabled": true,
+      "display_format": "percentage_and_absolute",
+      "warn_threshold": 70,
+      "critical_threshold": 90
+    },
+    "cost_tracking": {
+      "enabled": true,
+      "display_format": "accumulated",
+      "warn_threshold": 5.0,
+      "currency": "USD"
+    },
+    "agent_status": {
+      "enabled": true,
+      "show_active": true,
+      "agents_monitored": [
+        "aiox-master",
+        "analyst",
+        "pm",
+        "architect"
+      ]
+    }
+  },
+  "context_awareness": {
+    "enabled": true,
+    "track_active_role": true,
+    "role_detection": {
+      "dev": {
+        "theme_accent": "#10B981",
+        "status_priority": [
+          "branch",
+          "model",
+          "cost"
+        ]
+      },
+      "architect": {
+        "theme_accent": "#0EA5E9",
+        "status_priority": [
+          "model",
+          "context_window",
+          "cost"
+        ]
+      },
+      "orchestrator": {
+        "theme_accent": "#D1FF00",
+        "status_priority": [
+          "agents_status",
+          "context_window",
+          "cost"
+        ]
+      }
+    }
+  },
+  "integrations": {
+    "github": {
+      "enabled": true,
+      "auto_detect": true,
+      "show_status": true
+    },
+    "aiox_api": {
+      "enabled": true,
+      "auto_detect": true
+    }
+  },
+  "performance": {
+    "max_status_refresh_ms": 100,
+    "cache_enabled": true,
+    "cache_ttl_ms": 1000
+  },
+  "alerts": {
+    "high_cost": {
+      "enabled": true,
+      "threshold": 5.0
+    },
+    "context_limit": {
+      "enabled": true,
+      "threshold_percent": 90
+    }
+  }
+}

@@ -50,7 +50,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $items('Execute Workflow Trigger', 0, 0)[0].json;\nconst api = items[0]?.json || {};\nconst history = api.data || api.client || api;\n\nconst now = new Date();\nconst lastVisitRaw = history.last_visit || history.lastVisit || null;\nconst lastVisit = lastVisitRaw ? new Date(lastVisitRaw) : null;\nconst daysSinceLastVisit = lastVisit ? Math.floor((now - lastVisit) / (1000 * 60 * 60 * 24)) : null;\n\nconst client = {\n  id: history.id || history.client_id || null,\n  name: history.name || input.name || '',\n  last_service: history.last_service || history.lastService || '',\n  last_visit: lastVisitRaw,\n  visit_count: history.visit_count || history.visitCount || 0,\n  opted_out: Boolean(history.opted_out || history.optedOut)\n};\n\nconst defaultOfferByService = {\n  'Coloracao Global': 'tratamento capilar',\n  'Corte Feminino': 'hidratacao',\n  'Corte Masculino': 'barba',\n  'Barba com Maquina': 'cabelo e barba'\n};\n\nconst offer = defaultOfferByService[client.last_service] || 'tratamento capilar';\nconst blocked = Boolean(client.opted_out);\nconst reason = blocked ? 'opted_out' : null;\nconst proactiveType = input.proactive_type || 'promotion';\n\nconst systemPrompt = `# Vendas e Follow-up - Studio Tirra\\nTom amigavel, objetivo e nao insistente.\\nRetorne JSON com sales_text.`;\n\nconst userPrompt = `Cliente: ${client.name || 'cliente'}\\nUltimo servico: ${client.last_service || 'desconhecido'}\\nUltima visita: ${client.last_visit || 'desconhecida'}\\nDias desde ultima visita: ${daysSinceLastVisit ?? 'desconhecido'}\\nFrequencia de visitas: ${client.visit_count || 0}\\nOferta recomendada: ${offer}\\nTipo de mensagem: ${proactiveType}\\nMensagem original: ${input.message || 'cliente pediu informacao comercial'}\\n\\nRetorne JSON com sales_text.`;\n\nconst safePhone = (input.phone || '').replace(/[^0-9+@.]/g, '');\nconst agentLabel = blocked ? 'sales_blocked_optout' : 'sales';\nreturn [{\n  json: {\n    ...input,\n    phone: safePhone,\n    client,\n    offer,\n    blocked,\n    reason,\n    agent_label: agentLabel,\n    proactive_type: proactiveType,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    llm_provider: ($env.LLM_PROVIDER || 'openai').toLowerCase()\n  }\n}];"
+        "jsCode": "const input = $items('Execute Workflow Trigger', 0, 0)[0].json;\nconst api = items[0]?.json || {};\nconst history = api.data || api.client || api;\n\nconst now = new Date();\nconst lastVisitRaw = history.last_visit || history.lastVisit || null;\nconst lastVisit = lastVisitRaw ? new Date(lastVisitRaw) : null;\nconst daysSinceLastVisit = lastVisit ? Math.floor((now - lastVisit) / (1000 * 60 * 60 * 24)) : null;\n\nconst client = {\n  id: history.id || history.client_id || null,\n  name: history.name || input.name || '',\n  last_service: history.last_service || history.lastService || '',\n  last_visit: lastVisitRaw,\n  visit_count: history.visit_count || history.visitCount || 0,\n  opted_out: Boolean(history.opted_out || history.optedOut)\n};\n\nconst defaultOfferByService = {\n  'Coloracao Global': 'tratamento capilar',\n  'Corte Feminino': 'hidratacao',\n  'Corte Masculino': 'barba',\n  'Barba com Maquina': 'cabelo e barba'\n};\n\nconst offer = defaultOfferByService[client.last_service] || 'tratamento capilar';\nconst blocked = Boolean(client.opted_out);\nconst reason = blocked ? 'opted_out' : null;\nconst proactiveType = input.proactive_type || 'promotion';\n\nconst systemPrompt = `# Vendas e Follow-up - Studio Tirra\\nTom amigavel, objetivo e nao insistente.\\nRetorne JSON com sales_text.`;\n\nconst userPrompt = `Cliente: ${client.name || 'cliente'}\\nUltimo servico: ${client.last_service || 'desconhecido'}\\nUltima visita: ${client.last_visit || 'desconhecida'}\\nDias desde ultima visita: ${daysSinceLastVisit ?? 'desconhecido'}\\nFrequencia de visitas: ${client.visit_count || 0}\\nOferta recomendada: ${offer}\\nTipo de mensagem: ${proactiveType}\\nMensagem original: ${input.message || 'cliente pediu informacao comercial'}\\n\\nRetorne JSON com sales_text.`;\n\nconst safePhone = (input.phone || '').replace(/[^0-9]/g, '');\nconst agentLabel = blocked ? 'sales_blocked_optout' : 'sales';\nreturn [{\n  json: {\n    ...input,\n    phone: safePhone,\n    client,\n    offer,\n    blocked,\n    reason,\n    agent_label: agentLabel,\n    proactive_type: proactiveType,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    llm_provider: ($env.LLM_PROVIDER || 'openai').toLowerCase()\n  }\n}];"
       },
       "id": "build_offer",
       "name": "Build Offer",
@@ -136,19 +136,23 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$env.EVOLUTION_INSTANCE}}",
+        "url": "={{'https://graph.facebook.com/' + ($env.META_GRAPH_VERSION || 'v21.0') + '/' + $env.META_PHONE_NUMBER_ID + '/messages'}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "apikey",
-              "value": "={{$env.EVOLUTION_API_KEY}}"
+              "name": "Authorization",
+              "value": "=Bearer {{$env.META_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"number\":\"{{$json.phone}}\",\"text\":\"{{$json.sales_text}}\"}"
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{$json.phone}}\",\"type\":\"text\",\"text\":{\"body\":\"{{$json.sales_text}}\"}}"
       },
       "id": "send_sales",
       "name": "Send Sales Message",
@@ -174,8 +178,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     },
@@ -194,8 +198,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_main",
-          "name": "Postgres Main"
+          "id": "FZExHxeYckXnJ5vF",
+          "name": "Postgres account"
         }
       }
     }
