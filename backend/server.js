@@ -109,7 +109,12 @@ function getNextBusinessDays(count) {
 
 const DYNAMIC_CONTEXT_PREFIX = 'CONTEXTO DINAMICO - TRINKS (dados em tempo real):';
 
-function buildDynamicContext(businessDays, slotsText, professionalsText) {
+function buildDynamicContext(businessDays, slotsText, professionalsText, history = []) {
+  const historyText = history.length
+    ? '\n\nHISTORICO DA CONVERSA:\n' + history
+        .map(m => `${m.role === 'user' ? 'Cliente' : 'Assistente'}: ${m.content}`)
+        .join('\n')
+    : '';
   return [
     DYNAMIC_CONTEXT_PREFIX,
     `HOJE: ${formatFullDateLabel(getTodayIsoInSalonTimeZone())}`,
@@ -118,6 +123,7 @@ function buildDynamicContext(businessDays, slotsText, professionalsText) {
     '',
     slotsText,
     professionalsText,
+    historyText,
   ].join('\n');
 }
 
@@ -177,6 +183,8 @@ async function getProfessionals() {
 }
 
 // --- TESS helper ---
+// root_id usado para manter thread TESS. Contexto dinamico injetado no user message (nao system),
+// pois o agente TESS tem system prompt proprio no dashboard e ignora o role:system da API.
 async function callTESS(messages, rootId) {
   const body = { messages, wait_execution: true };
   if (Number.isInteger(rootId)) body.root_id = rootId;
@@ -217,12 +225,7 @@ function extractTESSResponse(raw) {
 }
 
 function extractTESSRootId(raw) {
-  const candidates = [
-    raw?.root_id,
-    raw?.responses?.[0]?.root_id,
-    raw?.data?.root_id,
-    raw?.execution?.root_id,
-  ];
+  const candidates = [raw?.root_id, raw?.responses?.[0]?.root_id, raw?.data?.root_id, raw?.execution?.root_id];
   for (const value of candidates) {
     const num = Number(value);
     if (Number.isInteger(num) && num > 0) return num;
@@ -406,17 +409,17 @@ app.post('/webhook/demo-chat', async (req, res) => {
     const profs = profsResult.status === 'fulfilled'
       ? profsResult.value
       : 'PROFISSIONAIS: Erro ao consultar.';
-    const dynamicContext = buildDynamicContext(businessDays, slotsAll, profs);
-
-    // 3. Call TESS (1st call) — with conversation history
+    // 3. Call TESS (1st call)
+    // O agente TESS ignora role:system (tem dashboard prompt proprio).
+    // Estrategia: injetar contexto dinamico dentro do user message + root_id para thread.
     const lastEntry = state.history[state.history.length - 1];
     if (lastEntry?.role !== 'user' || lastEntry.content !== messageText) {
       state.history.push({ role: 'user', content: messageText });
     }
-    const historyWindow = state.history.slice(-20);
+    const dynamicContext = buildDynamicContext(businessDays, slotsAll, profs);
+    const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${messageText}`;
     const tessRaw = await callTESS([
-      { role: 'system', content: dynamicContext },
-      ...historyWindow,
+      { role: 'user', content: userMessageWithContext },
     ], state.rootId);
 
     const tessText = extractTESSResponse(tessRaw);
@@ -449,19 +452,16 @@ app.post('/webhook/demo-chat', async (req, res) => {
     // 6. Execute booking (check availability or create)
     const bookingResult = await executeBooking(bookingRequest, bookingConfirm);
 
-    // 7. If availability check, do 2nd TESS call with specific slots
+    // 7. If availability check, do 2nd TESS call with specific slots injected in user message
     if (bookingResult?.type === 'availability') {
+      const availContext = buildAvailabilityContext(bookingResult.slots);
       const tess2Raw = await callTESS([
-        {
-          role: 'system',
-          content: buildAvailabilityContext(bookingResult.slots),
-        },
-        { role: 'user', content: messageText },
+        { role: 'user', content: `${availContext}\n\nMENSAGEM DO CLIENTE: ${messageText}` },
       ], state.rootId);
 
-      let response2 = extractTESSResponse(tess2Raw);
       const rootId2 = extractTESSRootId(tess2Raw);
       if (rootId2) state.rootId = rootId2;
+      let response2 = extractTESSResponse(tess2Raw);
       if (!response2) response2 = 'Vou verificar e ja te retorno!';
       // Clean any residual booking tags
       response2 = response2.replace(/\[BOOKING_(?:REQUEST|CONFIRM)\]\s*\n?{[\s\S]*?}/gi, '').trim();
