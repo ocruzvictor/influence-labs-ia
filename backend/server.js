@@ -6,13 +6,14 @@
  *   2. Consulta Trinks API em paralelo (horários + profissionais)
  *   3. Monta contexto dinamico compacto
  *   4. Chama TESS API (agent configuravel) com contexto dinamico da Trinks
- *   5. Parse resposta — detecta [BOOKING_REQUEST] / [BOOKING_CONFIRM]
- *   6. Se booking: consulta Trinks para horários específicos + 2ª chamada TESS
+ *   5. Detecta confirmacao de agendamento na resposta TESS
+ *   6. Se confirmado: extrai dados do historico → busca servicoId Trinks → POST /appointments
  *   7. Retorna { response, timestamp }
  */
 
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
 
 // --- Load .env (zero deps) ---
 try {
@@ -109,7 +110,7 @@ function getNextBusinessDays(count) {
 
 const DYNAMIC_CONTEXT_PREFIX = 'CONTEXTO DINAMICO - TRINKS (dados em tempo real):';
 
-function buildDynamicContext(businessDays, slotsText, professionalsText, history = []) {
+function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '') {
   const historyText = history.length
     ? '\n\nHISTORICO DA CONVERSA:\n' + history
         .map(m => `${m.role === 'user' ? 'Cliente' : 'Assistente'}: ${m.content}`)
@@ -123,16 +124,8 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
     '',
     slotsText,
     professionalsText,
+    servicesText,
     historyText,
-  ].join('\n');
-}
-
-function buildAvailabilityContext(slotsText) {
-  return [
-    'CONTEXTO DINAMICO - DISPONIBILIDADE CONFIRMADA VIA TRINKS:',
-    `HOJE: ${formatFullDateLabel(getTodayIsoInSalonTimeZone())}`,
-    '',
-    String(slotsText || '').trim(),
   ].join('\n');
 }
 
@@ -170,16 +163,304 @@ async function getSlots(date) {
 async function getProfessionals() {
   try {
     const json = await fetchTrinks('/profissionais');
-    if (!json.data || !Array.isArray(json.data)) return 'PROFISSIONAIS: Erro ao consultar.';
+    if (!json.data || !Array.isArray(json.data)) return { text: 'PROFISSIONAIS: Erro ao consultar.', data: [] };
     let txt = 'PROFISSIONAIS ATIVOS:\n';
     for (const p of json.data) {
       txt += `- ${p.apelido || p.nome} (ID ${p.id})\n`;
     }
-    return txt;
+    return { text: txt, data: json.data };
   } catch (err) {
     console.error('Trinks professionals error:', err.message);
-    return 'PROFISSIONAIS: Erro ao consultar.';
+    return { text: 'PROFISSIONAIS: Erro ao consultar.', data: [] };
   }
+}
+
+async function getServicesText() {
+  try {
+    const json = await fetchTrinks('/servicos');
+    const list = Array.isArray(json.data) ? json.data : [];
+    if (!list.length) return 'SERVICOS: Erro ao consultar.';
+    // Agrupa por profissional (campo "profissionalNome" ou similar), senão lista plana
+    let txt = 'SERVICOS DISPONIVEIS (use o nome EXATO na tag BOOKING_CONFIRM):\n';
+    for (const s of list) {
+      const prof = s.profissionalNome || s.profissional || '';
+      txt += `- ${s.nome}${prof ? ` [${prof}]` : ''} (ID ${s.id})\n`;
+    }
+    return txt;
+  } catch (err) {
+    console.error('Trinks services text error:', err.message);
+    return 'SERVICOS: Erro ao consultar.';
+  }
+}
+
+// Busca servicos de um profissional especifico (retorna id + duracao)
+async function getServiceForProfessional(professionalId, serviceName) {
+  const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Remove prefixos de ruido comuns na extracao do historico
+  const cleanedName = (serviceName || '').replace(/^(o\s+agendamento\s+de\s+|os?\s+servic[oa]s?\s+de\s+|a\s+confirmac[aã]o\s+de\s+)/i, '').trim();
+  const target = norm(cleanedName);
+  const endpoints = [
+    `/profissionais/${professionalId}/servicos`,
+    `/servicos?profissionalId=${professionalId}`,
+    `/servicos`,
+  ];
+  for (const path of endpoints) {
+    try {
+      const json = await fetchTrinks(path);
+      const list = Array.isArray(json.data) ? json.data : [];
+      console.log(`[Trinks] ${path} → ${list.length} servicos:`, list.map(s => `${s.id}:${s.nome || s.name}`).join(' | '));
+      // Sinonimos de dominio: "corte" = "cabelo" em contexto de salao
+      const SYNONYMS = { corte: 'cabelo', cabelo: 'corte' };
+      const words = (s) => norm(s).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+      // Para o target, expande sinonimos para melhorar o match
+      const rawTargetWords = words(cleanedName);
+      const targetWords = [...new Set(rawTargetWords.flatMap(w => SYNONYMS[w] ? [w, SYNONYMS[w]] : [w]))];
+      // Ranqueia por score (melhor match ganha, nao o primeiro que passa o threshold)
+      let bestScore = 0;
+      let found = null;
+      for (const s of list) {
+        const svcName = s.nome || s.name || '';
+        const n = norm(svcName);
+        let score = 0;
+        if (n === target) score = 100;
+        else if (n.includes(target) || target.includes(n)) score = 80;
+        else {
+          const svcWords = words(svcName);
+          const overlap = targetWords.filter(w => svcWords.some(sw => sw.includes(w) || w.includes(sw)));
+          // Penaliza servicos com palavras extras nao presentes no target (evita "Infantil" etc)
+          const extraSvcWords = svcWords.filter(sw => !targetWords.some(w => sw.includes(w) || w.includes(sw)));
+          score = targetWords.length ? (overlap.length / targetWords.length) * 50 : 0;
+          score -= extraSvcWords.length * 3;
+        }
+        if (score > bestScore) { bestScore = score; found = s; }
+      }
+      if (bestScore < 25) found = null;
+      console.log(`[Trinks] Match "${serviceName}" → "${found?.nome}" (score ${bestScore})`);
+      if (found) return { id: found.id, duracao: found.duracao || found.duracaoEmMinutos || found.duration || 60, valor: found.valor ?? found.preco ?? found.price ?? 0 };
+    } catch (err) {
+      console.error(`[Trinks] ${path} erro:`, err.message);
+    }
+  }
+  return null;
+}
+
+// Busca clienteId (ID global) pelo telefone via GET /clientes?telefone=X.
+// Documentacao oficial (trinks.readme.io): POST /agendamentos usa clienteId, nao clienteEstabelecimentoId.
+async function getClientId(phone) {
+  const digits = (phone || '').replace(/\D/g, '');
+  try {
+    const json = await fetchTrinks(`/clientes?telefone=${digits}`);
+    const item = Array.isArray(json.data) ? json.data[0] : json.data;
+    if (item?.id) {
+      console.log(`[Trinks] clienteId: ${item.id} (${item.nome})`);
+      return item.id;
+    }
+  } catch (err) {
+    console.log(`[Trinks] /clientes?telefone=${digits} → ${err.message}`);
+  }
+  console.warn(`[Trinks] cliente nao encontrado para telefone ${digits}`);
+  return null;
+}
+
+// Fuzzy name match (normaliza acentos e caixa)
+function matchByName(list, name, ...keys) {
+  const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const target = norm(name);
+  const fields = keys.length ? keys : ['nome', 'apelido'];
+  return list.find(item =>
+    fields.some(k => {
+      const v = norm(item[k]);
+      return v && (v.includes(target) || target.includes(v));
+    })
+  );
+}
+
+// Remove tags de booking do texto exibido ao cliente.
+// Tags suportadas: [BOOKING_REQUEST], [BOOKING_CONFIRM], [BOOKING_CANCEL], [BOOKING_RESCHEDULE]
+function stripBookingTags(tessText) {
+  let clean = tessText;
+  let bookingConfirm = null;
+  let bookingCancel = null;
+  let bookingReschedule = null;
+
+  const confMatch = clean.match(/\[BOOKING_CONFIRM\]\s*\n?({[\s\S]*?})/i);
+  if (confMatch) {
+    try { bookingConfirm = JSON.parse(confMatch[1]); } catch {}
+    clean = clean.replace(confMatch[0], '').trim();
+  }
+
+  const cancelMatch = clean.match(/\[BOOKING_CANCEL\]\s*\n?({[\s\S]*?})/i);
+  if (cancelMatch) {
+    try { bookingCancel = JSON.parse(cancelMatch[1]); } catch {}
+    clean = clean.replace(cancelMatch[0], '').trim();
+  }
+
+  const reschedMatch = clean.match(/\[BOOKING_RESCHEDULE\]\s*\n?({[\s\S]*?})/i);
+  if (reschedMatch) {
+    try { bookingReschedule = JSON.parse(reschedMatch[1]); } catch {}
+    clean = clean.replace(reschedMatch[0], '').trim();
+  }
+
+  clean = clean.replace(/\[BOOKING_REQUEST\]\s*\n?{[\s\S]*?}/gi, '').trim();
+
+  return { clean, bookingConfirm, bookingCancel, bookingReschedule };
+}
+
+// Extrai numero de telefone do historico da conversa
+function extractPhoneFromHistory(history) {
+  for (const msg of [...history].reverse()) {
+    if (msg.role !== 'user') continue;
+    const m = msg.content.match(/\b(\d{10,11})\b/);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+// Busca agendamentos do cliente por data via GET /agendamentos
+async function findClientBooking(clienteId, date, professionalId) {
+  const dayStart = `${date}T00:00:00`;
+  const dayEnd   = `${date}T23:59:59`;
+  try {
+    const json = await fetchTrinks(`/agendamentos?clienteId=${clienteId}&dataInicio=${dayStart}&dataFim=${dayEnd}`);
+    const list = Array.isArray(json.data) ? json.data : [];
+    console.log(`[Trinks] findClientBooking clienteId:${clienteId} data:${date} → ${list.length} agendamentos`);
+    if (!list.length) return null;
+    // Se profissionalId fornecido, prioriza o agendamento desse profissional
+    if (professionalId) {
+      const match = list.find(b => String(b.profissionalId) === String(professionalId));
+      if (match) return match;
+    }
+    return list[0];
+  } catch (err) {
+    console.error(`[Trinks] findClientBooking erro:`, err.message);
+    return null;
+  }
+}
+
+// Cancela agendamento via PATCH /agendamentos/{id}/status/cancelado
+async function cancelBookingInTrinks(agendamentoId, clienteId, motivo) {
+  const url = `${TRINKS_API_BASE}/agendamentos/${agendamentoId}/status/cancelado`;
+  const payload = {
+    quemCancelou: clienteId,
+    motivo: motivo || 'Cancelado pelo cliente via WhatsApp',
+  };
+  console.log(`[Trinks] PATCH ${url} payload:`, JSON.stringify(payload));
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'X-Api-Key': TRINKS_KEY,
+      'estabelecimentoId': TRINKS_EST_ID,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10000),
+  });
+  const text = await res.text().catch(() => '');
+  console.log(`[Trinks] PATCH cancelado → ${res.status}:`, text || '(no body)');
+  if (!res.ok) throw new Error(`Trinks ${res.status}: ${text}`);
+  return { agendamentoId, cancelado: true };
+}
+
+// Reagenda agendamento via PUT /agendamentos/{id}
+async function rescheduleBookingInTrinks(agendamentoId, booking, professionalsData) {
+  const profId = booking.professionalId
+    || matchByName(professionalsData, booking.professional || '', 'apelido', 'nome')?.id;
+
+  const [svcData, clienteId] = await Promise.all([
+    profId ? getServiceForProfessional(profId, booking.service) : Promise.resolve(null),
+    booking.clientPhone ? getClientId(booking.clientPhone) : Promise.resolve(null),
+  ]);
+
+  const duracao = svcData?.duracao || booking.durationMinutes || 0;
+  const payload = {
+    dataHoraInicio: `${booking.date}T${booking.time}:00`,
+    profissionalId: profId || undefined,
+    duracaoEmMinutos: duracao,
+    clienteId: clienteId || undefined,
+    servicoId: svcData?.id || undefined,
+    valor: svcData?.valor ?? 0,
+  };
+
+  const url = `${TRINKS_API_BASE}/agendamentos/${agendamentoId}`;
+  console.log(`[Trinks] PUT ${url} payload:`, JSON.stringify(payload));
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'X-Api-Key': TRINKS_KEY,
+      'estabelecimentoId': TRINKS_EST_ID,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10000),
+  });
+  const text = await res.text().catch(() => '');
+  console.log(`[Trinks] PUT reagendamento → ${res.status}:`, text || '(no body)');
+  if (!res.ok) throw new Error(`Trinks ${res.status}: ${text}`);
+  return { agendamentoId, reagendado: true };
+}
+
+// Fallback: extrai dados do historico quando TESS nao emitiu tag estruturada
+function extractFromHistory(history) {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    if (msg.role !== 'assistant') continue;
+    const text = msg.content;
+    const m = text.match(
+      /(?:confirmar?[:\s]+|agendad[oa][!:.\s]+)(.+?)\s+com\s+(?:[oa]\s+)?([A-ZÀ-Úa-zà-ú]+(?:\s+[A-ZÀ-Úa-zà-ú]+)?)\b.*?(\d{1,2}\/\d{2})(?:\/\d{4})?\b.*?\b(\d{1,2})h(\d{0,2})/i
+    );
+    if (m) {
+      const [, service, professional, dateStr, hh, mm] = m;
+      const [day, month] = dateStr.split('/');
+      const year = new Date().getFullYear();
+      const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      const time = `${hh.padStart(2, '0')}:${(mm || '00').padStart(2, '0')}`;
+      return { service: service.trim(), professional: professional.trim(), date, time };
+    }
+  }
+  return null;
+}
+
+async function createBookingInTrinks(booking, professionalsData) {
+  const profId = booking.professionalId
+    || matchByName(professionalsData, booking.professional || '', 'apelido', 'nome')?.id;
+
+  // Busca em paralelo: servico do profissional + clienteId (ID global) pelo telefone
+  const [svcData, clienteId] = await Promise.all([
+    profId ? getServiceForProfessional(profId, booking.service) : Promise.resolve(null),
+    booking.clientPhone ? getClientId(booking.clientPhone) : Promise.resolve(null),
+  ]);
+
+  const duracao = svcData?.duracao || booking.durationMinutes || 0;
+
+  // POST /agendamentos — campos conforme documentacao oficial trinks.readme.io:
+  // clienteId (int32), servicoId (int32), dataHoraInicio (date-time), duracaoEmMinutos (int32), valor (double)
+  const payload = {
+    dataHoraInicio: `${booking.date}T${booking.time}:00`,
+    profissionalId: profId || undefined,
+    duracaoEmMinutos: duracao,
+    clienteId: clienteId || undefined,
+    servicoId: svcData?.id || undefined,
+    valor: svcData?.valor ?? 0,
+  };
+
+  console.log(`[Trinks] Resolved — profId:${profId} svcId:${svcData?.id} clienteId:${clienteId} duracao:${duracao} valor:${svcData?.valor}`);
+
+  const url = `${TRINKS_API_BASE}/agendamentos`;
+  console.log(`[Trinks] POST ${url} payload:`, JSON.stringify(payload));
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-Api-Key': TRINKS_KEY,
+      'estabelecimentoId': TRINKS_EST_ID,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10000),
+  });
+  const data = await res.json().catch(() => ({}));
+  console.log(`[Trinks] POST /agendamentos → ${res.status}:`, JSON.stringify(data));
+  if (!res.ok) throw new Error(`Trinks ${res.status}: ${JSON.stringify(data)}`);
+  return data;
 }
 
 // --- TESS helper ---
@@ -233,25 +514,6 @@ function extractTESSRootId(raw) {
   return null;
 }
 
-function parseBookingTags(response) {
-  let clientMessage = response;
-  let bookingRequest = null;
-  let bookingConfirm = null;
-
-  const reqMatch = response.match(/\[BOOKING_REQUEST\]\s*\n?({[\s\S]*?})/i);
-  if (reqMatch) {
-    try { bookingRequest = JSON.parse(reqMatch[1]); } catch {}
-    clientMessage = clientMessage.replace(reqMatch[0], '').trim();
-  }
-
-  const confMatch = response.match(/\[BOOKING_CONFIRM\]\s*\n?({[\s\S]*?})/i);
-  if (confMatch) {
-    try { bookingConfirm = JSON.parse(confMatch[1]); } catch {}
-    clientMessage = clientMessage.replace(confMatch[0], '').trim();
-  }
-
-  return { clientMessage, bookingRequest, bookingConfirm };
-}
 
 function removeRepeatedIntro(text) {
   let out = text.trim();
@@ -336,167 +598,216 @@ function formatAssistantOutput(rawText, isFirstTurn) {
   };
 }
 
-// --- Booking execution (Trinks) ---
-async function executeBooking(bookingRequest, bookingConfirm) {
-  if (bookingRequest?.action === 'check_availability') {
-    const date = bookingRequest.date;
-    try {
-      const json = await fetchTrinks(`/agendamentos/profissionais/${date}`);
-      let txt = `HORARIOS VAGOS ${formatDateLabel(date)}:\n`;
-      let found = false;
-      if (json.data) {
-        for (const p of json.data) {
-          if (bookingRequest.professional_id && p.id !== bookingRequest.professional_id) continue;
-          if (p.horariosVagos?.length) {
-            found = true;
-            txt += `- ${p.apelido || p.nome}: ${p.horariosVagos.join(', ')}\n`;
-          }
-        }
-      }
-      if (!found) txt += 'Nenhum horario disponivel.';
-      return { type: 'availability', slots: txt };
-    } catch (err) {
-      return { type: 'error', message: err.message };
-    }
-  }
 
-  if (bookingConfirm?.action === 'create_booking') {
+// --- Core message orchestration ---
+async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw) {
+  const startTime = Date.now();
+  const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [] };
+
+  // Merge client-side history as fallback (cold-start loses sessionState)
+  if (state.history.length === 0 && Array.isArray(incomingHistoryRaw) && incomingHistoryRaw.length > 0) {
+    state.history = incomingHistoryRaw.filter(m => m.role && m.content).slice(-20);
+  }
+  console.log(`[${sessionId}] ${contactName}: "${messageText}"`);
+
+  // 1. Fetch Trinks data in parallel (next 5 business days)
+  const businessDays = getNextBusinessDays(5);
+  const [slotsResults, profsResult, svcTextResult] = await Promise.allSettled([
+    Promise.all(businessDays.map(date => getSlots(date))),
+    getProfessionals(),
+    getServicesText(),
+  ]);
+
+  const profsPayload = profsResult.status === 'fulfilled'
+    ? profsResult.value
+    : { text: 'PROFISSIONAIS: Erro ao consultar.', data: [] };
+  const slotsAll = slotsResults.status === 'fulfilled'
+    ? slotsResults.value.join('\n')
+    : 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
+  const svcText = svcTextResult.status === 'fulfilled'
+    ? svcTextResult.value
+    : 'SERVICOS: Erro ao consultar.';
+
+  // 2. Call TESS
+  // O agente TESS ignora role:system — contexto dinamico injetado no user message + root_id para thread.
+  const lastEntry = state.history[state.history.length - 1];
+  if (lastEntry?.role !== 'user' || lastEntry.content !== messageText) {
+    state.history.push({ role: 'user', content: messageText });
+  }
+  const dynamicContext = buildDynamicContext(businessDays, slotsAll, profsPayload.text, state.history, svcText);
+  const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${messageText}`;
+  const tessRaw = await callTESS([
+    { role: 'user', content: userMessageWithContext },
+  ], state.rootId);
+
+  const tessText = extractTESSResponse(tessRaw);
+  const rootId = extractTESSRootId(tessRaw);
+  if (rootId) state.rootId = rootId;
+  if (!tessText) {
+    console.error('[TESS] Empty response:', JSON.stringify(tessRaw).slice(0, 300));
     return {
-      type: 'booking_pending',
-      message: `Booking para ${bookingConfirm.client_name}: ${bookingConfirm.service_name} em ${bookingConfirm.date_time}. Pendente ServicoEstabelecimentoId.`,
+      response: 'Ola! Estou com uma dificuldade tecnica. Nosso atendimento humano entrara em contato em breve!',
+      timestamp: new Date().toISOString(),
     };
   }
 
-  return null;
+  // 3. Strip booking tags from text (TESS emite tags que nao devem aparecer ao cliente)
+  const { clean: cleanText, bookingConfirm, bookingCancel, bookingReschedule } = stripBookingTags(tessText);
+  const formatted = formatAssistantOutput(cleanText, state.turn === 0);
+  state.history.push({ role: 'assistant', content: cleanText });
+  state.turn += 1;
+  state.lastAccess = Date.now();
+  sessionState.set(sessionId, state);
+  evictOldSessions();
+
+  // 4. Executar acao no Trinks de acordo com tag emitida pelo TESS
+  let bookingResult = null;
+  const clientPhone = extractPhoneFromHistory(state.history);
+
+  // 4a. Criar agendamento (apenas quando TESS emite [BOOKING_CONFIRM] explicitamente)
+  if (bookingConfirm) {
+    const bookingData = {
+      service: bookingConfirm.service_name,
+      professional: bookingConfirm.professional_id
+        ? profsPayload.data.find(p => p.id === bookingConfirm.professional_id)?.apelido || null
+        : null,
+      professionalId: bookingConfirm.professional_id,
+      date: bookingConfirm.date_time?.split('T')[0],
+      time: bookingConfirm.date_time?.split('T')[1]?.slice(0, 5),
+      durationMinutes: bookingConfirm.duration_minutes,
+      clientPhone,
+    };
+    console.log(`[${sessionId}] Booking from tag:`, JSON.stringify(bookingData));
+    try {
+      bookingResult = await createBookingInTrinks(bookingData, profsPayload.data);
+      console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
+    } catch (err) {
+      console.error(`[${sessionId}] Booking creation FAILED:`, err.message);
+    }
+  }
+
+  // 4b. Cancelar agendamento
+  if (bookingCancel) {
+    console.log(`[${sessionId}] Booking cancel from tag:`, JSON.stringify(bookingCancel));
+    try {
+      const clienteId = clientPhone ? await getClientId(clientPhone) : null;
+      if (!clienteId) throw new Error('clienteId nao encontrado para cancelamento');
+
+      const agendamentoId = bookingCancel.agendamento_id
+        || (bookingCancel.date ? (await findClientBooking(clienteId, bookingCancel.date, bookingCancel.professional_id))?.id : null);
+
+      if (!agendamentoId) throw new Error(`Agendamento nao encontrado para data ${bookingCancel.date}`);
+
+      bookingResult = await cancelBookingInTrinks(agendamentoId, clienteId, bookingCancel.motivo);
+      console.log(`[${sessionId}] Booking cancelled in Trinks: agendamentoId ${agendamentoId}`);
+    } catch (err) {
+      console.error(`[${sessionId}] Booking cancel FAILED:`, err.message);
+    }
+  }
+
+  // 4c. Reagendar agendamento
+  if (bookingReschedule) {
+    console.log(`[${sessionId}] Booking reschedule from tag:`, JSON.stringify(bookingReschedule));
+    try {
+      const clienteId = clientPhone ? await getClientId(clientPhone) : null;
+      if (!clienteId) throw new Error('clienteId nao encontrado para reagendamento');
+
+      const agendamentoId = bookingReschedule.agendamento_id
+        || (bookingReschedule.old_date ? (await findClientBooking(clienteId, bookingReschedule.old_date, bookingReschedule.professional_id))?.id : null);
+
+      if (!agendamentoId) throw new Error(`Agendamento original nao encontrado para data ${bookingReschedule.old_date}`);
+
+      const newBooking = {
+        service: bookingReschedule.service_name,
+        professionalId: bookingReschedule.professional_id,
+        date: bookingReschedule.date_time?.split('T')[0],
+        time: bookingReschedule.date_time?.split('T')[1]?.slice(0, 5),
+        durationMinutes: bookingReschedule.duration_minutes,
+        clientPhone,
+      };
+
+      bookingResult = await rescheduleBookingInTrinks(agendamentoId, newBooking, profsPayload.data);
+      console.log(`[${sessionId}] Booking rescheduled in Trinks: agendamentoId ${agendamentoId}`);
+    } catch (err) {
+      console.error(`[${sessionId}] Booking reschedule FAILED:`, err.message);
+    }
+  }
+
+  console.log(`[${sessionId}] Response (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
+  const result = { response: formatted.response, responses: formatted.responses, timestamp: new Date().toISOString() };
+  if (bookingResult) result.booking = bookingResult;
+  return result;
 }
 
-// --- Main endpoint ---
-app.post('/webhook/demo-chat', async (req, res) => {
-  const startTime = Date.now();
-  const globalTimeout = setTimeout(() => {
-    if (!res.headersSent) {
-      console.error(`[TIMEOUT] Global 28s timeout hit`);
-      res.json({ response: 'Estou demorando mais que o normal. Pode tentar de novo?', timestamp: new Date().toISOString() });
+function withTimeout(fn, ms) {
+  return async (req, res) => {
+    const globalTimeout = setTimeout(() => {
+      if (!res.headersSent) {
+        console.error(`[TIMEOUT] Global ${ms}ms timeout hit`);
+        res.json({ response: 'Estou demorando mais que o normal. Pode tentar de novo?', timestamp: new Date().toISOString() });
+      }
+    }, ms);
+    try {
+      await fn(req, res);
+    } catch (err) {
+      console.error('Handler error:', err);
+      if (!res.headersSent) {
+        res.json({ response: 'Estou com uma dificuldade tecnica no momento. Tente novamente em instantes!', timestamp: new Date().toISOString() });
+      }
+    } finally {
+      clearTimeout(globalTimeout);
     }
-  }, 28000);
+  };
+}
 
-  try {
-    // 1. Parse payload
-    const { message, session_id, contact_name = 'Visitante', history: incomingHistoryRaw } = req.body;
-    const sessionId = String(session_id || 'anonymous');
-    const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [] };
-    if (!message || !message.trim()) {
-      return res.status(400).json({ response: 'Mensagem vazia', timestamp: new Date().toISOString() });
-    }
-
-    const messageText = message.trim();
-    // Merge client-side history as fallback (Render cold-start loses sessionState)
-    if (state.history.length === 0 && Array.isArray(incomingHistoryRaw) && incomingHistoryRaw.length > 0) {
-      state.history = incomingHistoryRaw.filter(m => m.role && m.content).slice(-20);
-    }
-    console.log(`[${sessionId}] ${contact_name}: "${messageText}"`);
-
-    // 2. Fetch Trinks data in parallel (next 5 business days)
-    const businessDays = getNextBusinessDays(5);
-    const [slotsResults, profsResult] = await Promise.allSettled([
-      Promise.all(businessDays.map(date => getSlots(date))),
-      getProfessionals(),
-    ]);
-
-    const slotsAll = slotsResults.status === 'fulfilled'
-      ? slotsResults.value.join('\n')
-      : 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
-    const profs = profsResult.status === 'fulfilled'
-      ? profsResult.value
-      : 'PROFISSIONAIS: Erro ao consultar.';
-    // 3. Call TESS (1st call)
-    // O agente TESS ignora role:system (tem dashboard prompt proprio).
-    // Estrategia: injetar contexto dinamico dentro do user message + root_id para thread.
-    const lastEntry = state.history[state.history.length - 1];
-    if (lastEntry?.role !== 'user' || lastEntry.content !== messageText) {
-      state.history.push({ role: 'user', content: messageText });
-    }
-    const dynamicContext = buildDynamicContext(businessDays, slotsAll, profs);
-    const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${messageText}`;
-    const tessRaw = await callTESS([
-      { role: 'user', content: userMessageWithContext },
-    ], state.rootId);
-
-    const tessText = extractTESSResponse(tessRaw);
-    const rootId = extractTESSRootId(tessRaw);
-    if (rootId) state.rootId = rootId;
-    if (!tessText) {
-      console.error('[TESS] Empty response:', JSON.stringify(tessRaw).slice(0, 300));
-      return res.json({
-        response: 'Ola! Estou com uma dificuldade tecnica. Nosso atendimento humano entrara em contato em breve!',
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // 4. Parse booking tags
-    const { clientMessage, bookingRequest, bookingConfirm } = parseBookingTags(tessText);
-    const formatted = formatAssistantOutput(clientMessage, state.turn === 0);
-    const hasBookingAction = !!(bookingRequest || bookingConfirm);
-
-    // 5. If no booking action, return directly
-    if (!hasBookingAction) {
-      state.history.push({ role: 'assistant', content: clientMessage });
-      state.turn += 1;
-      state.lastAccess = Date.now();
-      sessionState.set(sessionId, state);
-      evictOldSessions();
-      console.log(`[${sessionId}] Response (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
-      return res.json({ response: formatted.response, responses: formatted.responses, timestamp: new Date().toISOString() });
-    }
-
-    // 6. Execute booking (check availability or create)
-    const bookingResult = await executeBooking(bookingRequest, bookingConfirm);
-
-    // 7. If availability check, do 2nd TESS call with specific slots injected in user message
-    if (bookingResult?.type === 'availability') {
-      const availContext = buildAvailabilityContext(bookingResult.slots);
-      const tess2Raw = await callTESS([
-        { role: 'user', content: `${availContext}\n\nMENSAGEM DO CLIENTE: ${messageText}` },
-      ], state.rootId);
-
-      const rootId2 = extractTESSRootId(tess2Raw);
-      if (rootId2) state.rootId = rootId2;
-      let response2 = extractTESSResponse(tess2Raw);
-      if (!response2) response2 = 'Vou verificar e ja te retorno!';
-      // Clean any residual booking tags
-      response2 = response2.replace(/\[BOOKING_(?:REQUEST|CONFIRM)\]\s*\n?{[\s\S]*?}/gi, '').trim();
-      const formatted2 = formatAssistantOutput(response2, state.turn === 0);
-
-      state.history.push({ role: 'assistant', content: response2 });
-      state.turn += 1;
-      state.lastAccess = Date.now();
-      sessionState.set(sessionId, state);
-      evictOldSessions();
-      console.log(`[${sessionId}] Response+booking (${Date.now() - startTime}ms): "${formatted2.response.slice(0, 80)}..."`);
-      return res.json({ response: formatted2.response, responses: formatted2.responses, timestamp: new Date().toISOString() });
-    }
-
-    // 8. For booking_pending or other, return client message
-    state.history.push({ role: 'assistant', content: clientMessage });
-    state.turn += 1;
-    state.lastAccess = Date.now();
-    sessionState.set(sessionId, state);
-    evictOldSessions();
-    console.log(`[${sessionId}] Response+confirm (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
-    return res.json({ response: formatted.response, responses: formatted.responses, timestamp: new Date().toISOString() });
-
-  } catch (err) {
-    console.error('Handler error:', err);
-    if (!res.headersSent) {
-      return res.json({
-        response: 'Estou com uma dificuldade tecnica no momento. Tente novamente em instantes!',
-        timestamp: new Date().toISOString(),
-      });
-    }
-  } finally {
-    clearTimeout(globalTimeout);
+// --- Webchat endpoint (demo / testes) ---
+app.post('/webhook/demo-chat', withTimeout(async (req, res) => {
+  const { message, session_id, contact_name = 'Visitante', history: incomingHistoryRaw } = req.body;
+  const sessionId = String(session_id || 'anonymous');
+  if (!message || !message.trim()) {
+    return res.status(400).json({ response: 'Mensagem vazia', timestamp: new Date().toISOString() });
   }
-});
+  const result = await processMessage(sessionId, message.trim(), contact_name, incomingHistoryRaw);
+  return res.json(result);
+}, 28000));
+
+// --- Kapso webhook (WhatsApp via QR code) ---
+function validateKapsoSignature(req) {
+  const secret = process.env.KAPSO_WEBHOOK_SECRET;
+  if (!secret) {
+    console.warn('[kapso] KAPSO_WEBHOOK_SECRET not set — skipping HMAC validation (dev mode)');
+    return true;
+  }
+  const signature = req.headers['x-webhook-signature'] || req.headers['x-kapso-signature'] || '';
+  const rawBody = JSON.stringify(req.body);
+  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
+app.post('/webhook/kapso', withTimeout(async (req, res) => {
+  const { message, conversation } = req.body;
+
+  // Ignorar mensagens do Business App (Tiago/Gabriel respondeu manualmente)
+  if (message?.kapso?.origin === 'business_app' || message?.kapso?.origin === 'history_sync') {
+    return res.json({ response: '' });
+  }
+
+  if (!validateKapsoSignature(req)) {
+    console.warn('[kapso] Invalid HMAC signature — rejected');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const messageText = (message?.kapso?.content || message?.text?.body || '').trim();
+  const sessionId = conversation?.phone_number || message?.from || 'unknown';
+  const contactName = conversation?.kapso?.contact_name || 'Cliente';
+
+  console.log(`[kapso][${sessionId}] message recebida: "${messageText.slice(0, 80)}"`);
+
+  if (!messageText) return res.json({ response: '' });
+
+  const result = await processMessage(sessionId, messageText, contactName, null);
+  return res.json(result);
+}, 28000));
 
 // Health check
 app.get('/health', (req, res) => {

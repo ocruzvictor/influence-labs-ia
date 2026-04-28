@@ -317,7 +317,7 @@
     // === CONFIG ===
     const WEBHOOK_PARAM = new URLSearchParams(window.location.search).get('webhook');
     const LOCAL_WEBHOOK_URL = 'http://localhost:3001/webhook/demo-chat';
-    const DEFAULT_PROD_WEBHOOK_URL = 'https://studio-tirra-webchat-backend.onrender.com/webhook/demo-chat';
+    const DEFAULT_PROD_WEBHOOK_URL = 'https://api.studiotirra.com.br/webhook/demo-chat';
     const WEBHOOK_URL =
       WEBHOOK_PARAM ||
       localStorage.getItem('st_webhook_url') ||

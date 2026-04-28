@@ -88,6 +88,23 @@ services:
       redis:
         condition: service_healthy
 
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: unless-stopped
+    environment:
+      PORT: "3001"
+      TESS_API_BASE: ${TESS_API_BASE:-https://api.tess.im}
+      TESS_API_TOKEN: ${TESS_API_TOKEN}
+      TESS_AGENT_ID: ${TESS_AGENT_ID:-33200}
+      TRINKS_API_BASE: ${TRINKS_API_BASE:-https://api.trinks.com/v1}
+      TRINKS_API_KEY: ${TRINKS_API_KEY}
+      TRINKS_ESTABELECIMENTO_ID: ${TRINKS_ESTABELECIMENTO_ID:-243868}
+      KAPSO_WEBHOOK_SECRET: ${KAPSO_WEBHOOK_SECRET}
+    # Sem ports: acesso apenas via nginx (api.studiotirra.com.br)
+
   nginx:
     image: nginx:alpine
     container_name: nginx
@@ -102,6 +119,7 @@ services:
     depends_on:
       - chatwoot
       - n8n
+      - backend
 
   certbot:
     image: certbot/certbot

@@ -42,5 +42,6 @@ $COMPOSE_CMD ps
 echo "=== Testando endpoints locais ==="
 $COMPOSE_CMD exec -T n8n sh -lc 'wget -q --spider http://localhost:5678 || exit 1' && echo "n8n: ok" || echo "n8n: erro"
 $COMPOSE_CMD exec -T chatwoot sh -lc 'wget -q --spider http://localhost:3000 || exit 1' && echo "Chatwoot: ok" || echo "Chatwoot: erro"
+$COMPOSE_CMD exec -T backend sh -lc 'wget -q -O- http://localhost:3001/health || exit 1' && echo "backend: ok" || echo "backend: erro"
 
 echo "=== Deploy completo ==="
