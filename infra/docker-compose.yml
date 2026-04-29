@@ -103,6 +103,10 @@ services:
       TRINKS_API_KEY: ${TRINKS_API_KEY}
       TRINKS_ESTABELECIMENTO_ID: ${TRINKS_ESTABELECIMENTO_ID:-243868}
       KAPSO_WEBHOOK_SECRET: ${KAPSO_WEBHOOK_SECRET}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/influence_labs_salon
+    depends_on:
+      postgres:
+        condition: service_healthy
     # Sem ports: acesso apenas via nginx (api.studiotirra.com.br)
 
   nginx:

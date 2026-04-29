@@ -14,6 +14,7 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const db = require('./db');
 
 // --- Load .env (zero deps) ---
 try {
@@ -110,7 +111,91 @@ function getNextBusinessDays(count) {
 
 const DYNAMIC_CONTEXT_PREFIX = 'CONTEXTO DINAMICO - TRINKS (dados em tempo real):';
 
-function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '') {
+// --- Memory helpers (PostgreSQL) ---
+async function loadClientMemory(phone) {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits) return { history: [], client: null };
+
+  const [histResult, clientResult] = await Promise.all([
+    db.query(
+      `SELECT role, content FROM conversation_history
+       WHERE client_phone = $1 ORDER BY created_at DESC LIMIT 15`,
+      [digits]
+    ),
+    db.query(
+      `SELECT name, last_service, last_visit, visit_count FROM clients WHERE phone = $1`,
+      [digits]
+    ),
+  ]);
+
+  return {
+    history: histResult ? histResult.rows.reverse() : [],
+    client: clientResult?.rows[0] || null,
+  };
+}
+
+async function saveConversationTurns(phone, turns) {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits || !turns.length) return;
+  for (const t of turns) {
+    await db.query(
+      `INSERT INTO conversation_history (client_phone, role, content) VALUES ($1, $2, $3)`,
+      [digits, t.role, t.content]
+    );
+  }
+}
+
+async function upsertClient(phone, name) {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits) return;
+  await db.query(
+    `INSERT INTO clients (phone, name, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (phone) DO UPDATE SET
+       name = COALESCE(EXCLUDED.name, clients.name),
+       updated_at = NOW()`,
+    [digits, name || null]
+  );
+}
+
+async function updateClientAfterBooking(phone, serviceName) {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits || !serviceName) return;
+  await db.query(
+    `INSERT INTO clients (phone, last_service, last_visit, visit_count, updated_at)
+     VALUES ($1, $2, NOW(), 1, NOW())
+     ON CONFLICT (phone) DO UPDATE SET
+       last_service = $2,
+       last_visit = NOW(),
+       visit_count = clients.visit_count + 1,
+       updated_at = NOW()`,
+    [digits, serviceName]
+  );
+}
+
+function buildPersistedSection(persistedMemory) {
+  if (!persistedMemory) return '';
+  const { client, history } = persistedMemory;
+  const lines = [];
+
+  if (client) {
+    if (client.name) lines.push(`Nome: ${client.name}`);
+    if (client.last_service) lines.push(`Ultimo servico: ${client.last_service}`);
+    if (client.last_visit) lines.push(`Ultima visita: ${new Date(client.last_visit).toLocaleDateString('pt-BR')}`);
+    if (client.visit_count) lines.push(`Total de visitas: ${client.visit_count}`);
+  }
+
+  let section = '';
+  if (lines.length) section += '\nPERFIL DO CLIENTE:\n' + lines.map(l => `- ${l}`).join('\n');
+  if (history?.length) {
+    section += '\n\nHISTORICO ANTERIOR (sessoes anteriores):\n' +
+      history.map(m => `${m.role === 'user' ? 'Cliente' : 'Assistente'}: ${m.content}`).join('\n');
+  }
+  return section;
+}
+
+function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null) {
+  const persistedSection = buildPersistedSection(persistedMemory);
   const historyText = history.length
     ? '\n\nHISTORICO DA CONVERSA:\n' + history
         .map(m => `${m.role === 'user' ? 'Cliente' : 'Assistente'}: ${m.content}`)
@@ -125,6 +210,7 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
     slotsText,
     professionalsText,
     servicesText,
+    persistedSection,
     historyText,
   ].join('\n');
 }
@@ -600,13 +686,20 @@ function formatAssistantOutput(rawText, isFirstTurn) {
 
 
 // --- Core message orchestration ---
-async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw) {
+async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw, phone = null) {
   const startTime = Date.now();
-  const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [] };
+  const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [], persistedMemory: null };
 
-  // Merge client-side history as fallback (cold-start loses sessionState)
-  if (state.history.length === 0 && Array.isArray(incomingHistoryRaw) && incomingHistoryRaw.length > 0) {
-    state.history = incomingHistoryRaw.filter(m => m.role && m.content).slice(-20);
+  // Cold start: load persisted memory from DB (phone sessions) or client-side history fallback (webchat)
+  if (state.history.length === 0) {
+    if (phone) {
+      const mem = await loadClientMemory(phone);
+      state.persistedMemory = (mem.history.length || mem.client) ? mem : null;
+      if (state.persistedMemory) console.log(`[${sessionId}] Memory loaded: ${mem.history.length} turns, client: ${!!mem.client}`);
+      if (contactName && contactName !== 'Cliente') upsertClient(phone, contactName).catch(() => {});
+    } else if (Array.isArray(incomingHistoryRaw) && incomingHistoryRaw.length > 0) {
+      state.history = incomingHistoryRaw.filter(m => m.role && m.content).slice(-20);
+    }
   }
   console.log(`[${sessionId}] ${contactName}: "${messageText}"`);
 
@@ -634,7 +727,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   if (lastEntry?.role !== 'user' || lastEntry.content !== messageText) {
     state.history.push({ role: 'user', content: messageText });
   }
-  const dynamicContext = buildDynamicContext(businessDays, slotsAll, profsPayload.text, state.history, svcText);
+  const dynamicContext = buildDynamicContext(businessDays, slotsAll, profsPayload.text, state.history, svcText, state.persistedMemory);
   const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${messageText}`;
   const tessRaw = await callTESS([
     { role: 'user', content: userMessageWithContext },
@@ -657,8 +750,18 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   state.history.push({ role: 'assistant', content: cleanText });
   state.turn += 1;
   state.lastAccess = Date.now();
+  // Clear persisted memory after first turn — session history is now authoritative
+  if (state.turn === 1) state.persistedMemory = null;
   sessionState.set(sessionId, state);
   evictOldSessions();
+
+  // Persist conversation turns to PostgreSQL (fire-and-forget, non-blocking)
+  if (phone) {
+    saveConversationTurns(phone, [
+      { role: 'user', content: messageText },
+      { role: 'assistant', content: cleanText },
+    ]).catch(err => console.error('[DB] Save turns error:', err.message));
+  }
 
   // 4. Executar acao no Trinks de acordo com tag emitida pelo TESS
   let bookingResult = null;
@@ -681,6 +784,9 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     try {
       bookingResult = await createBookingInTrinks(bookingData, profsPayload.data);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
+      if (phone && bookingData.service) {
+        updateClientAfterBooking(phone, bookingData.service).catch(() => {});
+      }
     } catch (err) {
       console.error(`[${sessionId}] Booking creation FAILED:`, err.message);
     }
@@ -767,7 +873,7 @@ app.post('/webhook/demo-chat', withTimeout(async (req, res) => {
   if (!message || !message.trim()) {
     return res.status(400).json({ response: 'Mensagem vazia', timestamp: new Date().toISOString() });
   }
-  const result = await processMessage(sessionId, message.trim(), contact_name, incomingHistoryRaw);
+  const result = await processMessage(sessionId, message.trim(), contact_name, incomingHistoryRaw, null);
   return res.json(result);
 }, 28000));
 
@@ -805,7 +911,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
 
   if (!messageText) return res.json({ response: '' });
 
-  const result = await processMessage(sessionId, messageText, contactName, null);
+  const result = await processMessage(sessionId, messageText, contactName, null, sessionId);
   return res.json(result);
 }, 28000));
 
