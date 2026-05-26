@@ -1,0 +1,210 @@
+workflow:
+  id: prompt-engineering-pipeline
+  name: "Prompt Engineering Pipeline — processo gateado das 10 etapas"
+  version: "0.1.0"
+  squad: prompt-engineering-squad
+  description: |
+    Processo determinístico de engenharia de prompt para agentes Tipo 4.
+    Codifica o eng-map definido em docs/analysis/eng-map-prompt-engineering.md.
+    Cada etapa tem checkpoint booleano + veto condition + ação de bloqueio + owner.
+
+  trigger:
+    type: manual
+    initiated_by: "Solicitante do agente (humano)"
+    inputs:
+      - briefing_request: "Necessidade de novo prompt OU revisão de prompt existente"
+
+  global_state:
+    fields:
+      - prompt_id
+      - briefing
+      - anatomia_selecionada
+      - fontes_curadas
+      - prompt_version
+      - quality_gate_report
+      - eval_report
+      - diagnostico
+      - iteration_count
+      - approval_record
+
+  phases:
+    - id: etapa_1_briefing
+      name: "Capturar briefing do agente"
+      owner_agent: prompt-briefer
+      command: "*capturar-briefing"
+      checkpoint:
+        condition: "briefing declara tipo, canal, objetivo e escopo/cliente"
+        veto_conditions:
+          - "BLOCK se tipo_de_agente != Tipo 4"
+          - "BLOCK se escopo/cliente ausente"
+        action_on_block: "Devolver ao solicitante com campos faltantes"
+      handoff_to: etapa_2_selecionar_anatomia
+      gaps_closed: [G15, G16]
+
+    - id: etapa_2_selecionar_anatomia
+      name: "Selecionar anatomia de prompt da biblioteca"
+      owner_agent: prompt-methodology-curator
+      command: "*selecionar-anatomia"
+      reads: ["data/biblioteca-anatomias.md"]
+      checkpoint:
+        condition: "anatomia adequada ao tipo de objetivo selecionada e registrada"
+        veto_conditions:
+          - "BLOCK se anatomia escolhida não está na Biblioteca E não foi formalmente adicionada (com pesquisa)"
+        action_on_block: "Retorna à curadoria; sem anatomia válida não há redação"
+      handoff_to: etapa_3_curar_fontes
+      gaps_closed: [G15]
+
+    - id: etapa_3_curar_fontes
+      name: "Curar fontes de domínio"
+      owner_agent: prompt-briefer
+      command: "*curar-fontes"
+      checkpoint:
+        condition: "fontes rastreáveis e suficientes coletadas"
+        veto_conditions:
+          - "BLOCK se < N_FONTES_MIN fontes primárias"
+          - "BLOCK se fonte de outro cliente usada sem localização explícita"
+        action_on_block: "Marca briefing 'fontes_insuficientes'; retorna à etapa_1_briefing"
+      handoff_to: etapa_4_redigir_prompt
+      gaps_closed: [G14]
+
+    - id: etapa_4_redigir_prompt
+      name: "Redigir prompt na anatomia selecionada"
+      owner_agent: prompt-writer
+      command: "*redigir-prompt"
+      checkpoint:
+        condition: "todas as seções da anatomia preenchidas + few-shot >= N_FEWSHOT_MIN + saída estruturada especificada"
+        veto_conditions:
+          - "BLOCK se qualquer seção da anatomia vazia"
+          - "BLOCK se few-shot < N_FEWSHOT_MIN quando a anatomia exige"
+        action_on_block: "Prompt volta a rascunho; não entra no gate"
+      handoff_to: etapa_5_quality_gate
+      gaps_closed: [G14, G15]
+
+    - id: etapa_5_quality_gate
+      name: "Validar no quality gate de prompt"
+      owner_agent: prompt-evaluator
+      command: "*quality-gate"
+      reads: ["checklists/prompt-quality-gate.md"]
+      checkpoint:
+        condition: "gate estrutural PASS (anatomia completa, vocabulário, restrições, saída)"
+        veto_conditions:
+          - "BLOCK se vocabulário proibido presente"
+          - "BLOCK se restrições/escalonamento ausentes"
+          - "BLOCK se saída estruturada não especificada"
+        action_on_block: "Retorna à etapa_4_redigir_prompt com lista de falhas"
+      handoff_to: etapa_6_rodar_eval
+      gaps_closed: [G10, G11]
+
+    - id: etapa_6_rodar_eval
+      name: "Rodar bateria de eval"
+      owner_agent: prompt-evaluator
+      command: "*rodar-eval"
+      checkpoint:
+        condition: "eval executou em >= N_CENARIOS_MIN cenários sem falha de execução"
+        veto_conditions:
+          - "BLOCK se eval não rodou"
+          - "BLOCK se run tem respostas vazias da API (retry automático antes de pontuar)"
+        action_on_block: "Re-executa run; se persistir, escala"
+      handoff_to: etapa_7_diagnosticar_falhas
+      gaps_closed: [G4, G7, G12]
+
+    - id: etapa_7_diagnosticar_falhas
+      name: "Diagnosticar falhas (FP vs violação real)"
+      owner_agent: prompt-evaluator
+      command: "*diagnosticar-falhas"
+      checkpoint:
+        condition: "cada falha classificada como falso-positivo (evaluator) ou violação real (prompt)"
+        veto_conditions:
+          - "BLOCK se há falha não classificada"
+        action_on_block: "Não avança sem classificação completa"
+      handoff_to: etapa_8_corrigir_prompt
+      gaps_closed: [G6, G8, G9]
+
+    - id: etapa_8_corrigir_prompt
+      name: "Corrigir prompt (ou evaluator)"
+      owner_agent: prompt-writer
+      command: "*corrigir-prompt"
+      checkpoint:
+        condition: "correção aplicada no lado certo (prompt OU evaluator)"
+        veto_conditions:
+          - "BLOCK se score < THRESHOLD_EVAL após N_ITERACOES_MAX iterações"
+        action_on_block: "Escala ao Aprovador Humano para decisão"
+      loop_back:
+        target: etapa_5_quality_gate
+        max_iterations: N_ITERACOES_MAX
+        exit_condition: "score >= THRESHOLD_EVAL"
+      handoff_to: etapa_9_aprovar_versao
+      gaps_closed: [G6, G8]
+
+    - id: etapa_9_aprovar_versao
+      name: "Aprovar versão (gate humano)"
+      owner: "Aprovador Humano"
+      executor_type: human
+      task_reference: "tasks/aprovar-versao.md"
+      checkpoint:
+        condition: "verdict registrado + motivo declarado da mudança escrito na fonte"
+        veto_conditions:
+          - "BLOCK se motivo declarado da versão ausente"
+        action_on_block: "Não libera deploy sem changelog de motivo"
+      handoff_to: etapa_10_deploy_versionado
+      gaps_closed: [G5, G13]
+      backup: null
+      backup_rationale: "Aprovação final é decisão humana indelegável. Se ausente, processo pausa (não improvisa)."
+
+    - id: etapa_10_deploy_versionado
+      name: "Deployar com registro versionado"
+      owner_agent: prompt-release-manager
+      command: "*deploy-versionado"
+      checkpoint:
+        condition: "versão registrada (git + changelog) ANTES do deploy; fonte de verdade única"
+        veto_conditions:
+          - "BLOCK se prompt vai a produção sem registro versionado"
+          - "BLOCK se existe cópia divergente não reconciliada"
+        action_on_block: "Deploy abortado; reconcilia cópias primeiro"
+      handoff_to: "PRODUCAO"
+      gaps_closed: [G1, G2, G3]
+
+  continuous_processes:
+    - id: curadoria_metodologia
+      name: "Curadoria contínua da Biblioteca de Anatomias"
+      owner_agent: prompt-methodology-curator
+      command: "*curadoria-continua"
+      trigger:
+        type: continuous
+        conditions:
+          - "Periódico"
+          - "Surgimento de tipo de objetivo novo"
+          - "Avanço relevante em engenharia de prompt"
+      output: "Biblioteca de Anatomias atualizada"
+      out_of_band: true
+      gaps_closed: [G15]
+
+  calibration_loop:
+    description: "Loop iterativo etapas 5→6→7→8 → de volta à 5, até score >= THRESHOLD_EVAL OU N_ITERACOES_MAX"
+    max_iterations: N_ITERACOES_MAX
+    on_max_iterations: "Veto da etapa_8; escala ao Aprovador Humano"
+
+  parameters:
+    # Valores N — definidos formalmente nos checklists; placeholders aqui
+    N_FONTES_MIN: 3
+    N_FEWSHOT_MIN: 5
+    N_CENARIOS_MIN: 7
+    THRESHOLD_EVAL: 0.85
+    N_ITERACOES_MAX: 5
+    note: "Valores iniciais; revisar em uso real e mover para config externa se necessário."
+
+  observability:
+    status_field: "current_etapa"
+    iteration_log: "logs/prompt-engineering-{prompt_id}-{timestamp}.log"
+    alerts:
+      - trigger: "etapa bloqueada > SLA"
+        notify: "Aprovador Humano"
+      - trigger: "loop_calibracao.iterations > N_ITERACOES_MAX - 1"
+        notify: "Aprovador Humano"
+        action: "preparar para escalação iminente"
+      - trigger: "deploy abortado por cópia divergente"
+        notify: "Aprovador Humano + prompt-release-manager"
+
+  rollback:
+    strategy: manual
+    rationale: "Workflow produz prompt versionado. Rollback = reverter para versão anterior no destino + atualizar changelog."

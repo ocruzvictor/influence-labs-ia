@@ -36,9 +36,55 @@ const TRINKS_KEY = process.env.TRINKS_API_KEY;
 const TRINKS_API_BASE = process.env.TRINKS_API_BASE || 'https://api.trinks.com/v1';
 const TRINKS_EST_ID = process.env.TRINKS_ESTABELECIMENTO_ID || '243868';
 
+// --- Whitelist de telefones (modo teste — seguro por padrao) ---
+// Lista de telefones (digitos apenas) autorizados a acionar o bot. Vazio = bot silencioso para todos.
+// Para producao "aceita todos", defina BOT_ACCEPT_ALL=true.
+const BOT_ALLOWED_PHONES = (process.env.BOT_ALLOWED_PHONES || '')
+  .split(',')
+  .map(s => s.trim().replace(/\D/g, ''))
+  .filter(Boolean);
+const BOT_ACCEPT_ALL = process.env.BOT_ACCEPT_ALL === 'true';
+
+// --- Human takeover state (memoria, TTL configuravel) ---
+// Coexistencia: quando o staff do salao responde manualmente pelo app, Kapso envia
+// 'whatsapp.message.sent' com origin='business_app' (se o evento estiver assinado).
+// Marcamos a conversa como human-handled e o bot fica silencioso por HUMAN_HANDLED_TTL_HOURS.
+const HUMAN_HANDLED_TTL_MS = (parseInt(process.env.HUMAN_HANDLED_TTL_HOURS || '6', 10)) * 60 * 60 * 1000;
+const humanHandledUntil = new Map(); // phone (digits) -> timestamp_ms (vencimento)
+
+function markHumanHandled(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return;
+  const until = Date.now() + HUMAN_HANDLED_TTL_MS;
+  humanHandledUntil.set(digits, until);
+  console.log(`[kapso] ${digits} → HUMAN-HANDLED ate ${new Date(until).toISOString()}`);
+}
+
+function isHumanHandled(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return false;
+  const until = humanHandledUntil.get(digits);
+  if (!until) return false;
+  if (Date.now() > until) {
+    humanHandledUntil.delete(digits);
+    return false;
+  }
+  return true;
+}
+
+// Normaliza aspas Unicode antes de JSON.parse — TESS as vezes emite com aspas curvas
+// (especialmente se o prompt foi editado em painel com auto-correct).
+function normalizeJsonQuotes(s) {
+  return s
+    .replace(/[“”]/g, '"')   // " " → "
+    .replace(/[‘’]/g, "'")   // ' ' → '
+    .replace(/ /g, ' ');          // NBSP → espaco normal
+}
+
 const app = express();
 app.use(cors());
-app.use(express.json());
+// verify captura o corpo cru — necessario para validar assinatura HMAC da Meta (X-Hub-Signature-256)
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 const sessionState = new Map();
 const SALON_TIME_ZONE = 'America/Sao_Paulo';
 const WEEKDAY_NAMES_PT = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
@@ -62,6 +108,45 @@ function getDatePartsInSalonTimeZone(date = new Date()) {
 function getTodayIsoInSalonTimeZone() {
   const { year, month, day } = getDatePartsInSalonTimeZone();
   return `${year}-${month}-${day}`;
+}
+
+// Retorna { hour, minute, weekday (0=Dom..6=Sab) } no fuso do salao.
+function getTimePartsInSalonTimeZone(date = new Date()) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SALON_TIME_ZONE,
+    hour: '2-digit', minute: '2-digit', weekday: 'short', hour12: false,
+  });
+  const parts = fmt.formatToParts(date);
+  const pick = t => parts.find(p => p.type === t)?.value;
+  const weekdayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    hour: parseInt(pick('hour'), 10),
+    minute: parseInt(pick('minute'), 10),
+    weekday: weekdayMap[pick('weekday')] ?? 0,
+  };
+}
+
+// Politica de horario do salao:
+//   Ter-Sex (2-5): 9h-19h
+//   Sab (6):       9h-18h
+//   Dom (0) e Seg (1): FECHADO
+// Retorna { open: bool, hhmm: 'HH:MM', reason: string }
+function isSalonOpen(date = new Date()) {
+  const { hour, minute, weekday } = getTimePartsInSalonTimeZone(date);
+  const hhmm = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  let open = false;
+  let reason = '';
+  if (weekday === 0) reason = 'DOMINGO — salao fechado';
+  else if (weekday === 1) reason = 'SEGUNDA — salao fechado';
+  else if (weekday === 6) {
+    if (hour >= 9 && hour < 18) open = true;
+    else reason = hour < 9 ? 'SABADO antes das 9h' : 'SABADO depois das 18h';
+  } else {
+    // Ter-Sex
+    if (hour >= 9 && hour < 19) open = true;
+    else reason = hour < 9 ? 'antes das 9h' : 'depois das 19h';
+  }
+  return { open, hhmm, reason, weekday };
 }
 
 function addDaysToIsoDate(dateStr, days) {
@@ -139,8 +224,8 @@ async function saveConversationTurns(phone, turns) {
   if (!digits || !turns.length) return;
   for (const t of turns) {
     await db.query(
-      `INSERT INTO conversation_history (client_phone, role, content) VALUES ($1, $2, $3)`,
-      [digits, t.role, t.content]
+      `INSERT INTO conversation_history (client_phone, role, content, agent) VALUES ($1, $2, $3, $4)`,
+      [digits, t.role, t.content, t.agent || null]
     );
   }
 }
@@ -201,9 +286,14 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
         .map(m => `${m.role === 'user' ? 'Cliente' : 'Assistente'}: ${m.content}`)
         .join('\n')
     : '';
+  const salonNow = isSalonOpen();
+  const horarioAgora = salonNow.open
+    ? `HORARIO_AGORA: ${salonNow.hhmm} (DENTRO do horario — salao ABERTO)`
+    : `HORARIO_AGORA: ${salonNow.hhmm} (FORA do horario — ${salonNow.reason}). Agende normalmente mas avise o cliente que o Gabriel confere de manha.`;
   return [
     DYNAMIC_CONTEXT_PREFIX,
     `HOJE: ${formatFullDateLabel(getTodayIsoInSalonTimeZone())}`,
+    horarioAgora,
     'HORARIO DE FUNCIONAMENTO: Ter-Sex 9h-19h | Sab 9h-18h | Dom-Seg FECHADO',
     `DATAS COM DADOS DISPONIVEIS: ${businessDays.map(formatDateLabel).join(', ')}`,
     '',
@@ -362,34 +452,137 @@ function matchByName(list, name, ...keys) {
 }
 
 // Remove tags de booking do texto exibido ao cliente.
-// Tags suportadas: [BOOKING_REQUEST], [BOOKING_CONFIRM], [BOOKING_CANCEL], [BOOKING_RESCHEDULE]
+//
+// Suporta DOIS formatos:
+//
+// (a) Formato v2 inline (prompt v2, prod 2026-05-26+):
+//     [BOOKING_CREATE servicoId=1 profissionalId=3 dataHoraInicio=2026-05-30T10:30:00-03:00 valor=85]
+//     [BOOKING_CANCEL bookingId=498220145]
+//     [BOOKING_RESCHEDULE bookingId=X novoDataHoraInicio=2026-05-31T11:00:00-03:00]
+//     [HANDOFF_HUMAN motivo=cliente_pediu_humano]
+//
+// (b) Formato v1 legacy (BOOKING_CONFIRM + JSON em linha separada):
+//     [BOOKING_CONFIRM]\n{"service_name":"...","professional_id":N,"date_time":"...","duration_minutes":N}
+//
+// Output normalizado (compatível com createBookingInTrinks / cancel / reschedule):
+//   bookingConfirm: { service_id?, service_name?, professional_id, date_time, duration_minutes?, valor? }
+//   bookingCancel:  { agendamento_id?, date?, professional_id?, motivo? }
+//   bookingReschedule: { agendamento_id?, old_date?, professional_id?, date_time, service_name?, duration_minutes? }
+//   handoffHuman:   { motivo: string }
+function parseInlineArgs(argsStr) {
+  // Aceita key=value separados por espaço. Valores podem conter ISO8601 (com T, : e -).
+  const args = {};
+  const re = /(\w+)=([^\s\]]+)/g;
+  let m;
+  while ((m = re.exec(argsStr)) !== null) {
+    args[m[1]] = m[2];
+  }
+  return args;
+}
+
 function stripBookingTags(tessText) {
   let clean = tessText;
   let bookingConfirm = null;
   let bookingCancel = null;
   let bookingReschedule = null;
+  let handoffHuman = null;
 
-  const confMatch = clean.match(/\[BOOKING_CONFIRM\]\s*\n?({[\s\S]*?})/i);
-  if (confMatch) {
-    try { bookingConfirm = JSON.parse(confMatch[1]); } catch {}
-    clean = clean.replace(confMatch[0], '').trim();
+  // --- (a) Formato v2 inline ---
+  const createInline = clean.match(/\[BOOKING_CREATE\s+([^\]]+)\]/i);
+  if (createInline) {
+    const a = parseInlineArgs(createInline[1]);
+    if (a.servicoId || a.dataHoraInicio || a.profissionalId) {
+      bookingConfirm = {
+        service_id: a.servicoId ? parseInt(a.servicoId, 10) : undefined,
+        professional_id: a.profissionalId ? parseInt(a.profissionalId, 10) : undefined,
+        date_time: a.dataHoraInicio || undefined,
+        valor: a.valor ? parseFloat(a.valor) : undefined,
+        duration_minutes: a.duracaoMinutos ? parseInt(a.duracaoMinutos, 10) : undefined,
+      };
+    }
+    clean = clean.replace(createInline[0], '').trim();
   }
 
-  const cancelMatch = clean.match(/\[BOOKING_CANCEL\]\s*\n?({[\s\S]*?})/i);
-  if (cancelMatch) {
-    try { bookingCancel = JSON.parse(cancelMatch[1]); } catch {}
-    clean = clean.replace(cancelMatch[0], '').trim();
+  const cancelInline = clean.match(/\[BOOKING_CANCEL\s+([^\]]+)\]/i);
+  if (cancelInline) {
+    const a = parseInlineArgs(cancelInline[1]);
+    if (a.bookingId) {
+      bookingCancel = {
+        agendamento_id: parseInt(a.bookingId, 10),
+        motivo: a.motivo,
+      };
+    }
+    clean = clean.replace(cancelInline[0], '').trim();
   }
 
-  const reschedMatch = clean.match(/\[BOOKING_RESCHEDULE\]\s*\n?({[\s\S]*?})/i);
-  if (reschedMatch) {
-    try { bookingReschedule = JSON.parse(reschedMatch[1]); } catch {}
-    clean = clean.replace(reschedMatch[0], '').trim();
+  const reschedInline = clean.match(/\[BOOKING_RESCHEDULE\s+([^\]]+)\]/i);
+  if (reschedInline) {
+    const a = parseInlineArgs(reschedInline[1]);
+    if (a.bookingId && a.novoDataHoraInicio) {
+      bookingReschedule = {
+        agendamento_id: parseInt(a.bookingId, 10),
+        date_time: a.novoDataHoraInicio,
+        service_id: a.servicoId ? parseInt(a.servicoId, 10) : undefined,
+        professional_id: a.profissionalId ? parseInt(a.profissionalId, 10) : undefined,
+      };
+    }
+    clean = clean.replace(reschedInline[0], '').trim();
   }
 
+  const handoffInline = clean.match(/\[HANDOFF_HUMAN(?:\s+([^\]]+))?\]/i);
+  if (handoffInline) {
+    const a = handoffInline[1] ? parseInlineArgs(handoffInline[1]) : {};
+    handoffHuman = { motivo: a.motivo || 'cliente_pediu_humano' };
+    clean = clean.replace(handoffInline[0], '').trim();
+  }
+
+  // --- (b) Formato v1 legacy (BOOKING_CONFIRM + JSON) — preservado para retrocompatibilidade ---
+  if (!bookingConfirm) {
+    const confMatch = clean.match(/\[BOOKING_CONFIRM\]\s*\n?({[\s\S]*?})/i);
+    if (confMatch) {
+      try { bookingConfirm = JSON.parse(normalizeJsonQuotes(confMatch[1])); }
+      catch (err) { console.warn('[stripBookingTags] BOOKING_CONFIRM JSON parse falhou:', err.message, '| raw:', confMatch[1].slice(0, 200)); }
+      clean = clean.replace(confMatch[0], '').trim();
+    }
+  }
+  if (!bookingCancel) {
+    const cancelMatch = clean.match(/\[BOOKING_CANCEL\]\s*\n?({[\s\S]*?})/i);
+    if (cancelMatch) {
+      try { bookingCancel = JSON.parse(normalizeJsonQuotes(cancelMatch[1])); }
+      catch (err) { console.warn('[stripBookingTags] BOOKING_CANCEL JSON parse falhou:', err.message, '| raw:', cancelMatch[1].slice(0, 200)); }
+      clean = clean.replace(cancelMatch[0], '').trim();
+    }
+  }
+  if (!bookingReschedule) {
+    const reschedMatch = clean.match(/\[BOOKING_RESCHEDULE\]\s*\n?({[\s\S]*?})/i);
+    if (reschedMatch) {
+      try { bookingReschedule = JSON.parse(normalizeJsonQuotes(reschedMatch[1])); }
+      catch (err) { console.warn('[stripBookingTags] BOOKING_RESCHEDULE JSON parse falhou:', err.message, '| raw:', reschedMatch[1].slice(0, 200)); }
+      clean = clean.replace(reschedMatch[0], '').trim();
+    }
+  }
+
+  // BOOKING_REQUEST (intent legacy) — só limpa, não processa.
   clean = clean.replace(/\[BOOKING_REQUEST\]\s*\n?{[\s\S]*?}/gi, '').trim();
+  // Limpa qualquer ruído de colchetes sobrando ("[", "]" isolados em linha)
+  clean = clean.replace(/^\s*[\[\]]\s*$/gm, '').trim();
 
-  return { clean, bookingConfirm, bookingCancel, bookingReschedule };
+  return { clean, bookingConfirm, bookingCancel, bookingReschedule, handoffHuman };
+}
+
+// Remove linguagem de confirmação prematura quando há tag de booking.
+// Razão: bot diz "Agendado!" antes da Trinks confirmar. 2-phase: backend constrói msg de sucesso.
+const PREMATURE_CONFIRM_PATTERNS = [
+  /\b(agendado|confirmado|pronto)\s*!+/gi,
+  /\b(agendamento )?(realizado|finalizado|fechado)\b/gi,
+  /\bte esperamos\b/gi,
+];
+function sanitizePrematureConfirm(text) {
+  let s = text;
+  for (const re of PREMATURE_CONFIRM_PATTERNS) s = s.replace(re, '');
+  // Limpa pontuação solta e linhas vazias duplas resultantes
+  s = s.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  return s || 'Confirmo aqui então 👀';
 }
 
 // Extrai numero de telefone do historico da conversa
@@ -510,12 +703,19 @@ async function createBookingInTrinks(booking, professionalsData) {
   const profId = booking.professionalId
     || matchByName(professionalsData, booking.professional || '', 'apelido', 'nome')?.id;
 
-  // Busca em paralelo: servico do profissional + clienteId (ID global) pelo telefone
+  // Caminho rápido: se prompt v2 já mandou servicoId numérico, pulamos lookup por nome.
+  // Senão, mantemos lookup legado por nome (compat com prompt v1 ou casos sem ID).
+  const hasDirectServiceId = Number.isInteger(booking.serviceId);
+
   const [svcData, clienteId] = await Promise.all([
-    profId ? getServiceForProfessional(profId, booking.service) : Promise.resolve(null),
+    hasDirectServiceId
+      ? Promise.resolve(null) // serviceId direto — usar valor/duração do payload v2
+      : (profId ? getServiceForProfessional(profId, booking.service) : Promise.resolve(null)),
     booking.clientPhone ? getClientId(booking.clientPhone) : Promise.resolve(null),
   ]);
 
+  const servicoId = hasDirectServiceId ? booking.serviceId : svcData?.id;
+  const valor = booking.valor ?? svcData?.valor ?? 0;
   const duracao = svcData?.duracao || booking.durationMinutes || 0;
 
   // POST /agendamentos — campos conforme documentacao oficial trinks.readme.io:
@@ -525,11 +725,11 @@ async function createBookingInTrinks(booking, professionalsData) {
     profissionalId: profId || undefined,
     duracaoEmMinutos: duracao,
     clienteId: clienteId || undefined,
-    servicoId: svcData?.id || undefined,
-    valor: svcData?.valor ?? 0,
+    servicoId: servicoId || undefined,
+    valor,
   };
 
-  console.log(`[Trinks] Resolved — profId:${profId} svcId:${svcData?.id} clienteId:${clienteId} duracao:${duracao} valor:${svcData?.valor}`);
+  console.log(`[Trinks] Resolved — profId:${profId} svcId:${servicoId} clienteId:${clienteId} duracao:${duracao} valor:${valor} (v2:${hasDirectServiceId})`);
 
   const url = `${TRINKS_API_BASE}/agendamentos`;
   console.log(`[Trinks] POST ${url} payload:`, JSON.stringify(payload));
@@ -745,8 +945,13 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
 
   // 3. Strip booking tags from text (TESS emite tags que nao devem aparecer ao cliente)
-  const { clean: cleanText, bookingConfirm, bookingCancel, bookingReschedule } = stripBookingTags(tessText);
-  const formatted = formatAssistantOutput(cleanText, state.turn === 0);
+  const { clean: cleanText, bookingConfirm, bookingCancel, bookingReschedule, handoffHuman } = stripBookingTags(tessText);
+  // 2-phase: se ha tag de booking, sanitizar "Agendado!/Confirmado!/Pronto!" antes de exibir.
+  // Razao: bot nao deve afirmar que agendou antes da Trinks responder (rota infeliz mente pro cliente).
+  // Mensagem final de sucesso/falha eh construida pelo backend apos chamada a Trinks (bloco 4 abaixo).
+  const hasBookingTag = bookingConfirm || bookingCancel || bookingReschedule;
+  const displayText = hasBookingTag ? sanitizePrematureConfirm(cleanText) : cleanText;
+  const formatted = formatAssistantOutput(displayText, state.turn === 0);
   state.history.push({ role: 'assistant', content: cleanText });
   state.turn += 1;
   state.lastAccess = Date.now();
@@ -765,15 +970,23 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
   // 4. Executar acao no Trinks de acordo com tag emitida pelo TESS
   let bookingResult = null;
-  const clientPhone = extractPhoneFromHistory(state.history);
+  // Prioriza phone do canal (kapso/meta sabe quem mandou) — historico so quando webchat sem identificacao
+  const clientPhone = phone || extractPhoneFromHistory(state.history);
 
-  // 4a. Criar agendamento (apenas quando TESS emite [BOOKING_CONFIRM] explicitamente)
+  // Mensagens finais 2-phase (apos chamada a Trinks). Acumuladas em finalMessages,
+  // enviadas como blocos extras apos o reply principal sanitizado.
+  const finalMessages = [];
+
+  // 4a. Criar agendamento — suporta v2 (service_id direto) e v1 legacy (service_name)
   if (bookingConfirm) {
+    const profObj = bookingConfirm.professional_id
+      ? profsPayload.data.find(p => p.id === bookingConfirm.professional_id)
+      : null;
     const bookingData = {
-      service: bookingConfirm.service_name,
-      professional: bookingConfirm.professional_id
-        ? profsPayload.data.find(p => p.id === bookingConfirm.professional_id)?.apelido || null
-        : null,
+      service: bookingConfirm.service_name,            // legacy
+      serviceId: bookingConfirm.service_id,            // v2
+      valor: bookingConfirm.valor,                     // v2 (preço já decidido pelo TESS)
+      professional: profObj?.apelido || null,
       professionalId: bookingConfirm.professional_id,
       date: bookingConfirm.date_time?.split('T')[0],
       time: bookingConfirm.date_time?.split('T')[1]?.slice(0, 5),
@@ -784,11 +997,31 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     try {
       bookingResult = await createBookingInTrinks(bookingData, profsPayload.data);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
-      if (phone && bookingData.service) {
-        updateClientAfterBooking(phone, bookingData.service).catch(() => {});
+      if (phone && (bookingData.service || bookingData.serviceId)) {
+        updateClientAfterBooking(phone, bookingData.service || `id:${bookingData.serviceId}`).catch(() => {});
       }
+      // 2-phase sucesso: mensagem final construida pelo backend, NAO pelo TESS.
+      const valorFmt = (bookingData.valor ?? bookingResult?.valor ?? 0).toFixed(2).replace('.', ',');
+      const dataFmt = bookingData.date && bookingData.time
+        ? `${bookingData.date.split('-').reverse().join('/')} às ${bookingData.time}`
+        : 'no horario combinado';
+      const profNome = profObj?.apelido || profObj?.nome || 'a equipe';
+      finalMessages.push(
+        `Prontinho! Te esperamos no Studio Tirra 😊\n\n` +
+        `📅 ${dataFmt}\n` +
+        `💇 com ${profNome}\n` +
+        `💰 R$ ${valorFmt}\n\n` +
+        `📍 R. Espírito Santo, 385 - Santo Antônio, São Caetano do Sul\n` +
+        `🅿️ Estacionamento: subir rampa lateral\n\n` +
+        `Qualquer coisa é só chamar! ✌🏻`
+      );
     } catch (err) {
       console.error(`[${sessionId}] Booking creation FAILED:`, err.message);
+      // 2-phase falha: mensagem honesta de erro + sugestao
+      finalMessages.push(
+        `Opa, tive um problema técnico ao confirmar esse horário 😕\n\n` +
+        `Deixa eu tentar outro horário próximo pra você. Me fala se prefere outro dia ou outro profissional?`
+      );
     }
   }
 
@@ -806,8 +1039,13 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
       bookingResult = await cancelBookingInTrinks(agendamentoId, clienteId, bookingCancel.motivo);
       console.log(`[${sessionId}] Booking cancelled in Trinks: agendamentoId ${agendamentoId}`);
+      finalMessages.push(`Pronto, cancelei seu horário! Qualquer coisa, é só chamar pra reagendar. 😊`);
     } catch (err) {
       console.error(`[${sessionId}] Booking cancel FAILED:`, err.message);
+      finalMessages.push(
+        `Não consegui localizar/cancelar seu horário automaticamente 😕\n` +
+        `Vou pedir pro Gabriel resolver com você. Um momento!`
+      );
     }
   }
 
@@ -825,6 +1063,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
       const newBooking = {
         service: bookingReschedule.service_name,
+        serviceId: bookingReschedule.service_id,
         professionalId: bookingReschedule.professional_id,
         date: bookingReschedule.date_time?.split('T')[0],
         time: bookingReschedule.date_time?.split('T')[1]?.slice(0, 5),
@@ -834,14 +1073,56 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
       bookingResult = await rescheduleBookingInTrinks(agendamentoId, newBooking, profsPayload.data);
       console.log(`[${sessionId}] Booking rescheduled in Trinks: agendamentoId ${agendamentoId}`);
+      const dataFmt = newBooking.date && newBooking.time
+        ? `${newBooking.date.split('-').reverse().join('/')} às ${newBooking.time}`
+        : 'no horario combinado';
+      finalMessages.push(`Pronto, reagendei pra ${dataFmt}! Te esperamos. 😊`);
     } catch (err) {
       console.error(`[${sessionId}] Booking reschedule FAILED:`, err.message);
+      finalMessages.push(
+        `Tive um problema pra reagendar 😕 Vou pedir pro Gabriel resolver com você direto. Um momento!`
+      );
     }
   }
 
+  // 4d. Handoff humano (TESS sinalizou que precisa de pessoa)
+  // OBS: notificacao ao Tiago via Kapso ainda sera implementada (Supervisor sincrono).
+  if (handoffHuman) {
+    console.log(`[${sessionId}] HANDOFF_HUMAN motivo:${handoffHuman.motivo}`);
+    // Marcar conversa como human-handled para silenciar bot ate Tiago responder.
+    if (clientPhone) markHumanHandled(clientPhone);
+  }
+
   console.log(`[${sessionId}] Response (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
-  const result = { response: formatted.response, responses: formatted.responses, timestamp: new Date().toISOString() };
+  // Anexa mensagens finais (sucesso/falha 2-phase) como blocos extras apos o reply principal.
+  const allBlocks = [...formatted.responses, ...finalMessages];
+  const result = {
+    response: allBlocks[0],
+    responses: allBlocks,
+    timestamp: new Date().toISOString(),
+  };
   if (bookingResult) result.booking = bookingResult;
+  if (handoffHuman) result.handoff = handoffHuman;
+  // Sinaliza booking criado fora-de-horario para o handler notificar o Tiago.
+  if (bookingConfirm && bookingResult && !isSalonOpen().open) {
+    const profObj = bookingConfirm.professional_id
+      ? profsPayload.data.find(p => p.id === bookingConfirm.professional_id)
+      : null;
+    result.afterHoursBooking = {
+      booking: {
+        service: bookingConfirm.service_name,
+        serviceId: bookingConfirm.service_id,
+        valor: bookingConfirm.valor,
+        professional: profObj?.apelido || null,
+        professionalId: bookingConfirm.professional_id,
+        date: bookingConfirm.date_time?.split('T')[0],
+        time: bookingConfirm.date_time?.split('T')[1]?.slice(0, 5),
+      },
+      bookingResult,
+      clientPhone,
+      salonState: isSalonOpen(),
+    };
+  }
   return result;
 }
 
@@ -878,42 +1159,482 @@ app.post('/webhook/demo-chat', withTimeout(async (req, res) => {
 }, 28000));
 
 // --- Kapso webhook (WhatsApp via QR code) ---
+// --- Kapso API helpers (envio de mensagens) ---
+// Webhooks Kapso sao notificacao — para responder ao cliente precisamos chamar a API.
+// Endpoint proxia o Meta Cloud API: POST /meta/whatsapp/{ver}/{phone_number_id}/messages.
+// Ultimo phone_number_id visto em webhooks Kapso — usado pelo Supervisor matinal
+// (cron nao tem req pra extrair). Cache em memoria, refrescado a cada msg recebida.
+let lastKnownKapsoPhoneNumberId = null;
+
+const KAPSO_API_BASE = (process.env.KAPSO_API_BASE || 'https://api.kapso.ai').replace(/\/+$/, '');
+const KAPSO_API_KEY = process.env.KAPSO_API_KEY;
+const KAPSO_API_VERSION = process.env.KAPSO_API_VERSION || 'v24.0';
+
+// Numero do dono/supervisor (Tiago) para receber notificacoes de handoff.
+// Telefone na whitelist E ja em conversa ativa com o numero do salao,
+// senao Meta bloqueia (janela 24h). Tiago manda msg diaria pra recepcao naturalmente.
+const TIAGO_NOTIFICATION_PHONE = (process.env.TIAGO_NOTIFICATION_PHONE || '').replace(/\D/g, '');
+
+// Notifica Tiago quando booking eh criado fora do horario comercial.
+// Permite conferencia administrativa e intervencao manual.
+async function notifyTiagoAfterHoursBooking({ booking, bookingResult, clientPhone, clientName, phoneNumberId, salonState }) {
+  if (!TIAGO_NOTIFICATION_PHONE || !phoneNumberId) return;
+  const valorFmt = (booking.valor ?? bookingResult?.valor ?? 0).toFixed(2).replace('.', ',');
+  const dataFmt = booking.date && booking.time
+    ? `${booking.date.split('-').reverse().join('/')} às ${booking.time}`
+    : 'horario nao identificado';
+  const text =
+    `📅 Agendamento criado FORA do horario\n\n` +
+    `Quando: ${dataFmt}\n` +
+    `Cliente: ${clientName || 'sem nome'} (${clientPhone || '?'})\n` +
+    `Servico: ${booking.service || `id ${booking.serviceId}`}\n` +
+    `Profissional: ${booking.professional || `id ${booking.professionalId}`}\n` +
+    `Valor: R$ ${valorFmt}\n` +
+    `Trinks ID: #${bookingResult?.id || '?'}\n\n` +
+    `Bot agendou fora do expediente (${salonState.reason}). Se quiser cancelar ou ajustar, abre o painel Trinks ou WhatsApp do cliente.`;
+  try {
+    await sendKapsoMessage(TIAGO_NOTIFICATION_PHONE, text, phoneNumberId);
+    console.log(`[after-hours] notificado Tiago sobre booking #${bookingResult?.id} fora do horario`);
+  } catch (err) {
+    console.error(`[after-hours] falha ao notificar: ${err.message}`);
+  }
+}
+
+async function notifyTiagoHandoff({ motivo, clientPhone, clientName, lastClientMsg, phoneNumberId }) {
+  if (!TIAGO_NOTIFICATION_PHONE) {
+    console.warn('[handoff] TIAGO_NOTIFICATION_PHONE nao configurado — notificacao pulada');
+    return;
+  }
+  if (!phoneNumberId) {
+    console.warn('[handoff] phone_number_id ausente — nao posso enviar via Kapso');
+    return;
+  }
+  const text =
+    `🔔 Bot pediu sua atencao\n\n` +
+    `Motivo: ${motivo || 'nao especificado'}\n` +
+    `Cliente: ${clientName || 'sem nome'} (${clientPhone || '?'})\n` +
+    `Ultima msg: "${(lastClientMsg || '').slice(0, 200)}"\n\n` +
+    `Abre o WhatsApp do salao pra continuar com o cliente. Bot esta silencioso pelas proximas horas.`;
+  try {
+    await sendKapsoMessage(TIAGO_NOTIFICATION_PHONE, text, phoneNumberId);
+    console.log(`[handoff] notificacao enviada ao Tiago (${TIAGO_NOTIFICATION_PHONE}) — motivo: ${motivo}`);
+  } catch (err) {
+    console.error(`[handoff] falha ao notificar Tiago: ${err.message}`);
+  }
+}
+
+async function sendKapsoMessage(to, text, phoneNumberId) {
+  if (!KAPSO_API_KEY) {
+    console.error('[kapso] KAPSO_API_KEY ausente — nao envio mensagem');
+    return;
+  }
+  if (!phoneNumberId) {
+    console.error('[kapso] phone_number_id ausente — nao envio mensagem');
+    return;
+  }
+  const url = `${KAPSO_API_BASE}/meta/whatsapp/${KAPSO_API_VERSION}/${phoneNumberId}/messages`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': KAPSO_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'text',
+      text: { body: text },
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+  const body = await res.text().catch(() => '');
+  if (!res.ok) console.error(`[kapso] send → ${res.status}: ${body.slice(0, 300)}`);
+  else console.log(`[kapso] send → ${res.status} para ${to}`);
+}
+
 function validateKapsoSignature(req) {
   const secret = process.env.KAPSO_WEBHOOK_SECRET;
   if (!secret) {
     console.warn('[kapso] KAPSO_WEBHOOK_SECRET not set — skipping HMAC validation (dev mode)');
     return true;
   }
-  const signature = req.headers['x-webhook-signature'] || req.headers['x-kapso-signature'] || '';
-  const rawBody = JSON.stringify(req.body);
-  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  // Doc Kapso (docs.kapso.ai): HMAC SHA256 hex sobre o body RAW (exatamente como recebido), header X-Webhook-Signature.
+  // Aceita formato bare-hex (esperado pela doc) ou prefixado "sha256=hex" por defensividade.
+  let signature = req.headers['x-webhook-signature'] || req.headers['x-kapso-signature'] || '';
+  if (signature.startsWith('sha256=')) signature = signature.slice(7);
+
+  // CRITICAL: usar req.rawBody (capturado em express.json verify, linha 87) ao inves de JSON.stringify(req.body).
+  // JSON.stringify do parsed body produz string diferente do raw enviado por Kapso quando payload tem
+  // ordem de chaves nao-canonica, escapes Unicode (\u00xx), ou floats com .0 — quebra HMAC em eventos
+  // de audio/midia que tem campos extras. Fix de bug onde audio era rejeitado mas texto passava.
+  const body = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+  const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
+
+  if (signature.length !== expected.length) {
+    console.warn(`[kapso] HMAC length mismatch — sig=${signature.length}ch expected=${expected.length}ch. header raw="${(req.headers['x-webhook-signature'] || '').slice(0,32)}…"`);
+    return false;
+  }
+  try {
+    const ok = crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'));
+    if (!ok) console.warn(`[kapso] HMAC mismatch — sig=${signature.slice(0,16)}… expected=${expected.slice(0,16)}…`);
+    return ok;
+  } catch (e) {
+    console.warn(`[kapso] HMAC error: ${e.message}`);
+    return false;
+  }
 }
 
 app.post('/webhook/kapso', withTimeout(async (req, res) => {
-  const { message, conversation } = req.body;
-
-  // Ignorar mensagens do Business App (Tiago/Gabriel respondeu manualmente)
-  if (message?.kapso?.origin === 'business_app' || message?.kapso?.origin === 'history_sync') {
-    return res.json({ response: '' });
-  }
-
+  // 1. Validacao de assinatura (rejeita antes de qualquer outro trabalho)
   if (!validateKapsoSignature(req)) {
     console.warn('[kapso] Invalid HMAC signature — rejected');
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const messageText = (message?.kapso?.content || message?.text?.body || '').trim();
-  const sessionId = conversation?.phone_number || message?.from || 'unknown';
-  const contactName = conversation?.kapso?.contact_name || 'Cliente';
+  // 2. Normaliza payload: Kapso entrega bufferizado (batch=true, eventos em data[]) ou single (raiz).
+  // Em batch, todos os eventos sao da mesma conversation no window — concatena os textos e processa
+  // como uma unica entrada (que e o proposito do buffer).
+  const events = (req.body?.batch && Array.isArray(req.body?.data)) ? req.body.data : [req.body];
 
-  console.log(`[kapso][${sessionId}] message recebida: "${messageText.slice(0, 80)}"`);
+  // Diagnostico: log origin/direction de TODAS as mensagens recebidas — auditoria de coexistencia.
+  const summary = events.map(e => ({
+    from: e?.message?.from,
+    origin: e?.message?.kapso?.origin,
+    direction: e?.message?.kapso?.direction,
+    status: e?.message?.kapso?.status,
+    type: e?.message?.type,
+    preview: (e?.message?.kapso?.content || e?.message?.text?.body || '').slice(0, 40),
+  }));
+  console.log(`[kapso] events: ${JSON.stringify(summary)}`);
 
-  if (!messageText) return res.json({ response: '' });
+  // 3a. Takeover humano: outbound NAO-cloud_api (app, web, etc.) → marca conversa como human-handled.
+  for (const e of events) {
+    const m = e?.message;
+    const dir = m?.kapso?.direction;
+    const origin = m?.kapso?.origin;
+    if (dir === 'outbound' && origin && origin !== 'cloud_api') {
+      const targetPhone = e?.conversation?.phone_number || m?.to || m?.from;
+      markHumanHandled(targetPhone);
+    }
+  }
 
-  const result = await processMessage(sessionId, messageText, contactName, null, sessionId);
-  return res.json(result);
+  // 3b. Echo de qualquer outbound (incluindo o nosso proprio bot via cloud_api): ignora — nao vamos responder a nos mesmos nem ao staff.
+  const hasOutbound = events.some(e => e?.message?.kapso?.direction === 'outbound');
+  if (hasOutbound) {
+    console.log(`[kapso] outbound/echo ignorado (takeover ja registrado se aplicavel). summary=${JSON.stringify(summary)}`);
+    return res.json({ ok: true });
+  }
+
+  // 3c. history_sync = mensagem antiga sendo importada, nao processar.
+  if (events.some(e => e?.message?.kapso?.origin === 'history_sync')) {
+    console.log(`[kapso] history_sync ignorado`);
+    return res.json({ ok: true });
+  }
+
+  const firstMsg = events[0]?.message;
+  const firstConv = events[0]?.conversation;
+
+  // Detecta áudios no batch — transcrição acontece DEPOIS do res.json (background).
+  const audioEvents = events.filter(e => e?.message?.type === 'audio' && e?.message?.audio?.id);
+
+  // Concatena textos de todas as mensagens do batch (oi + tudo bem + audio transcrito etc.)
+  let messageText = events
+    .map(e => (e?.message?.kapso?.content || e?.message?.text?.body || '').trim())
+    .filter(Boolean)
+    .join('\n');
+
+  const sessionId = firstConv?.phone_number || firstMsg?.from || 'unknown';
+  // contact_name pode vir em conversation.contact_name (novo) ou conversation.kapso.contact_name (legado da doc)
+  const contactName = firstConv?.contact_name || firstConv?.kapso?.contact_name || 'Cliente';
+  const sessionPhone = String(sessionId).replace(/\D/g, '');
+  // phone_number_id da conexao (numero da recepcao) — precisamos pra chamar a API do Kapso
+  const phoneNumberId = events[0]?.phone_number_id || firstConv?.phone_number_id || req.body?.phone_number_id;
+  if (phoneNumberId) lastKnownKapsoPhoneNumberId = phoneNumberId;
+
+  // Permite entrada se há texto OU áudio pra transcrever
+  if (sessionId === 'unknown' || (!messageText && audioEvents.length === 0)) {
+    console.warn(`[kapso] payload sem phone/text/audio — sessionId=${sessionId} text="${(messageText||'').slice(0,50)}" batch=${req.body?.batch} eventCount=${events.length}`);
+    return res.json({ ok: true });
+  }
+
+  // 3b. PASSIVE LOGGING — registra TODA mensagem antes do filtro de whitelist.
+  // Razao: Supervisor matinal precisa ver mensagens de clientes reais para priorizar
+  // a triagem do Tiago. Sem isso, conversation_history so tem msgs whitelisted (testes).
+  // Marca como agent='passive' para distinguir das msgs efetivamente atendidas pelo bot.
+  if (sessionPhone) {
+    saveConversationTurns(sessionPhone, [
+      { role: 'user', content: messageText, agent: 'passive' }
+    ]).catch(err => console.error('[passive-log] erro:', err.message));
+  }
+
+  // 4. Whitelist de telefones (modo teste — bot silencioso por padrao)
+  if (!BOT_ACCEPT_ALL) {
+    if (BOT_ALLOWED_PHONES.length === 0) {
+      console.log(`[kapso][${sessionId}] WHITELIST VAZIA — bot silencioso (defina BOT_ALLOWED_PHONES ou BOT_ACCEPT_ALL=true)`);
+      return res.json({ ok: true });
+    }
+    if (!BOT_ALLOWED_PHONES.includes(sessionPhone)) {
+      console.log(`[kapso][${sessionId}] telefone fora do whitelist — bot inativo (logado passivamente)`);
+      return res.json({ ok: true });
+    }
+  }
+
+  // 4b. Human takeover: se a conversa foi marcada como human-handled, bot fica calado ate o TTL.
+  if (isHumanHandled(sessionPhone)) {
+    console.log(`[kapso][${sessionId}] conversa human-handled — bot silencioso (TTL ${HUMAN_HANDLED_TTL_MS / 3600000}h)`);
+    return res.json({ ok: true });
+  }
+
+  console.log(`[kapso][${sessionId}] message recebida: "${messageText.slice(0, 80)}" pnid=${phoneNumberId}`);
+
+  // 5. Webhook ack imediato — Kapso nao le o body como mensagem.
+  // O envio acontece via chamada separada a API do Kapso depois do TESS.
+  res.json({ ok: true });
+
+  try {
+    // 5b. Transcrição de áudio em background. Bot avisa "vou escutar" antes,
+    // transcreve via TESS, e concatena ao messageText antes do processMessage.
+    if (audioEvents.length > 0) {
+      await sendKapsoMessage(sessionId, `Recebi seu áudio${audioEvents.length > 1 ? 's' : ''}! Vou escutar 🎧`, phoneNumberId)
+        .catch(err => console.error('[audio] msg ponte falhou:', err.message));
+      const transcriptions = [];
+      const failures = [];
+      for (const e of audioEvents) {
+        const mediaId = e.message.audio.id;
+        try {
+          const t = await transcription.transcribeKapsoAudio({ mediaId, phoneNumberId });
+          transcriptions.push(t.text);
+          console.log(`[audio] transcrito ${mediaId} (${t.bytes}b): "${t.text.slice(0, 100)}"`);
+        } catch (err) {
+          console.error(`[audio] transcricao falhou ${mediaId}: ${err.code || ''} ${err.message}`);
+          failures.push({ mediaId, code: err.code });
+        }
+      }
+      // Anexa transcrições ao messageText como blocos extras prefixados.
+      for (const t of transcriptions) {
+        messageText = messageText ? `${messageText}\n[AUDIO TRANSCRITO]: ${t}` : `[AUDIO TRANSCRITO]: ${t}`;
+      }
+      // Se tudo era áudio e tudo falhou, manda mensagem honesta e encerra.
+      if (transcriptions.length === 0 && !messageText.trim()) {
+        const reason = failures.some(f => f.code === 'transcription_not_configured')
+          ? 'Ainda não consigo escutar áudios por aqui 😅 Pode me mandar por texto?'
+          : 'Tive um problema pra escutar seu áudio. Pode mandar por texto?';
+        await sendKapsoMessage(sessionId, reason, phoneNumberId)
+          .catch(err => console.error('[audio] msg de falha falhou:', err.message));
+        return;
+      }
+    }
+
+    const result = await processMessage(sessionId, messageText, contactName, null, sessionId);
+    const blocks = result.responses?.length ? result.responses : [result.response];
+    for (const block of blocks) {
+      if (block && block.trim()) await sendKapsoMessage(sessionId, block, phoneNumberId);
+    }
+    // Handoff: notifica Tiago em WhatsApp interno (numero ja na whitelist e em conversa ativa).
+    if (result.handoff) {
+      notifyTiagoHandoff({
+        motivo: result.handoff.motivo,
+        clientPhone: sessionId,
+        clientName: contactName,
+        lastClientMsg: messageText,
+        phoneNumberId,
+      }).catch(err => console.error(`[handoff] erro:`, err.message));
+    }
+    // After-hours booking: notifica Tiago para conferencia administrativa.
+    if (result.afterHoursBooking) {
+      notifyTiagoAfterHoursBooking({
+        ...result.afterHoursBooking,
+        clientName: contactName,
+        phoneNumberId,
+      }).catch(err => console.error(`[after-hours] erro:`, err.message));
+    }
+  } catch (err) {
+    console.error(`[kapso][${sessionId}] erro processando/enviando:`, err.message);
+  }
 }, 28000));
+
+// --- Meta Cloud API webhook (WhatsApp direto pela Meta, sem intermediario) ---
+// Diferenca-chave vs Kapso: a Meta NAO le o corpo da resposta HTTP. Exige 200 rapido
+// e a resposta ao cliente vai por uma chamada separada a Graph API.
+const META_VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'studio-tirra-verify-2026';
+const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
+const META_PHONE_NUMBER_ID = process.env.META_PHONE_NUMBER_ID;
+const META_APP_SECRET = process.env.META_APP_SECRET;
+const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
+
+// Dedupe de message IDs — a Meta reenvia o mesmo webhook se nao receber 200 a tempo
+const processedMetaMessages = new Set();
+function markMetaMessageProcessed(id) {
+  processedMetaMessages.add(id);
+  if (processedMetaMessages.size > 1000) {
+    processedMetaMessages.delete(processedMetaMessages.values().next().value);
+  }
+}
+
+function validateMetaSignature(req) {
+  if (!META_APP_SECRET) {
+    console.warn('[meta] META_APP_SECRET nao definido — pulando validacao de assinatura (dev mode)');
+    return true;
+  }
+  const signature = req.headers['x-hub-signature-256'] || '';
+  const raw = req.rawBody || Buffer.from(JSON.stringify(req.body));
+  const expected = 'sha256=' + crypto.createHmac('sha256', META_APP_SECRET).update(raw).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
+
+// Envia mensagem de texto via Graph API
+async function sendMetaMessage(to, text) {
+  if (!META_ACCESS_TOKEN || !META_PHONE_NUMBER_ID) {
+    console.error('[meta] META_ACCESS_TOKEN ou META_PHONE_NUMBER_ID ausente — nao e possivel responder');
+    return;
+  }
+  const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${META_PHONE_NUMBER_ID}/messages`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${META_ACCESS_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'text',
+      text: { body: text },
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+  const data = await res.text().catch(() => '');
+  if (!res.ok) console.error(`[meta] send → ${res.status}: ${data}`);
+  else console.log(`[meta] send → ${res.status} para ${to}`);
+}
+
+// GET — handshake de verificacao do webhook (Meta envia hub.challenge na configuracao)
+app.get('/webhook/meta', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === META_VERIFY_TOKEN) {
+    console.log('[meta] webhook verificado com sucesso');
+    return res.status(200).send(challenge);
+  }
+  console.warn('[meta] verificacao falhou — verify_token invalido');
+  return res.sendStatus(403);
+});
+
+// POST — recebe mensagens do WhatsApp via Meta Cloud API
+app.post('/webhook/meta', async (req, res) => {
+  if (!validateMetaSignature(req)) {
+    console.warn('[meta] assinatura X-Hub-Signature-256 invalida — rejeitado');
+    return res.sendStatus(401);
+  }
+
+  // Responde 200 imediatamente — o TESS leva 10-30s, processamento acontece depois.
+  res.sendStatus(200);
+
+  try {
+    const value = req.body?.entry?.[0]?.changes?.[0]?.value;
+    const msg = value?.messages?.[0];
+
+    // Ignora status updates (sent/delivered/read) — esses payloads nao tem value.messages
+    if (!msg) return;
+
+    // Ignora tipos nao-texto (audio, imagem, sticker) por enquanto
+    if (msg.type !== 'text') {
+      console.log(`[meta] mensagem tipo "${msg.type}" ignorada`);
+      return;
+    }
+
+    // Dedupe — a Meta reenvia o webhook se nao receber 200 a tempo
+    if (processedMetaMessages.has(msg.id)) {
+      console.log(`[meta] mensagem ${msg.id} ja processada — ignorada`);
+      return;
+    }
+    markMetaMessageProcessed(msg.id);
+
+    const from = msg.from; // wa_id, ex: 5511999999999
+    const messageText = (msg.text?.body || '').trim();
+    const contactName = value?.contacts?.[0]?.profile?.name || 'Cliente';
+
+    console.log(`[meta][${from}] message recebida: "${messageText.slice(0, 80)}"`);
+    if (!messageText) return;
+
+    const result = await processMessage(from, messageText, contactName, null, from);
+
+    // Envia cada bloco do WhatsApp como mensagem separada
+    const blocks = result.responses?.length ? result.responses : [result.response];
+    for (const block of blocks) {
+      if (block && block.trim()) await sendMetaMessage(from, block);
+    }
+  } catch (err) {
+    console.error('[meta] erro ao processar mensagem:', err.message);
+  }
+});
+
+// --- Supervisor matinal (Fase 2) ---
+const supervisor = require('./supervisor');
+// --- Transcrição de áudio (Fase 3) ---
+const transcription = require('./transcription');
+
+// Endpoint admin para disparar triagem manualmente. Protegido por header simples.
+// Uso: curl -X POST -H "X-Admin-Token: $ADMIN_TOKEN" https://.../admin/trigger-supervisor?dryRun=1
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+// Cache do ultimo digest gerado (em memoria) para inspecao via GET /admin/last-digest
+let lastSupervisorRun = null;
+
+app.post('/admin/trigger-supervisor', (req, res) => {
+  if (!ADMIN_TOKEN || req.headers['x-admin-token'] !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const isDryRun = req.query.dryRun === '1' || req.query.dryRun === 'true';
+  // Responde imediato — pipeline roda em background (pode demorar minutos com
+  // muitas conversas, e nginx tem timeout default de 60s).
+  res.status(202).json({
+    ok: true,
+    accepted: true,
+    dry_run: isDryRun,
+    message: 'Triagem iniciada em background. Use GET /admin/last-digest para ver resultado.',
+  });
+  supervisor.runMorningTriage({
+    sendKapsoMessage,
+    kapsoPhoneNumberId: lastKnownKapsoPhoneNumberId,
+    isDryRun,
+  })
+    .then(result => {
+      lastSupervisorRun = {
+        timestamp: new Date().toISOString(),
+        dry_run: isDryRun,
+        ranked_count: result.ranked.length,
+        lookback_hours: result.lookbackHours,
+        digest_text: result.text,
+        ranked: result.ranked,
+      };
+      console.log(`[admin] triagem concluida — ${result.ranked.length} itens, dryRun=${isDryRun}`);
+    })
+    .catch(err => {
+      console.error('[admin] trigger-supervisor erro:', err.message);
+      lastSupervisorRun = { timestamp: new Date().toISOString(), error: err.message };
+    });
+});
+
+app.get('/admin/last-digest', (req, res) => {
+  if (!ADMIN_TOKEN || req.headers['x-admin-token'] !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  if (!lastSupervisorRun) {
+    return res.json({ ok: true, status: 'no run yet' });
+  }
+  return res.json({ ok: true, ...lastSupervisorRun });
+});
+
+// Inicia o scheduler do supervisor (cron interno, checa 7h ter-sab fuso salao)
+supervisor.startScheduler({
+  sendKapsoMessage,
+  getKapsoPhoneNumberId: () => lastKnownKapsoPhoneNumberId,
+});
 
 // Health check
 app.get('/health', (req, res) => {
@@ -925,6 +1646,21 @@ app.get('/health', (req, res) => {
       agent_id: TESS_AGENT_ID,
       url: TESS_URL,
     },
+    bot: {
+      accept_all: BOT_ACCEPT_ALL,
+      whitelist_count: BOT_ALLOWED_PHONES.length,
+      mode: BOT_ACCEPT_ALL ? 'OPEN' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT' : 'WHITELIST'),
+      human_handled: {
+        active_count: humanHandledUntil.size,
+        ttl_hours: HUMAN_HANDLED_TTL_MS / 3600000,
+      },
+    },
+    meta: {
+      configured: Boolean(META_ACCESS_TOKEN && META_PHONE_NUMBER_ID),
+      phone_number_id: META_PHONE_NUMBER_ID ? 'set' : 'PENDENTE',
+      verify_token: META_VERIFY_TOKEN ? 'set' : 'PENDENTE',
+      app_secret: META_APP_SECRET ? 'set' : 'PENDENTE',
+    },
   });
 });
 
@@ -933,8 +1669,12 @@ const port = process.env.PORT || 3001;
 app.listen(port, () => {
   console.log(`\n🚀 Studio Tirra Webchat Backend`);
   console.log(`   POST http://localhost:${port}/webhook/demo-chat`);
+  console.log(`   POST http://localhost:${port}/webhook/kapso`);
+  console.log(`   GET/POST http://localhost:${port}/webhook/meta`);
   console.log(`   GET  http://localhost:${port}/health\n`);
   console.log(`   TESS agent: ${TESS_AGENT_ID}`);
+  const botMode = BOT_ACCEPT_ALL ? 'OPEN (responde todos)' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT (whitelist vazia)' : `WHITELIST (${BOT_ALLOWED_PHONES.length} telefone(s))`);
+  console.log(`   Bot mode: ${botMode}`);
   if (!TESS_TOKEN) console.warn('⚠️  TESS_API_TOKEN not set!');
   if (!TRINKS_KEY) console.warn('⚠️  TRINKS_API_KEY not set!');
 });

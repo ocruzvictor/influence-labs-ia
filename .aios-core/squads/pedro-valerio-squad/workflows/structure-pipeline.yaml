@@ -1,0 +1,259 @@
+workflow:
+  id: structure-pipeline
+  name: "Structure Pipeline — FASE 2 do TRIO"
+  version: "1.0.0"
+  agent: pedro-valerio
+  description: |
+    Workflow multi-step que orquestra a transformação de insumos estratégicos
+    em artefatos executáveis. Representa a FASE 2 do TRIO AIOX (ESTRUTURA).
+
+    Recebe pacote INSUMOS_READY (Voice DNA, Thinking DNA, SOPs, Frameworks)
+    de @oalanicolas. Entrega pacote ARTEFATOS_READY (Tasks, Workflows,
+    Templates, Agents) para @thiago_finch.
+
+    Usável standalone neste projeto (sem o TRIO completo) — neste caso, o
+    pacote de entrada vem de @pm/@architect/usuário e o pacote de saída vai
+    para @squad-chief / @dev / publicação direta.
+
+  trigger:
+    type: manual
+    command: "@pedro-valerio *structure-pipeline {tipo_artefato}"
+
+  inputs:
+    - name: insumos_package
+      type: object
+      required: true
+      description: |
+        Pacote INSUMOS_READY contendo:
+        - voice_dna: padrões de comunicação (se mind-cloning)
+        - thinking_dna: padrões de decisão (se mind-cloning)
+        - sops: standard operating procedures aplicáveis
+        - frameworks: metodologias relevantes
+        - requirements: requisitos funcionais do artefato
+
+    - name: artifact_type
+      type: enum
+      values: [agent, task, workflow, template, system-design, process-map]
+      required: true
+      description: "Tipo de artefato a produzir"
+
+  outputs:
+    - name: artefatos_package
+      type: object
+      description: |
+        Pacote ARTEFATOS_READY validado contendo:
+        - primary_artifact: artefato principal (agente, workflow, etc.)
+        - supporting_artifacts: tasks, checklists, templates relacionados
+        - audit_report: relatório de auditoria *audit
+        - veto_report: relatório de veto conditions
+        - handoff_notes: notas para @thiago_finch (ou destino equivalente)
+
+  phases:
+
+    - id: phase_1_intake
+      name: "Intake — Validar Insumos"
+      owner: "@pedro-valerio"
+      description: "Validar que INSUMOS_READY tem o necessário para começar"
+
+      inputs: [insumos_package, artifact_type]
+      outputs: [validated_inputs, gap_report]
+
+      tasks:
+        - Verificar presença de SOPs aplicáveis
+        - Verificar presença de frameworks relevantes
+        - Identificar gaps de informação que bloqueiam fase 2
+
+      checkpoint:
+        condition: "gap_report.critical_gaps == 0"
+        veto_conditions:
+          - "BLOCK se requirements ausentes ou ambíguos"
+          - "BLOCK se artifact_type='agent' e voice_dna ausente"
+        owner: "@pedro-valerio"
+        sla: "15 minutos"
+
+      on_failure:
+        retry: 0
+        escalate_to: "@oalanicolas (re-extract DNA) ou usuário (clarificar requirements)"
+
+    - id: phase_2_design
+      name: "Design — Estrutura do Artefato"
+      owner: "@pedro-valerio"
+      description: "Definir estrutura do artefato antes de implementar"
+
+      inputs: [validated_inputs]
+      outputs: [design_doc]
+
+      tasks:
+        - Se artifact_type=agent → planejar Levels 0-6
+        - Se artifact_type=workflow → planejar fases + checkpoints
+        - Se artifact_type=task → planejar workflow de execução
+        - Se artifact_type=template → planejar seções + campos
+        - Se artifact_type=system-design → executar *arq-structure
+        - Se artifact_type=process-map → executar *eng-map
+
+      checkpoint:
+        condition: "design_doc.has_all_required_sections"
+        veto_conditions:
+          - "BLOCK se design tem ambiguidade não resolvida"
+          - "BLOCK se design ignora SOPs do INSUMOS"
+        owner: "@pedro-valerio"
+        sla: "30 minutos"
+
+      on_failure:
+        retry: 1
+        escalate_to: "usuário (revisar design)"
+
+    - id: phase_3_implementation
+      name: "Implementation — Criar Artefatos"
+      owner: "@pedro-valerio"
+      description: "Implementar artefato principal + suporte"
+
+      inputs: [design_doc]
+      outputs: [primary_artifact, supporting_artifacts]
+
+      tasks:
+        - Executar task de criação correspondente:
+          - agent → *create-agent
+          - task → *create-task
+          - workflow → *create-workflow
+          - template → *tmpl-create + *tmpl-instructions
+        - Criar artefatos de suporte (tasks referenciadas, checklists)
+
+      checkpoint:
+        condition: "primary_artifact.lines >= min_lines_for_type"
+        veto_conditions:
+          - "BLOCK se artifact_type=agent e linhas < 300"
+          - "BLOCK se referências internas quebradas"
+        owner: "@pedro-valerio"
+        sla: "60-120 minutos (varia por tipo)"
+
+      on_failure:
+        retry: 1
+        escalate_to: "@pedro-valerio chat-mode para revisar"
+
+    - id: phase_4_audit
+      name: "Audit — Validar Qualidade"
+      owner: "@pedro-valerio"
+      description: "Auditar artefatos antes de declarar prontos"
+
+      inputs: [primary_artifact, supporting_artifacts]
+      outputs: [audit_report, veto_report]
+
+      tasks:
+        - Executar *audit (checklists/audit-checklist.md)
+        - Executar *veto-check (checklists/veto-checklist.md)
+        - Documentar issues encontrados
+
+      checkpoint:
+        condition: "audit_report.score >= 8 AND audit_report.blocking_issues == 0"
+        veto_conditions:
+          - "BLOCK se algum issue 🔴 BLOCKING não resolvido"
+          - "BLOCK se score < 8 (insuficiente para produção)"
+        owner: "@pedro-valerio"
+        sla: "20 minutos"
+
+      on_failure:
+        retry: 0
+        action: "voltar para phase_3 com lista de issues"
+        max_iterations: 3
+        escalate_to: "usuário (decidir se aceita score parcial ou reformula)"
+
+    - id: phase_5_handoff
+      name: "Handoff — Empacotar para Destino"
+      owner: "@pedro-valerio"
+      description: "Empacotar ARTEFATOS_READY com handoff notes"
+
+      inputs: [primary_artifact, supporting_artifacts, audit_report, veto_report]
+      outputs: [artefatos_package]
+
+      tasks:
+        - Consolidar artefatos em pacote estruturado
+        - Escrever handoff_notes (contexto, decisões tomadas, pontos de atenção)
+        - Atualizar registry (refresh-registry.py)
+        - Notificar destino
+
+      checkpoint:
+        condition: "artefatos_package.complete AND registry.updated"
+        veto_conditions:
+          - "BLOCK se algum artefato ausente do pacote"
+          - "BLOCK se handoff_notes vazias"
+        owner: "@pedro-valerio"
+        sla: "10 minutos"
+
+      on_failure:
+        retry: 1
+        escalate_to: "@pedro-valerio"
+
+  handoffs:
+    - from: phase_1_intake
+      to: phase_2_design
+      payload: [validated_inputs]
+      sla: "imediato"
+
+    - from: phase_2_design
+      to: phase_3_implementation
+      payload: [design_doc, validated_inputs]
+      sla: "imediato"
+
+    - from: phase_3_implementation
+      to: phase_4_audit
+      payload: [primary_artifact, supporting_artifacts]
+      sla: "imediato"
+
+    - from: phase_4_audit
+      to: phase_5_handoff
+      payload: [primary_artifact, supporting_artifacts, audit_report, veto_report]
+      sla: "imediato"
+
+    - from: phase_5_handoff
+      to: "@thiago_finch (ou destino equivalente)"
+      payload: [artefatos_package]
+      sla: "imediato"
+      notes: |
+        Se @thiago_finch não existe no ambiente, redirecionar para:
+        - @squad-chief (para registro/publicação de agentes)
+        - @dev (para implementação de código)
+        - usuário (para revisão final e deploy)
+
+  compensation:
+    enabled: true
+    strategy: "manual"
+    rationale: |
+      Workflow produz artefatos de configuração (arquivos), não muta estado
+      transacional. Compensação manual = remover arquivos criados ou marcá-los
+      como draft. SAGA automático seria over-engineering.
+
+    rollback_steps:
+      - phase: phase_3_implementation
+        action: "Remover arquivos criados em squads/{squad}/ ou marcar v0.0.1-draft"
+      - phase: phase_5_handoff
+        action: "Reverter registry refresh; desfazer notificação"
+
+  observability:
+    status_field: "current_phase"
+    progress_log: "logs/structure-pipeline-{timestamp}.log"
+    alerts:
+      - trigger: "phase blocked > sla"
+        notify: "@pedro-valerio"
+        action: "log + chat-mode para diagnóstico"
+
+      - trigger: "phase_4_audit.iterations > 2"
+        notify: "usuário"
+        action: "escalation — possível problema no design da fase 2"
+
+      - trigger: "workflow failed"
+        notify: "usuário"
+        action: "relatório de falha com causa raiz e estado parcial"
+
+  metrics:
+    - name: "phase_duration"
+      type: "histogram"
+      labels: ["phase_id", "artifact_type"]
+
+    - name: "audit_score"
+      type: "gauge"
+      labels: ["artifact_type"]
+
+    - name: "blocking_issues_found"
+      type: "counter"
+      labels: ["phase_id"]

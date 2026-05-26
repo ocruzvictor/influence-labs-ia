@@ -98,11 +98,29 @@ services:
       PORT: "3001"
       TESS_API_BASE: ${TESS_API_BASE:-https://api.tess.im}
       TESS_API_TOKEN: ${TESS_API_TOKEN}
-      TESS_AGENT_ID: ${TESS_AGENT_ID:-33200}
+      TESS_AGENT_ID: ${TESS_AGENT_ID:-46589}
+      TESS_API_URL: ${TESS_API_URL:-}
+      TIAGO_NOTIFICATION_PHONE: ${TIAGO_NOTIFICATION_PHONE:-}
+      SUPERVISOR_AGENT_ID: ${SUPERVISOR_AGENT_ID:-46590}
+      SUPERVISOR_TOP_N: ${SUPERVISOR_TOP_N:-10}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      TESS_TRANSCRIPTION_AGENT_ID: ${TESS_TRANSCRIPTION_AGENT_ID:-}
       TRINKS_API_BASE: ${TRINKS_API_BASE:-https://api.trinks.com/v1}
       TRINKS_API_KEY: ${TRINKS_API_KEY}
       TRINKS_ESTABELECIMENTO_ID: ${TRINKS_ESTABELECIMENTO_ID:-243868}
       KAPSO_WEBHOOK_SECRET: ${KAPSO_WEBHOOK_SECRET}
+      KAPSO_API_KEY: ${KAPSO_API_KEY}
+      KAPSO_API_BASE: ${KAPSO_API_BASE:-https://api.kapso.ai}
+      KAPSO_API_VERSION: ${KAPSO_API_VERSION:-v24.0}
+      BOT_ALLOWED_PHONES: ${BOT_ALLOWED_PHONES}
+      BOT_ACCEPT_ALL: ${BOT_ACCEPT_ALL:-false}
+      HUMAN_HANDLED_TTL_HOURS: ${HUMAN_HANDLED_TTL_HOURS:-6}
+      TESS_AGENT_SUPERVISOR_ID: ${TESS_AGENT_SUPERVISOR_ID}
+      META_VERIFY_TOKEN: ${META_VERIFY_TOKEN:-studio-tirra-verify-2026}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_PHONE_NUMBER_ID: ${META_PHONE_NUMBER_ID}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v21.0}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/influence_labs_salon
     depends_on:
       postgres:
@@ -125,13 +143,9 @@ services:
       - n8n
       - backend
 
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - certbot_webroot:/var/www/certbot
-      - certbot_certs:/etc/letsencrypt
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+  # Servico certbot removido — loop quebrado (mount mismatch: certbot_certs vs host /etc/letsencrypt).
+  # Renovacao agora roda via cron de host: infra/scripts/renew-certs.sh.
+  # Volume infra_certbot_webroot continua existindo (nginx serve /.well-known/acme-challenge/ dele).
 
   postgres:
     image: pgvector/pgvector:pg17

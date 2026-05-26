@@ -1,0 +1,86 @@
+[
+  {
+    "name": "1. Agendamento (1º turno, ainda não confirmou)",
+    "ok": true,
+    "out": "Oi, Carla! Achei seu horário certinho! 😊\n\nPra confirmar então: **Corte Masculino com o Erick, sábado dia 30/05 às 10h30, R$ 85**. Tá certo?\n\n(Só pra validar: você quer Corte Masculino ou seria um Corte Feminino? O slot que encontrei é Masculino.)",
+    "missing": [],
+    "violated": [],
+    "passedAny": true,
+    "passedNotConfirms": true,
+    "formatting": {
+      "hasBold": true,
+      "hasItalic": false,
+      "hasUnderline": false
+    }
+  },
+  {
+    "name": "1b. Agendamento (cliente confirmou — deve emitir tag)",
+    "ok": true,
+    "out": "Confirmo aqui então 👀\n\n[BOOKING_CREATE servicoId=1 profissionalId=3 dataHoraInicio=2026-05-30T10:30:00-03:00 valor=85]",
+    "missing": [],
+    "violated": [],
+    "passedAny": true,
+    "passedNotConfirms": true,
+    "formatting": {
+      "hasBold": false,
+      "hasItalic": false,
+      "hasUnderline": false
+    }
+  },
+  {
+    "name": "2. Cancelamento",
+    "ok": true,
+    "out": "Sem problema! Cancelando o seu Corte e Barba de amanhã às 15h então.\n\n[BOOKING_CANCEL bookingId=498220145]",
+    "missing": [],
+    "violated": [],
+    "passedAny": true,
+    "passedNotConfirms": true,
+    "formatting": {
+      "hasBold": false,
+      "hasItalic": false,
+      "hasUnderline": false
+    }
+  },
+  {
+    "name": "3. Mechas (fluxo consultivo)",
+    "ok": true,
+    "out": "Que bom que se interessou! Pra garantir o melhor resultado, nosso primeiro passo é sempre um teste de mechas gratuito — é sem compromisso. O profissional avalia seu cabelo presencialmente e te passa o valor exato, porque depende do comprimento, base de cor, tudo isso. Topa agendar o teste? 😊",
+    "missing": [],
+    "violated": [],
+    "passedAny": true,
+    "passedNotConfirms": true,
+    "formatting": {
+      "hasBold": false,
+      "hasItalic": false,
+      "hasUnderline": false
+    }
+  },
+  {
+    "name": "4. Reclamação → escalar humano",
+    "ok": true,
+    "out": "Sinto muito por isso. Vou pedir pro Gabriel continuar com você daqui, ok? Ele resolve isso pessoalmente. 😊\n\n[HANDOFF_HUMAN motivo=cliente_expressou_frustacao]",
+    "missing": [],
+    "violated": [],
+    "passedAny": true,
+    "passedNotConfirms": true,
+    "formatting": {
+      "hasBold": false,
+      "hasItalic": false,
+      "hasUnderline": false
+    }
+  },
+  {
+    "name": "5. Horário inexistente (não inventar)",
+    "ok": true,
+    "out": "Às 14h a Júlia não tem disponibilidade hoje, mas tenho 10h e 16h com ela em Manicure. Algum desses horários funciona pra você? ✌🏻",
+    "missing": [],
+    "violated": [],
+    "passedAny": true,
+    "passedNotConfirms": true,
+    "formatting": {
+      "hasBold": false,
+      "hasItalic": false,
+      "hasUnderline": false
+    }
+  }
+]
