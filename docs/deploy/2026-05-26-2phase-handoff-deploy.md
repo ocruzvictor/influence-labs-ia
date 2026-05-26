@@ -34,6 +34,49 @@ Pré-requisitos para a notificação funcionar:
 - O telefone do Tiago deve estar dentro da janela 24h do WhatsApp Business (ele combinou de mandar msg diária pra recepção naturalmente).
 - O telefone também precisa estar em `BOT_ALLOWED_PHONES` se você quer que o bot responda a ele em testes, mas isso é independente da notificação.
 
+### Monitoramento da janela 24h (mitigation)
+
+A janela 24h do WhatsApp Business é frágil: se o Tiago **não mandar uma mensagem ao salão** em 24h, a Meta bloqueia envios livres pra esse número — notificações administrativas (after-hours, supervisor matinal, handoff) silenciam.
+
+O backend expõe o status da janela via `GET /health`:
+
+```json
+{
+  "whatsapp_window": {
+    "configured": true,
+    "last_inbound_at": "2026-05-26T12:34:56.000Z",
+    "hours_since": 4.2,
+    "status": "green"
+  }
+}
+```
+
+Bandas:
+- `green` (`hours_since < 18`) — janela saudável
+- `yellow` (`18 <= hours_since < 22`) — Tiago precisa mandar uma mensagem em breve
+- `red` (`hours_since >= 22` ou sem inbound) — janela quase fechando, ação imediata necessária
+
+**Setup recomendado de monitor externo:**
+
+1. **Smoke check via cron** (no próprio VPS, baixa fricção):
+   ```cron
+   # A cada hora durante o dia, checa status e alerta se !green
+   0 9-21 * * * curl -fsS https://api.studiotirra.com.br/health \
+     | jq -e '.whatsapp_window.status == "green"' >/dev/null \
+     || curl -X POST -H 'Content-Type: application/json' \
+        -d "{\"text\":\"⚠️ WhatsApp window NÃO está green — peça pro Tiago mandar uma msg\"}" \
+        $BACKUP_ALERT_WEBHOOK
+   ```
+
+2. **Canal fallback de notificação** (quando WhatsApp falha):
+   - Email para o owner via SMTP simples (ex: SendGrid free tier)
+   - Webhook Discord/Slack do Victor
+   - SMS de emergência (Twilio) — só pra casos críticos
+   
+   Configurar via `BACKUP_ALERT_WEBHOOK` (mesmo env usado pelo backup-postgres.sh).
+
+3. **CI smoke test** (opcional, futuro): testa o `/health` no deploy preview e falha se `whatsapp_window.status === 'red'`. Hoje não temos CI separado — fica como TODO.
+
 ## Deploy
 
 ```bash

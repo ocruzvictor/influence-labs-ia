@@ -1054,6 +1054,13 @@ app.post('/webhook/demo-chat', withTimeout(async (req, res) => {
 // (cron nao tem req pra extrair). Cache em memoria, refrescado a cada msg recebida.
 let lastKnownKapsoPhoneNumberId = null;
 
+// Timestamp do ultimo evento inbound de Tiago. Necessario pra monitorar a janela
+// de 24h do WhatsApp Cloud API: bot so pode enviar mensagem livre pra um numero
+// se houve mensagem dele nas ultimas 24h. Se essa janela expira sem nova msg do
+// Tiago, notificacoes administrativas (after-hours, supervisor matinal) silenciam.
+// Health endpoint expoe horas decorridas pra monitoramento externo.
+let lastTiagoInboundAt = null;
+
 const KAPSO_API_BASE = (process.env.KAPSO_API_BASE || 'https://api.kapso.ai').replace(/\/+$/, '');
 const KAPSO_API_KEY = process.env.KAPSO_API_KEY;
 const KAPSO_API_VERSION = process.env.KAPSO_API_VERSION || 'v24.0';
@@ -1242,6 +1249,13 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   // phone_number_id da conexao (numero da recepcao) — precisamos pra chamar a API do Kapso
   const phoneNumberId = events[0]?.phone_number_id || firstConv?.phone_number_id || req.body?.phone_number_id;
   if (phoneNumberId) lastKnownKapsoPhoneNumberId = phoneNumberId;
+
+  // Janela 24h WhatsApp: atualiza timestamp do ultimo evento inbound de Tiago.
+  // Usa o sessionPhone — quando msg vem do telefone do Tiago (TIAGO_NOTIFICATION_PHONE),
+  // significa que a janela esta saudavel pra notificacoes administrativas.
+  if (TIAGO_NOTIFICATION_PHONE && sessionPhone === TIAGO_NOTIFICATION_PHONE) {
+    lastTiagoInboundAt = new Date().toISOString();
+  }
 
   // Permite entrada se há texto OU áudio pra transcrever
   if (sessionId === 'unknown' || (!messageText && audioEvents.length === 0)) {
@@ -1557,6 +1571,32 @@ app.get('/health', (req, res) => {
       verify_token: META_VERIFY_TOKEN ? 'set' : 'PENDENTE',
       app_secret: META_APP_SECRET ? 'set' : 'PENDENTE',
     },
+    whatsapp_window: (() => {
+      // Status da janela 24h pro telefone do Tiago (canal de notificacoes admin).
+      // green   = < 18h desde ultima inbound  -> margem confortavel
+      // yellow  = 18h <= delta < 22h         -> precisa de uma msg do Tiago em breve
+      // red     = >= 22h ou nunca recebido   -> janela quase fechando, alertar
+      if (!TIAGO_NOTIFICATION_PHONE) return { configured: false };
+      if (!lastTiagoInboundAt) {
+        return {
+          configured: true,
+          last_inbound_at: null,
+          hours_since: null,
+          status: 'red',
+          reason: 'Nenhum inbound de Tiago registrado desde restart do backend.',
+        };
+      }
+      const hoursSince = (Date.now() - new Date(lastTiagoInboundAt).getTime()) / 3600000;
+      let status = 'green';
+      if (hoursSince >= 22) status = 'red';
+      else if (hoursSince >= 18) status = 'yellow';
+      return {
+        configured: true,
+        last_inbound_at: lastTiagoInboundAt,
+        hours_since: Number(hoursSince.toFixed(2)),
+        status,
+      };
+    })(),
   });
 });
 
