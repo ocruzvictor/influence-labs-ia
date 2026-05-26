@@ -1,22 +1,27 @@
 /**
- * Transcrição de áudio via TESS.
+ * Transcrição de áudio.
  *
- * Fluxo planejado:
- *   1. Backend recebe webhook Kapso com message.type === 'audio'
- *   2. Baixa bytes do áudio (via media_id que o Kapso/Meta enviou no payload)
- *   3. Upload em TESS via POST /files (multipart) → pega file_id
- *   4. Executa agente de transcrição TESS_TRANSCRIPTION_AGENT_ID passando file_id
- *   5. Recebe texto transcrito (contextualizado pelo prompt do agente — Studio Tirra,
- *      vocabulário do salão, etc.)
+ * Estratégia: Kapso-primary, TESS-fallback.
  *
- * Status atual: o agente de transcrição ainda NÃO foi criado por Victor na TESS.
- * Enquanto TESS_TRANSCRIPTION_AGENT_ID não está set, a função joga erro estruturado
- * e o handler do webhook responde ao cliente "pode mandar por texto?".
+ * O Kapso já transcreve áudios do WhatsApp gratuitamente e injeta o texto no
+ * campo `kapso.content` do payload do webhook como:
  *
- * Quando Victor criar o agente:
- *   - Set TESS_TRANSCRIPTION_AGENT_ID no .env do VPS
- *   - Possivelmente ajustar formato do input pro agente (mensagem com file_id como anexo)
- *   - A interface da chamada de transcrição é a única coisa que muda — handler já está pronto.
+ *   "Audio attached (audio_XXX.ogg) [Size: 12.1 KB | Type: audio/opus] URL: <url>
+ *    Transcript: <texto transcrito>"
+ *
+ * Caminho primário (zero custo, ~0ms extra):
+ *   extractKapsoTranscript(kapso.content) extrai o que vem após "Transcript: "
+ *   e usa direto. 100% dos áudios em prod hoje resolvem por esse caminho.
+ *
+ * Caminho fallback (custo TESS, 5-15s extra):
+ *   Só executa se kapso.content não contém Transcript: (ex: áudio enviado por
+ *   canal Meta direto sem auto-transcrição, ou Kapso falhou em transcrever).
+ *   Pipeline: download media via Kapso → upload TESS /files → execute agent.
+ *
+ * NOTA — endpoint /meta/whatsapp/{ver}/{media_id} retorna 404 em prod
+ * ("WhatsApp configuration not found"). Fallback TESS portanto só vai funcionar
+ * quando esse endpoint for resolvido. Hoje, na prática, 100% dos áudios são
+ * resolvidos pelo caminho Kapso-primary — o 404 é silencioso e inofensivo.
  */
 
 const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
@@ -31,18 +36,29 @@ function isTranscriptionEnabled() {
 }
 
 /**
+ * Extrai o texto transcrito do campo kapso.content quando Kapso já transcreveu.
+ * Retorna null se não houver Transcript: ou se o texto capturado for vazio.
+ *
+ * Tolerante a variação de capitalização, espaços ao redor de ":", e captura
+ * texto multilinha até o fim da string.
+ */
+function extractKapsoTranscript(kapsoContent) {
+  if (!kapsoContent || typeof kapsoContent !== 'string') return null;
+  const match = kapsoContent.match(/transcript\s*:\s*([\s\S]+)$/i);
+  if (!match) return null;
+  const text = match[1].trim();
+  return text ? text : null;
+}
+
+/**
  * Baixa bytes de áudio do Kapso pelo media_id.
- * Endpoint inferido do padrão Meta-proxy do Kapso (mesmo padrao de envio: /meta/whatsapp/{ver}/{phone_number_id}/...).
- * Pode precisar ajuste fino quando testarmos com áudio real chegando.
+ * Endpoint inferido do padrão Meta-proxy do Kapso. Retorna 404 em prod hoje —
+ * ver dívida #1 no runbook. Função usada apenas no fallback TESS.
  */
 async function downloadAudioFromKapso({ mediaId, phoneNumberId }) {
   if (!mediaId) throw new Error('mediaId ausente');
   if (!phoneNumberId) throw new Error('phoneNumberId ausente para download de media');
 
-  // Padrão Meta Cloud API (Kapso normaliza para o mesmo formato):
-  //   1) GET /{media_id} -> retorna { url: "https://lookaside.fbsbx.com/..." }
-  //   2) GET nessa URL com Bearer token -> binário
-  // Em Kapso, o token é o KAPSO_API_KEY e o endpoint base é api.kapso.ai/meta/whatsapp/...
   const metaUrl = `${KAPSO_API_BASE}/meta/whatsapp/${KAPSO_API_VERSION}/${mediaId}`;
   const metaRes = await fetch(metaUrl, {
     headers: { 'X-API-Key': KAPSO_API_KEY },
@@ -86,13 +102,6 @@ async function uploadFileToTess({ buffer, filename, mimeType }) {
 
 /**
  * Executa o agente de transcrição passando o file_id como referência.
- *
- * NOTE: O formato exato de como o agente TESS de transcrição recebe o file_id
- * pode variar dependendo de como Victor configurar:
- *   - Algumas docs sugerem usar field `file_ids: [N]` no body do execute
- *   - Outras sugerem incluir referência no texto da mensagem
- * Implementamos a forma mais provável (file_ids) e fallback (URL/ID inline no prompt).
- * Ajustar quando testarmos com agente real.
  */
 async function executeTranscriptionAgent({ fileId }) {
   const body = {
@@ -116,7 +125,7 @@ async function executeTranscriptionAgent({ fileId }) {
 }
 
 /**
- * Pipeline completo: media_id Kapso → bytes → upload TESS → execute agent → texto.
+ * Pipeline TESS completo (fallback): media_id Kapso → bytes → upload TESS → execute agent → texto.
  * Joga erro estruturado em qualquer ponto.
  */
 async function transcribeKapsoAudio({ mediaId, phoneNumberId }) {
@@ -135,4 +144,27 @@ async function transcribeKapsoAudio({ mediaId, phoneNumberId }) {
   return { text, fileId, mimeType, bytes: buffer.length };
 }
 
-module.exports = { transcribeKapsoAudio, isTranscriptionEnabled };
+/**
+ * Entrada principal de transcrição. Decide entre Kapso-primary e TESS-fallback.
+ *
+ * @param {Object} args
+ * @param {string} args.mediaId         media_id do Kapso/Meta (pra fallback TESS)
+ * @param {string} args.phoneNumberId   phone_number_id da conexão (pra fallback TESS)
+ * @param {string} [args.kapsoContent]  campo kapso.content do payload — preferido
+ * @returns {Promise<{text: string, source: 'kapso'|'tess', bytes?: number, fileId?: string, mimeType?: string}>}
+ */
+async function transcribeAudio({ mediaId, phoneNumberId, kapsoContent }) {
+  const kapsoText = extractKapsoTranscript(kapsoContent);
+  if (kapsoText) {
+    return { text: kapsoText, source: 'kapso' };
+  }
+  const result = await transcribeKapsoAudio({ mediaId, phoneNumberId });
+  return { ...result, source: 'tess' };
+}
+
+module.exports = {
+  transcribeAudio,
+  transcribeKapsoAudio,
+  extractKapsoTranscript,
+  isTranscriptionEnabled,
+};

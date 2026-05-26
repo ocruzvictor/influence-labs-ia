@@ -1337,8 +1337,12 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   // Detecta áudios no batch — transcrição acontece DEPOIS do res.json (background).
   const audioEvents = events.filter(e => e?.message?.type === 'audio' && e?.message?.audio?.id);
 
-  // Concatena textos de todas as mensagens do batch (oi + tudo bem + audio transcrito etc.)
+  // Concatena textos de todas as mensagens do batch (oi + tudo bem + audio transcrito etc.).
+  // Filtra eventos de audio aqui — o kapso.content de audio contem "Audio attached ... Transcript: ..."
+  // que duplicaria o texto quando o loop de transcricao depois prefixa "[AUDIO TRANSCRITO]: ...".
+  // Audios sao processados separadamente via transcribeAudio (Kapso-primary, TESS-fallback) abaixo.
   let messageText = events
+    .filter(e => e?.message?.type !== 'audio')
     .map(e => (e?.message?.kapso?.content || e?.message?.text?.body || '').trim())
     .filter(Boolean)
     .join('\n');
@@ -1401,10 +1405,14 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
       const failures = [];
       for (const e of audioEvents) {
         const mediaId = e.message.audio.id;
+        // kapso.content normalmente vem com "Transcript: <texto>" — caminho primário (zero custo).
+        // Se ausente, transcribeAudio cai no fallback TESS.
+        const kapsoContent = e?.message?.kapso?.content;
         try {
-          const t = await transcription.transcribeKapsoAudio({ mediaId, phoneNumberId });
+          const t = await transcription.transcribeAudio({ mediaId, phoneNumberId, kapsoContent });
           transcriptions.push(t.text);
-          console.log(`[audio] transcrito ${mediaId} (${t.bytes}b): "${t.text.slice(0, 100)}"`);
+          const sizeInfo = t.bytes ? ` (${t.bytes}b)` : '';
+          console.log(`[audio] transcrito via ${t.source} ${mediaId}${sizeInfo}: "${t.text.slice(0, 100)}"`);
         } catch (err) {
           console.error(`[audio] transcricao falhou ${mediaId}: ${err.code || ''} ${err.message}`);
           failures.push({ mediaId, code: err.code });
