@@ -56,11 +56,26 @@ Manda agendamento completo (3 turnos: pedido → escolha slot → confirma)
 
 ## Rollback
 
+### Rollback de código (automatizado)
+
 ```bash
-cd /opt/influence-labs/infra
-git checkout feature/meta-cloud-direct
-docker compose up -d --build backend
+cd /opt/influence-labs
+git checkout HEAD~1 -- backend/server.js  # ou commit anterior específico
+docker compose -f infra/docker-compose.yml up -d --build backend
 ```
+
+### Rollback de prompt (manual — IMPORTANTE)
+
+O rollback de código **não** reverte a mudança feita no painel TESS (agente 46589). Pra reverter completamente:
+
+1. **Acessar painel TESS** → agente 46589 → prompt
+2. **Remover a seção I.8** (entre `### I.7 — Mensagens sequenciais (debounce)` e `## S — STYLE`)
+3. **Restaurar `## CONTEXTO DINÂMICO`** — remover linha `HORARIO_AGORA: HH:MM (...)` que foi adicionada
+4. **Salvar** no painel — efeito imediato
+
+Referência canônica do prompt antes da mudança: ver `docs/prompts/tess-conversa-v2.md` em commit pré-Fase 1 (`git log -- docs/prompts/tess-conversa-v2.md`).
+
+Sem essa etapa manual o bot continua tentando lidar com fora-de-horário no prompt, mesmo com código revertido — resultado pode ser inconsistente (LLM espera campo `HORARIO_AGORA` que não vem mais).
 
 ## Fase 2 (pendente)
 

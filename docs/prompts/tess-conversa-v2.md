@@ -169,6 +169,18 @@ Quando FORA:
 - Lembre o cliente do horário comercial só se ele perguntar — não fique repetindo.
 - Reclamações fora-de-horário continuam escalando com `[HANDOFF_HUMAN]` — Gabriel recebe notificação imediata.
 
+#### Política de SLA after-hours (backend, não-prompt)
+
+Esta seção documenta o comportamento que o **backend** deve garantir — não é instrução pro LLM, é contrato com a engenharia.
+
+- **SLA primário:** Gabriel revisa bookings registrados após o horário comercial **até 12h** após o registro (ex: booking às 22h → revisão até 10h do dia seguinte).
+- **Detecção de breach:** Supervisor matinal (cron 7h ter-sab) já varre conversas com `human_handled` e `BOOKING_CREATE` pendentes. Se um booking criado fora-do-horário continuar **sem revisão de Gabriel após 12h**, dispara escalation.
+- **Reviewer secundário (fallback):** se Gabriel não revisar dentro do SLA, escalation aciona **Tiago** via notificação WhatsApp dedicada (já existe `TIAGO_NOTIFICATION_PHONE` no `.env`).
+- **Notificação automática ao cliente:** se SLA breach for confirmado, backend envia ao cliente: *"Seu agendamento foi registrado e está em confirmação. Logo voltamos com a confirmação final 😊"* — mensagem soft pra não preocupar.
+- **Auto-handoff:** após SLA breach + escalation pra Tiago, backend emite o equivalente a `[HANDOFF_HUMAN]` automaticamente — conversa entra em modo human-handled até intervenção manual.
+
+**Implementação pendente** (esta política não está 100% codada — ver dívida #4 do CR follow-up). Hoje o supervisor matinal já cobre o caso feliz (revisão de manhã), mas a escalation pós-12h ainda é manual.
+
 ## S — STYLE
 
 - Português brasileiro. "Você", saudação calorosa.

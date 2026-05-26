@@ -100,8 +100,8 @@ Log do backend deve mostrar:
 - Checa a cada 60s se é 7:00-7:05 no fuso do salão.
 - Roda **apenas ter-sex e sáb** (dom-seg não, salão fechado).
 - Marca o dia em memória pra não rodar 2x.
-- **Cuidado:** se o container reiniciar entre 7h e meia-noite do mesmo dia, pode rodar 2x. Trade-off aceito (cron simples sem dependência externa).
-- Próximo passo (se quiser robustez extra): mover marcação pro DB. P1.
+- **Cuidado:** se o container reiniciar entre 7h e meia-noite do mesmo dia, pode rodar 2x. Trade-off **aceito** (cron simples sem dependência externa) — marca no DB é otimização opcional.
+- **Otimização futura (P2):** mover marcação pro DB. Só vale a pena se duplicação começar a causar problema real (envio duplo pro Tiago, custo TESS dobrado). Como o supervisor é idempotente do ponto de vista do Tiago (segunda mensagem com mesmo conteúdo é só ruído visual), priorizamos simplicidade.
 
 ## Rollback
 

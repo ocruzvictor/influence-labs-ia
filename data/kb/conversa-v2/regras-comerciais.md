@@ -53,6 +53,30 @@
 
 ## Cancelamento e reagendamento — política
 
+### Score do Cliente — como é calculado
+
+Score numérico de 0 a 100 indicando confiabilidade/aderência do cliente.
+
+**Fórmula (peso simples, V1):**
+```
+score = 100 - (cancellation_rate * 60) - (no_show_rate * 30) - (late_arrival_rate * 10)
+```
+Onde cada *rate* é a taxa (0.0–1.0) sobre o histórico de agendamentos do cliente.
+
+**Bandas:**
+- `score >= 80` → **Cliente bom** — flexibilidade máxima
+- `50 <= score < 80` → **Neutro** — política padrão
+- `score < 50` → **Cliente em observação** — exigências reforçadas (depósito, tolerância reduzida)
+
+**Onde consultar (ordem de prioridade):**
+1. **Trinks API** — campo `clienteScore` ou equivalente no payload do cliente (preferido, single source of truth)
+2. **Fallback PostgreSQL `clients.score`** — coluna calculada por job batch noturno se Trinks indisponível
+3. **Default novo cliente** — sem histórico = score `70` (neutro/leve confiança, política padrão)
+
+**Atualização:** após cada evento finalizado (booking concluído / no-show / cancelamento) — job batch ou trigger no backend recalcula. NÃO atualizar score em tempo real durante conversa (latência).
+
+**Observação produto:** essa fórmula é V1 e pode ser refinada com data real após 60+ dias de coleta. Documentar mudanças aqui antes de alterar lógica em prod.
+
 ### Cliente bom (score > 80%)
 - Cancelamento com mais de 24h: "Sem problemas! Agradecemos por avisar. Quer agendar outro horário?"
 - Atraso: "Obrigado por avisar! Já notifiquei o profissional. Dirija com segurança!"
