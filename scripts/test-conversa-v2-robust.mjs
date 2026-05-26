@@ -178,10 +178,12 @@ async function callTess(context, userMsg) {
 }
 
 function extractOutput(json) {
+  // Mesmo formato/fallbacks de test-conversa-v2.mjs (consistencia entre suites).
   const r0 = json?.responses?.[0]?.output;
   if (r0 && r0.trim()) return r0;
   if (json?.output && String(json.output).trim()) return json.output;
-  return '(SEM OUTPUT)';
+  if (json?.response && String(json.response).trim()) return json.response;
+  return `(SEM OUTPUT — raw: ${JSON.stringify(json).slice(0, 800)})`;
 }
 
 (async () => {
