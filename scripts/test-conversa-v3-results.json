@@ -1,0 +1,105 @@
+{
+  "score": 1,
+  "pass": 12,
+  "fail": 0,
+  "err": 0,
+  "retries": 0,
+  "results": [
+    {
+      "group": "R1. Preço único sem comparativo",
+      "name": "R1.1 — \"quanto custa pra cortar com o Tiago?\"",
+      "userMsg": "quanto custa pra cortar com o Tiago?",
+      "out": "Corte com o Tiago é R$100. 😊\n\n<break>\n\nQuer que eu já veja os horários dele pra você?",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "R1. Alternativa permitida quando solicitada",
+      "name": "R1.2 — após R1, cliente pede \"tem mais em conta?\"",
+      "userMsg": "tem profissional mais em conta?",
+      "out": "Tem sim! O Eric também corta. Ele é ótimo em corte clássico e bem prático.\n\n<break>\n\nQuer ver os horários dele? 😊",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "R2. Sem comparativo não-solicitado",
+      "name": "R2.1 — \"quanto custa um corte?\" (sem profissional)",
+      "userMsg": "quanto custa um corte?",
+      "out": "Corte Masculino é a partir de R$70.\n\n<break>\n\nQual profissional você prefere: o Tiago, o André ou o Erick? 😊",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "R3. Diferenciação por qualidade",
+      "name": "R3.1 — \"qual a diferença entre o Tiago e o Erick?\"",
+      "userMsg": "qual a diferença entre cortar com o Tiago e com o Erick?",
+      "out": "Ótimo, deixa eu pintar o quadro pra você!\n<break>\nO **Tiago** é excelente em corte masculino com aquele toque premium — ele trabalha muito com visagismo, sabe? Fica aquele corte bem pensado, personalizado pro seu estilo.\n<break>\nO **Erick** é ótimo em corte clássico, bem prático e eficiente. Aquele corte limpo, bem executado.\n<break>\nQual te atrai mais? 😊",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "R4. Quebra de mensagens com <break>",
+      "name": "R4.1 — \"queria cortar sábado\" (resposta com 2+ ideias)",
+      "userMsg": "queria cortar meu cabelo sábado",
+      "out": "Show! Você prefere cortar com o Tiago, o André, ou o Erick?\n\n<break>\n\nTodos atendem no sábado. 😊",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "R4. Confirmação tripla em bloco único",
+      "name": "R4.2 — confirmação após escolha (deve ser bloco único)",
+      "userMsg": "10h30",
+      "out": "Pra confirmar: Corte Masculino com o Erick, sábado dia 30/05 às 10h30, R$ 70. Tá certo?",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "NR2. Tags íntegras",
+      "name": "NR2.1 — finalização de booking não quebra tag",
+      "userMsg": "isso!",
+      "out": "Confirmo aqui o agendamento então 👀\n\n[BOOKING_CREATE servicoId=1 profissionalId=3 dataHoraInicio=2026-05-30T10:30:00-03:00 valor=70 duracaoMinutos=60]",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "NR3. Resposta direta a preço",
+      "name": "NR3.1 — não evade quando perguntado direto",
+      "userMsg": "qual o valor pra cortar com Tiago?",
+      "out": "Corte com o Tiago é R$100. 😊\n\n<break>\n\nQuer que eu já veja os horários dele?",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "NR4. Confirmação em bloco único",
+      "name": "NR4.1 — mesmo cenário R4.2 reforçando NR4",
+      "userMsg": "pode confirmar",
+      "out": "Confirmo aqui então 👀\n\n[BOOKING_CREATE servicoId=7 profissionalId=2 dataHoraInicio=2026-05-30T11:00:00-03:00 valor=130 duracaoMinutos=60]",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "A1. Sinônimos de serviços",
+      "name": "A1.1 — \"queria fazer o pé sábado\" → interpretar como Pedicure",
+      "userMsg": "queria fazer o pé sábado",
+      "out": "Oi Carla! 👋\n\nQuando você diz \"fazer o pé\", você quer dizer pedicure ou depilação de pé?",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "A1. Sinônimos de serviços",
+      "name": "A1.2 — \"queria fazer a mão\" → interpretar como Manicure",
+      "userMsg": "queria fazer a mão amanhã",
+      "out": "Oi Carla! Deixa eu confirmar: você quer Manicure amanhã (27 de maio), certo?\n<break>\nInfelizmente amanhã não tenho slot disponível no momento. Mas tenho vários horários livres pra você nos próximos dias. Qual dia você prefere? 😊",
+      "failures": [],
+      "status": "PASS"
+    },
+    {
+      "group": "R4 extra. Resposta curta sem quebra",
+      "name": "R4.3 — pergunta simples (endereço) → bloco único OK",
+      "userMsg": "qual o endereço?",
+      "out": "R. Niterói, 543. São Caetano do Sul, bem pertinho da estação. 😊\n\nQuer agendar um corte ou tem dúvida sobre algo mais?",
+      "failures": [],
+      "status": "PASS"
+    }
+  ]
+}
