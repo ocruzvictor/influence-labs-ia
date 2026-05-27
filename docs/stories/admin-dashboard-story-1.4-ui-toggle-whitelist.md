@@ -1,7 +1,7 @@
 # Story 1.4: Admin UI — Toggles + Whitelist (kill switch + controle por número)
 
 **Epic:** [EPIC-studio-tirra-admin-dashboard](epics/EPIC-studio-tirra-admin-dashboard.md)
-**Status:** Ready for Review
+**Status:** Done (código em main via PR #16; smoke prod + seed users pendente Victor pós-deploy manual)
 **Agente executor:** @dev
 **Story Points:** 5
 **Pode executar agora:** ✅ SIM — API 100% pronta em produção (Story 1.2-DATA, PR #8, commit `b981414`). Esta story pode rodar paralela à 1.3, mas se 1.3 mergeou primeiro o "atalho Pausar bot" do drill-down liga aqui
@@ -316,6 +316,7 @@ Nenhuma. Implementa fielmente wireframe T4 consumindo API da Story 1.2-DATA. Sem
 | 2026-05-27 | @sm River | Story draftada a partir do epic, wireframe T4, contratos `/api/toggles` e `/api/whitelist/*` deployados na 1.2-DATA, e consult com advisor (stubs do drill-down condicional à 1.3, notas fora de escopo por falta de schema) |
 | 2026-05-27 | @po Pax | Validate-story-draft 10/10 GO → Status Draft → Ready. Observações não-bloqueantes: ACs 29-31 condicionais à 1.3 (bem tratado); D5 "Pausar bot 1h" sem expiração real é decisão deliberada — registrar como backlog futuro se virar dor; AC43 smoke fim-a-fim em prod depende de Kapso conectado (não bloqueia dev local). Pode iniciar `@dev *develop`. |
 | 2026-05-27 | @dev Dex (YOLO) | Story 1.4 entregue em 2 commits (Fase 1 setup hooks/shadcn + commit final consolidado). 14 arquivos novos + 3 modificados. ACs 29-30 (drill-down) ativados — 1.3 já em main. lint ✅ typecheck ✅ build ✅. CodeRabbit pre-commit pós-fixes: 0 findings (corrigi 3 MAJOR + 1 MINOR antes do commit aplicando lições da gate 1.3: await antes de fechar dialog, console.error em vez de silent catch, shape validation completa do array). Status Ready → Ready for Review. Pivot: adicionei `toggles-panel.tsx` como orquestrador client (separar SSR shell de hooks). Pendente: `@devops *push`. |
+| 2026-05-27 | @devops Gage | Push de `feature/1.4-ui-toggle-whitelist` (3 commits) → **PR #16** criada e mergeada (`aed915e`). Branch remoto deletado. Sem CI (cobertura na story devops-auto-deploy-backend). Deploy manual no VPS pendente Victor. Status → **Done**. Smoke AC43 (toggle global + WhatsApp real) + seed dos 3 admin_users (Tiago@/Recepcao@/Rafael@studiotirra.com.br) parte do DoD operacional pós-deploy. |
 
 ## QA Results
 
