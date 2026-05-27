@@ -41,6 +41,15 @@ const BREAK_TOKEN = /<break>/gi;
 function splitMessage(text) {
   if (!text || typeof text !== 'string') return [];
 
+  // Sanitização defensiva: strip NUL bytes do input.
+  // Usamos \x00 como delimitador do placeholder (\x00TAG{n}\x00) na Fase 1;
+  // se o input já contém \x00, a Fase 3 acharia placeholders falsos e
+  // tentaria substituí-los pelo tag de índice correspondente — que pode
+  // estar undefined, gerando string literal "undefined" no output.
+  // LLMs comerciais strip NUL bytes, mas isto é defesa em profundidade.
+  text = text.replace(/\x00/g, '');
+  if (!text) return [];
+
   // Fase 1: extrai todas as tags e substitui por placeholders únicos.
   // Ao mesmo tempo, remove (defensivamente) qualquer <break> que tenha
   // aparecido dentro da tag — o prompt já proíbe isso, mas o LLM pode

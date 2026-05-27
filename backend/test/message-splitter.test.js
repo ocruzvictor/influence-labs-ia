@@ -139,3 +139,27 @@ test('extra: emojis e acentos preservados nas bolhas', () => {
   assert.equal(out[0], 'Oi João! 😊');
   assert.equal(out[1], 'Vamos lá então ✌🏻');
 });
+
+// Regressão H1 (QA gate 2026-05-26): input com NUL byte não confunde restauração de tags
+test('H1 fix: input com \\x00 é sanitizado, não vira "undefined"', () => {
+  // Input adversarial simulando padrão de placeholder interno do splitter.
+  // Após strip de \x00, vira texto literal "ATAG0B" — não é tag real, não dispara
+  // substituição. O importante é que JAMAIS apareça "undefined" no output.
+  const out1 = splitMessage('A\x00TAG0\x00B');
+  assert.deepEqual(out1, ['ATAG0B'], 'NUL strippado, resto vira texto literal');
+  assert.ok(!out1[0].includes('undefined'), 'jamais inserir string literal "undefined"');
+
+  // Input com NUL no meio de texto normal
+  const out2 = splitMessage('Oi\x00mundo');
+  assert.deepEqual(out2, ['Oimundo']);
+
+  // Input só com NUL bytes
+  const out3 = splitMessage('\x00\x00\x00');
+  assert.deepEqual(out3, [], 'string só com NUL strippa para vazio → array vazio');
+
+  // NUL + <break> + tag — tag ainda deve estar íntegra na bolha final
+  const out4 = splitMessage('Show!\x00\n<break>\n[BOOKING_CREATE servicoId=1]');
+  assert.equal(out4.length, 2);
+  assert.equal(out4[0], 'Show!');
+  assert.ok(out4[1].includes('[BOOKING_CREATE servicoId=1]'));
+});
