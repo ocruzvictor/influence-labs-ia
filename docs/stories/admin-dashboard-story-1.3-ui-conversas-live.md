@@ -346,7 +346,141 @@ Nenhuma. Esta story implementa fielmente os wireframes T3+T3b consumindo a API e
 
 ## QA Results
 
-_A ser preenchido por @qa após review._
+**Quality Gate executado por @qa Quinn em 2026-05-27**
+**Branch:** `feature/1.3-1.4-ui-conversas-toggles` · **Commits revisados:** `a39a64c..5741b3f` (4 commits, +2676 / -4 linhas, 30 arquivos)
+
+### Verdict: CONCERNS ⚠️
+
+A implementação é sólida — Server/Client component split correto, race protection via `fetchSeq.current`, polling Page Visibility-aware, scroll preservation com `useLayoutEffect`, telemetria visual completa. **Mas um bug funcional MEDIUM no `conversation-timeline.tsx` viola a semântica do AC20** (badge "Nova mensagem" aparece indevidamente ao carregar mensagens antigas) e em caso edge **anula o trabalho do AC21** (autoscroll dispara em cima do scroll preservado).
+
+Fix é cirúrgico (~10 LOC). Recomendo @dev aplicar **antes** do `@devops *push` — não merece QA Loop full. Após fix, gate vira PASS direto.
+
+### 7 Quality Checks
+
+| # | Check | Status | Notas |
+|---|---|---|---|
+| 1 | **Code review** — patterns, readability, maintainability | ✅ PASS | Bem comentado, separação clara, names em pt-BR consistentes. 3 LOW cleanups identificados (ver tech debt). |
+| 2 | **Unit tests** — adequate coverage, all passing | ✅ PASS | 22/22 (15 novos: phone 8 + date 7 + auth 7 pré-existente). Helpers cobertos. Componentes React sem testes — aceitável MVP (dívida documentada na própria story). |
+| 3 | **Acceptance criteria** — all met per story | ⚠️ CONCERNS | 45/48 cobertos no código. AC20 (badge) parcialmente violado; AC21 (scroll preserve) edge case quebra. 3 ACs de smoke prod (AC42, AC43-perf KB, AC45-bundle KB) pendentes deploy. |
+| 4 | **No regressions** — existing functionality preserved | ✅ PASS | Nenhum arquivo da Story 1.1 / 1.2-DATA tocado fora `nav-links.ts` (flip Conversas) e `app/layout.tsx` (TooltipProvider — backward compat). API rotas intocadas. |
+| 5 | **Performance** | ✅ PASS | Polling 5s/3s respeita document.hidden ✅. fetchSeq descarta resp obsoletas ✅. SSR pre-fetch ✅. LRU cache 2s no helper backend absorve polling. Bundle size concreto fica pra deploy. |
+| 6 | **Security** (OWASP basics) | ✅ PASS | `whitespace-pre-wrap` em conteúdo de msg sem `dangerouslySetInnerHTML` ✅. Phone validation server-side via regex antes de fetch ✅. `credentials: include` em fetches ✅. Auth via proxy.ts (defense-in-depth). Zero secrets hardcoded. |
+| 7 | **Documentation** | ✅ PASS | Decision log em `.ai/decision-log-1.3-UI.md` com 10 decisões. JSDocs em todos os componentes/hooks/libs. Story File List + checkboxes consistentes. Change Log atualizado. |
+
+### Issues — categorizadas por severidade
+
+#### 🔴 HIGH (recomendo fixar pré-push — CodeRabbit committed scan)
+
+**M2. `conversation-list.tsx` linhas 89-126 — `fetchList` e `loadMore` fazem type assertion sem validação de shape**
+
+`const data = (await res.json()) as ListResponse` é cast cego. Se a API mudar shape ou retornar erro semi-formado (ex: 200 com `{ error: "..." }`), o próximo `data.items.map` causa runtime crash em vez de cair no catch. Mesma falha em `loadMore` (linha ~156).
+
+**Fix sugerido (4 LOC, dropável no mesmo commit do M1):**
+
+```tsx
+const data = (await res.json()) as unknown;
+if (!data || typeof data !== "object" || !Array.isArray((data as ListResponse).items)) {
+  throw new Error("invalid_response_shape");
+}
+const parsed = data as ListResponse;
+// ...continua usando parsed.items / parsed.next_cursor
+```
+
+Alternativa mais robusta: Zod schema no client lib. Para MVP, o guard acima é suficiente — joga no toast catch.
+
+#### 🟠 MEDIUM (recomendo fixar pré-push)
+
+**M1. `conversation-timeline.tsx` — autoscroll/badge dispara indevidamente ao carregar mensagens antigas**
+
+`useEffect [messages, scrollToBottom]` (linhas 101-111) reage a qualquer mudança em `messages`. Mas `loadOlder()` prepende mensagens antigas — o effect interpreta isso como mudança de conteúdo e:
+- Se `isAtBottomRef.current === false` (caso típico — user scrollou pra cima pra carregar antigas) → `setHasNewBelow(true)` → mostra badge **"↓ Nova mensagem"** apontando pro fim mesmo sem nova mensagem. **Viola semântica do AC20**.
+- Se `isAtBottomRef.current === true` (edge: conversa pequena cabe na viewport, user nunca scrollou) → `scrollToBottom('smooth')` dispara → **anula `useScrollPreserve`**, quebrando o AC21.
+
+**Fix sugerido (10 LOC, dropável no commit final pré-push):**
+
+```tsx
+// no topo do componente, junto com os outros refs:
+const lastNewestIdRef = useRef<number | null>(null);
+
+// substituir o useEffect das linhas 101-111 por:
+useEffect(() => {
+  if (messages.length === 0) return;
+  const currentNewestId = messages[messages.length - 1]!.id;
+  // Mesma "última mensagem" = prepend (loadOlder) ou no-op de polling.
+  // Não dispara autoscroll nem badge.
+  if (lastNewestIdRef.current === currentNewestId) {
+    lastNewestIdRef.current = currentNewestId;
+    return;
+  }
+  lastNewestIdRef.current = currentNewestId;
+  if (isAtBottomRef.current) {
+    requestAnimationFrame(() => scrollToBottom("smooth"));
+  } else {
+    setHasNewBelow(true);
+  }
+}, [messages, scrollToBottom]);
+```
+
+A heurística "mesma última mensagem" distingue prepend (`loadOlder`) de novas mensagens recentes (polling) sem precisar de flag adicional gerenciada por loadOlder.
+
+#### 🟢 LOW — Tech debt (não bloqueia)
+
+**L1. Dead code em `lib/hooks/use-scroll-preserve.ts`** — função `useOnlineStatusValue` (linhas 57-66) declarada com comentário "Implementação fica em arquivo próprio — aqui só re-export pra co-localizar (...) Ver use-online-status.ts". Nunca importada. Deletar.
+
+**L2. State `error` órfão em `conversation-list.tsx`** (linha 66) — declarado, setado em erro, mas só consumido em `items.length === 0 && !error` (linha 207). Toast cobre o feedback ao user. Considerar remover ou renderizar visualmente (ex: banner de erro sobre a tabela quando há items + erro recente).
+
+**L3. `pendingRef` exposto pelo `useScrollPreserve`** — retornado da API mas nunca usado externamente. Comentário diz "exposto pra debug" mas debug não é justificativa para superfície pública. Tornar privado (internal ref do hook).
+
+#### 🔵 Informational (não-acionável, contexto)
+
+**I1. Tooltip de data absoluta usa `title` attribute (HTML nativo) em vez de `<Tooltip>` shadcn** em `conversation-row.tsx:41`. Atende AC30 funcionalmente (browser nativo tooltip on hover). shadcn tooltip foi reservado pro drill-down (`message-bubble.tsx`). Consistência é razoável dado contexto (linha da tabela vs metadata de mensagem). Sem ação.
+
+**I2. AC42-AC45 (smoke prod + bundle size concreto)** não foram validados nesta gate — dependem de deploy via `@devops *push`. Documentados na Definition of Done como pré-requisito Done. Não bloqueio agora.
+
+**I3. CodeRabbit committed-scope review vs `main` (concluído mid-gate):** 2 findings — 1 MAJOR/HIGH (incorporada como M2 acima) + 1 MINOR (incorporada como I4 abaixo). Plano free CLI sem CodeRabbit installed na org (review limited). 0 CRITICAL.
+
+**I4. `conversation-row.tsx` JSDoc impreciso (CodeRabbit minor)** — o comment header afirma que parent "compara via JSON.stringify no useMemo" para estabilidade da memo, mas na verdade `React.memo` faz shallow equality nas props e `ConversationList` recebe `summary` direto do state setado pela resposta da API (objetos novos a cada fetch, então memo realmente só ajuda quando o componente compara prop por prop). Comentário cosmético — corrigir aproveitando o mesmo commit do M1/M2, ou registrar como dívida.
+
+### Risk Profile
+
+| Risco | Probabilidade | Impacto | Score | Mitigação |
+|---|---|---|---|---|
+| Badge fantasma após loadOlder confunde user | Alta | Baixo | MEDIUM | Fix M1 |
+| Edge: viewport cabe conversa + loadOlder pula pro fim | Baixa | Médio | MEDIUM | Fix M1 (mesma raiz) |
+| Polling continua quando offline (network 4xx) | Média | Muito baixo | LOW | Bloqueio inicial não vale — toast cobre, próximo ciclo retomada via online listener. Aceitável MVP. |
+| `lib/clients.ts` query sem index dedicado em `clients.phone` | Baixa | Baixo | LOW | `idx_clients_phone` já existe no schema (verificado em `infra/schema.sql:74`). |
+| AC11 (NULL last_agent) quebra layout | Muito baixa | Baixo | LOW | Verificado linha 46 `conversation-row.tsx`: `{summary.last_agent ?? "—"}` em mono cinza. Render seguro. ✅ |
+
+### Coverage map — ACs vs implementação
+
+✅ **Cobertos no código (45):** AC1-AC15 (lista), AC16-AC26 (drill-down), AC27-AC33 (UX/a11y), AC35-AC37 (responsivo — visual fica pra @ux), AC38-AC42 (qualidade core), AC46-AC48 (segurança).
+
+⚠️ **Parcialmente cobertos (2):** AC20 (badge — viola semantica em loadOlder), AC21 (scroll preserve — edge case anulado).
+
+⏳ **Pendentes pós-deploy (3):** AC42 (smoke 7 cenários em prod), AC43 (FCP <1.5s em 4G real), AC44 (validação polling no-flicker em browser real), AC45 (bundle <200KB gzip — medida concreta), AC34 (`prefers-reduced-motion` — verificação em DevTools).
+
+### Recomendação
+
+**1 commit pré-push consolidando 2 fixes obrigatórios + opcionais:**
+
+1. **@dev aplicar fix M1** em `conversation-timeline.tsx` (10 LOC) — bug funcional MEDIUM no AC20/AC21
+2. **@dev aplicar fix M2** em `conversation-list.tsx` (4 LOC) — shape validation antes de cast HIGH/CodeRabbit MAJOR. Replicar em `loadMore` também
+3. **(opcional)** aproveitar o mesmo commit para:
+   - L1: deletar `useOnlineStatusValue` órfã em `use-scroll-preserve.ts` (10 LOC)
+   - I4: corrigir JSDoc impreciso em `conversation-row.tsx` (1 linha)
+4. **L2 e L3** ficam como tech debt no backlog do Epic (próxima story polish)
+5. Após fixes → **gate vira PASS** sem nova gate cerimonial (auto-promote via @dev marcando os 3 ACs afetados)
+6. Depois → `@devops *push` + PR
+7. Smoke AC42 + perf AC43-AC45 + `prefers-reduced-motion` AC34 ficam pra Victor pós-deploy (parte do DoD)
+
+### Status sugerido
+
+Story permanece **Ready for Review** até fix M1. Não troco status (autoridade @dev/@devops). Após fix:
+- @dev marca novo commit + atualiza checkbox AC20/AC21 nas tasks
+- @devops faz push + PR
+- @devops fecha story como Done após smoke prod do Victor
+
+— Quinn, guardião da qualidade 🛡️
 
 ## Handoff
 
