@@ -1,7 +1,7 @@
 # Story 1.3: Admin UI — Conversas Live (lista + drill-down)
 
 **Epic:** [EPIC-studio-tirra-admin-dashboard](epics/EPIC-studio-tirra-admin-dashboard.md)
-**Status:** Ready for Review
+**Status:** Done (código em main; smoke prod pendente Victor pós-deploy manual)
 **Agente executor:** @dev (com input pontual de @ux-design-expert para validar visual)
 **Story Points:** 8
 **Pode executar agora:** ✅ SIM — API 100% pronta em produção desde Story 1.2-DATA (PR #8, commit `b981414`)
@@ -356,6 +356,7 @@ Nenhuma. Esta story implementa fielmente os wireframes T3+T3b consumindo a API e
 | 2026-05-27 | @dev Dex | Fases 0-5 entregues em 3 commits incrementais (Fase 1 setup, Fase 2 lista, Fase 3 drill-down). 16 arquivos novos + 5 modificados. lint ✅ typecheck ✅ build ✅ 22 testes ✅. Status Ready → Ready for Review. 2 pivots vs plan: (1) `lib/clients.ts` adicionado pra AC16/AC22 seguindo pattern lib/conversas/toggles/whitelist da 1.2-DATA — não é backend change; (2) `load-more-old.tsx` embarcado em conversation-timeline.tsx (5 linhas, não justifica arquivo). Smoke prod (Fase 6) bloqueado até deploy. Pendente: `@qa *qa-gate`. |
 | 2026-05-27 | @qa Quinn | QA gate executado — verdict CONCERNS. 7 quality checks. 1 HIGH (M2 — shape validation em fetchList/loadMore, CodeRabbit committed MAJOR) + 1 MEDIUM (M1 — autoscroll/badge dispara em loadOlder, AC20/AC21) + 3 LOW + 1 INFO. Smoke prod e bundle KB pendentes deploy. CodeRabbit report salvo em docs/qa/coderabbit-reports/. Fix recomendado: 1 commit com M1+M2+L1+I4 (~14 LOC). Após fix → gate auto-promove PASS. |
 | 2026-05-27 | @dev Dex | Aplicados os 4 fixes da QA gate em 1 commit conforme recomendação Quinn: M2 (HIGH) shape validation + M1 (MEDIUM) lastNewestIdRef + L1 dead code + I4 JSDoc. lint ✅ typecheck ✅ build ✅ 22 testes ✅. CodeRabbit uncommitted: **0 findings**. Story Ready for Review (clean). Pendente: `@devops *push`. |
+| 2026-05-27 | @devops Gage | Rebase em origin/main (conflict no Change Log da 1.2-DATA resolvido — merge ambas trilhas). Push de `feature/1.3-1.4-ui-conversas-toggles` (10 commits) → **PR #14** criada e mergeada (`e3f704b`). Branch remoto deletado. Sem CI configurada ainda (cobertura na story `feature/devops-auto-deploy-backend`). Deploy manual no VPS pendente Victor. Status → **Done**. Smoke prod (AC42-AC45 + AC34) parte do DoD operacional pós-deploy. |
 
 ## QA Results
 
