@@ -12,7 +12,7 @@ export interface NavLink {
 export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/", label: "Início", enabled: true },
   { href: "/conversas", label: "Conversas", enabled: true },
-  { href: "/toggles", label: "Toggles", enabled: false },
+  { href: "/toggles", label: "Toggles", enabled: true },
   { href: "/metricas", label: "Métricas", enabled: false },
   { href: "/kb", label: "Base de conhecimento", enabled: false },
   { href: "/saude", label: "Saúde", enabled: false },
