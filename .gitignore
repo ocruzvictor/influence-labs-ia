@@ -46,3 +46,4 @@ docs/raw-materials/
 
 # Agent Handoffs — podem conter credenciais de sessão
 .aios/handoffs/
+.claude/worktrees/
