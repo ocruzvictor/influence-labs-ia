@@ -164,3 +164,4 @@ Depois:
 | 2026-05-26 | @ux-design-expert Uma | Wireframes low-fi das 6 telas em `docs/design/admin-dashboard/wireframes.md` |
 | 2026-05-26 | @sm River | Story 1.1 (Auth + scaffold) draftada |
 | 2026-05-26 | @po Pax | Story 1.1 validada 9/10 GO → Ready |
+| 2026-05-27 | @sm River | Stories 1.3 (UI conversas live) e 1.4 (UI toggle+whitelist) draftadas — consomem API entregue pela 1.2-DATA. Stubs do drill-down ficam disabled em 1.3 e são ativados em 1.4. Atalhos teclado movidos pra story polish futura. |
