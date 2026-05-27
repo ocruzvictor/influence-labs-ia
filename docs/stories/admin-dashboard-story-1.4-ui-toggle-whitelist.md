@@ -1,7 +1,7 @@
 # Story 1.4: Admin UI — Toggles + Whitelist (kill switch + controle por número)
 
 **Epic:** [EPIC-studio-tirra-admin-dashboard](epics/EPIC-studio-tirra-admin-dashboard.md)
-**Status:** Draft
+**Status:** Ready
 **Agente executor:** @dev
 **Story Points:** 5
 **Pode executar agora:** ✅ SIM — API 100% pronta em produção (Story 1.2-DATA, PR #8, commit `b981414`). Esta story pode rodar paralela à 1.3, mas se 1.3 mergeou primeiro o "atalho Pausar bot" do drill-down liga aqui
@@ -315,6 +315,7 @@ Nenhuma. Implementa fielmente wireframe T4 consumindo API da Story 1.2-DATA. Sem
 | Data | Quem | Mudança |
 |---|---|---|
 | 2026-05-27 | @sm River | Story draftada a partir do epic, wireframe T4, contratos `/api/toggles` e `/api/whitelist/*` deployados na 1.2-DATA, e consult com advisor (stubs do drill-down condicional à 1.3, notas fora de escopo por falta de schema) |
+| 2026-05-27 | @po Pax | Validate-story-draft 10/10 GO → Status Draft → Ready. Observações não-bloqueantes: ACs 29-31 condicionais à 1.3 (bem tratado); D5 "Pausar bot 1h" sem expiração real é decisão deliberada — registrar como backlog futuro se virar dor; AC43 smoke fim-a-fim em prod depende de Kapso conectado (não bloqueia dev local). Pode iniciar `@dev *develop`. |
 
 ## QA Results
 

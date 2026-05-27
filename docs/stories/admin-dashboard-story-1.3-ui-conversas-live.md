@@ -1,7 +1,7 @@
 # Story 1.3: Admin UI — Conversas Live (lista + drill-down)
 
 **Epic:** [EPIC-studio-tirra-admin-dashboard](epics/EPIC-studio-tirra-admin-dashboard.md)
-**Status:** Draft
+**Status:** Ready
 **Agente executor:** @dev (com input pontual de @ux-design-expert para validar visual)
 **Story Points:** 8
 **Pode executar agora:** ✅ SIM — API 100% pronta em produção desde Story 1.2-DATA (PR #8, commit `b981414`)
@@ -328,6 +328,7 @@ Nenhuma. Esta story implementa fielmente os wireframes T3+T3b consumindo a API e
 | Data | Quem | Mudança |
 |---|---|---|
 | 2026-05-27 | @sm River | Story draftada a partir do epic, wireframes T3+T3b, contratos `/api/conversas/*` deployados na 1.2-DATA, e consult com advisor (4 ajustes críticos: stubs disabled, NULL agent fallback, AGENTS.md em destaque, atalhos cortados pro polish 1.7) |
+| 2026-05-27 | @po Pax | Validate-story-draft 10/10 GO → Status Draft → Ready. Observações não-bloqueantes: AC count alto (48) mas todos observáveis; AC11 (NULL agent) herda dívida 1.2-DATA Fase 2 #10 — OK; smoke AC42 depende de admin-frontend deployado (não bloqueia dev local). Pode iniciar `@dev *develop`. |
 
 ## QA Results
 
