@@ -15,6 +15,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const db = require('./db');
+const { splitMessage, sleep } = require('./lib/message-splitter');
 
 // --- Load .env (zero deps) ---
 try {
@@ -1118,15 +1119,13 @@ async function notifyTiagoHandoff({ motivo, clientPhone, clientName, lastClientM
   }
 }
 
-async function sendKapsoMessage(to, text, phoneNumberId) {
-  if (!KAPSO_API_KEY) {
-    console.error('[kapso] KAPSO_API_KEY ausente — nao envio mensagem');
-    return;
-  }
-  if (!phoneNumberId) {
-    console.error('[kapso] phone_number_id ausente — nao envio mensagem');
-    return;
-  }
+// Delay entre bolhas quando uma resposta tem multiplos <break>.
+// Simula tempo de digitacao humano. Configuravel via env (default 1100ms).
+const BUBBLE_DELAY_MS = Math.max(0, Number(process.env.BUBBLE_DELAY_MS) || 1100);
+
+// Envia uma unica bolha para a Kapso (sem split, sem delay).
+// Helper interno usado por sendKapsoMessage.
+async function sendKapsoSingle(to, text, phoneNumberId) {
   const url = `${KAPSO_API_BASE}/meta/whatsapp/${KAPSO_API_VERSION}/${phoneNumberId}/messages`;
   const res = await fetch(url, {
     method: 'POST',
@@ -1145,6 +1144,31 @@ async function sendKapsoMessage(to, text, phoneNumberId) {
   const body = await res.text().catch(() => '');
   if (!res.ok) console.error(`[kapso] send → ${res.status}: ${body.slice(0, 300)}`);
   else console.log(`[kapso] send → ${res.status} para ${to}`);
+}
+
+// Envia mensagem para a Kapso, com split tag-aware se o texto conter <break>.
+// Comportamento:
+//   - Texto sem <break>: send unico (zero overhead, identico ao comportamento anterior)
+//   - Texto com <break>: split em bolhas, envia em sequencia com BUBBLE_DELAY_MS entre
+//   - Tags inline ([BOOKING_*], [HANDOFF_*]) sempre integras (garantia do splitter)
+async function sendKapsoMessage(to, text, phoneNumberId) {
+  if (!KAPSO_API_KEY) {
+    console.error('[kapso] KAPSO_API_KEY ausente — nao envio mensagem');
+    return;
+  }
+  if (!phoneNumberId) {
+    console.error('[kapso] phone_number_id ausente — nao envio mensagem');
+    return;
+  }
+  const bubbles = splitMessage(text);
+  if (bubbles.length === 0) {
+    console.warn('[kapso] sendKapsoMessage chamado com texto vazio — skip');
+    return;
+  }
+  for (let i = 0; i < bubbles.length; i++) {
+    if (i > 0) await sleep(BUBBLE_DELAY_MS);
+    await sendKapsoSingle(to, bubbles[i], phoneNumberId);
+  }
 }
 
 function validateKapsoSignature(req) {
