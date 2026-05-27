@@ -16,6 +16,7 @@ const cors = require('cors');
 const crypto = require('crypto');
 const db = require('./db');
 const { splitMessage, sleep } = require('./lib/message-splitter');
+const { getBotState } = require('./lib/bot-state');
 
 // --- Load .env (zero deps) ---
 try {
@@ -1297,15 +1298,39 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     ]).catch(err => console.error('[passive-log] erro:', err.message));
   }
 
-  // 4. Whitelist de telefones (modo teste — bot silencioso por padrao)
+  // 4. Bot state via DB (Story 1.2-DATA): toggles + whitelist com cache 5s.
+  // Fallback ao BOT_ALLOWED_PHONES/BOT_ACCEPT_ALL env se DB indisponível ou whitelist vazia.
+  const botState = await getBotState();
+
+  // 4a. Kill switch global (apenas se DB disponível)
+  if (botState.toggles && botState.toggles.global === false) {
+    console.log(`[kapso][${sessionId}] BOT GLOBAL DESLIGADO via DB — silencioso`);
+    return res.json({ ok: true });
+  }
+
+  // 4b. Whitelist por número
   if (!BOT_ACCEPT_ALL) {
-    if (BOT_ALLOWED_PHONES.length === 0) {
-      console.log(`[kapso][${sessionId}] WHITELIST VAZIA — bot silencioso (defina BOT_ALLOWED_PHONES ou BOT_ACCEPT_ALL=true)`);
-      return res.json({ ok: true });
-    }
-    if (!BOT_ALLOWED_PHONES.includes(sessionPhone)) {
-      console.log(`[kapso][${sessionId}] telefone fora do whitelist — bot inativo (logado passivamente)`);
-      return res.json({ ok: true });
+    if (botState.whitelist && botState.whitelist.size > 0) {
+      // DB autoritativo
+      const mode = botState.whitelist.get(sessionPhone);
+      if (mode === 'block' || mode === 'human_only') {
+        console.log(`[kapso][${sessionId}] phone ${sessionPhone} mode=${mode} via DB — bot inativo`);
+        return res.json({ ok: true });
+      }
+      if (mode !== 'allow') {
+        console.log(`[kapso][${sessionId}] phone ${sessionPhone} ausente da whitelist DB — bot inativo`);
+        return res.json({ ok: true });
+      }
+    } else {
+      // Fallback legacy: DB indisponível ou whitelist vazia → env BOT_ALLOWED_PHONES
+      if (BOT_ALLOWED_PHONES.length === 0) {
+        console.log(`[kapso][${sessionId}] WHITELIST VAZIA (DB+env) — bot silencioso`);
+        return res.json({ ok: true });
+      }
+      if (!BOT_ALLOWED_PHONES.includes(sessionPhone)) {
+        console.log(`[kapso][${sessionId}] telefone fora do whitelist env (fallback) — bot inativo`);
+        return res.json({ ok: true });
+      }
     }
   }
 
@@ -1584,6 +1609,7 @@ app.get('/health', (req, res) => {
       accept_all: BOT_ACCEPT_ALL,
       whitelist_count: BOT_ALLOWED_PHONES.length,
       mode: BOT_ACCEPT_ALL ? 'OPEN' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT' : 'WHITELIST'),
+      whitelist_source: 'see /admin/api/whitelist (Story 1.2-DATA cutover in progress)',
       human_handled: {
         active_count: humanHandledUntil.size,
         ttl_hours: HUMAN_HANDLED_TTL_MS / 3600000,

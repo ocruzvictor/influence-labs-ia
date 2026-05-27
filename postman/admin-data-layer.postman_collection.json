@@ -1,0 +1,267 @@
+{
+  "info": {
+    "name": "Studio Tirra Admin — Data Layer (Story 1.2-DATA)",
+    "description": "Coleção de requests para validar os 12 ACs da Story 1.2-DATA contra https://admin.studiotirra.com.br ou http://localhost:3002.\n\n**Setup:**\n1. Login no admin pelo navegador (magic link) — copia o cookie `session` (httpOnly cookie do dev tools)\n2. Em variables, set `adminBaseUrl` e `sessionCookie`\n3. Roda requests na ordem da pasta (alguns dependem de PATCH/POST anterior)\n\n**ACs cobertos:** 12/12 (AC1-AC12 da story).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "adminBaseUrl",
+      "value": "http://localhost:3002",
+      "description": "Prod: https://admin.studiotirra.com.br"
+    },
+    {
+      "key": "sessionCookie",
+      "value": "",
+      "description": "Cookie session JWT — copia do dev tools após login no painel"
+    },
+    {
+      "key": "testPhone",
+      "value": "5511964540007",
+      "description": "Phone real whitelisted (Victor) para testes seguros"
+    },
+    {
+      "key": "victorUserId",
+      "value": "",
+      "description": "UUID do user Victor em admin_users (para AC10)"
+    }
+  ],
+  "item": [
+    {
+      "name": "0 — Smoke (sem auth)",
+      "item": [
+        {
+          "name": "AC1: GET /api/conversas SEM cookie → 401",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/conversas",
+            "description": "AC1 — Auth bloqueia sem cookie. Esperado: 302 redirect /login ou 401"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 — Conversas",
+      "item": [
+        {
+          "name": "AC2: GET /api/conversas?status=all",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{adminBaseUrl}}/api/conversas?status=all&limit=50",
+              "host": ["{{adminBaseUrl}}"],
+              "path": ["api", "conversas"],
+              "query": [
+                { "key": "status", "value": "all" },
+                { "key": "limit", "value": "50" }
+              ]
+            },
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "AC2 — Lista autenticada com DB vazio retorna {items:[],next_cursor:null}"
+          }
+        },
+        {
+          "name": "AC3: GET /api/conversas?status=active",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/conversas?status=active",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "AC3 — Filtro status=active retorna só items com is_active_4h=true"
+          }
+        },
+        {
+          "name": "AC4: GET /api/conversas paginação cursor",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/conversas?limit=2",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "AC4 — Pegar next_cursor da resposta, refazer com ?cursor=<valor>&limit=2. Items NÃO devem se repetir."
+          }
+        },
+        {
+          "name": "AC5: GET /api/conversas/999999999999",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/conversas/999999999999",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "AC5 — Drill-down de phone inexistente retorna {phone, messages:[], has_more:false}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 — Toggles",
+      "item": [
+        {
+          "name": "GET /api/toggles (state inicial)",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/toggles",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "Lista 3 toggles iniciais (global, feature:audio, feature:supervisor)"
+          }
+        },
+        {
+          "name": "AC6: PATCH /api/toggles global=false",
+          "request": {
+            "method": "PATCH",
+            "url": "{{adminBaseUrl}}/api/toggles",
+            "header": [
+              { "key": "Cookie", "value": "session={{sessionCookie}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"key\": \"global\", \"enabled\": false}"
+            },
+            "description": "AC6 — Após PATCH, bot para de responder em <=5s. Smoke real: manda msg WhatsApp do testPhone. Bot deve silenciar."
+          }
+        },
+        {
+          "name": "AC7: PATCH /api/toggles global=true",
+          "request": {
+            "method": "PATCH",
+            "url": "{{adminBaseUrl}}/api/toggles",
+            "header": [
+              { "key": "Cookie", "value": "session={{sessionCookie}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"key\": \"global\", \"enabled\": true}"
+            },
+            "description": "AC7 — Bot volta a responder em <=5s. Smoke real: manda msg WhatsApp. Bot deve responder."
+          }
+        },
+        {
+          "name": "AC11: PATCH /api/toggles key=GLOBAL (uppercase)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{adminBaseUrl}}/api/toggles",
+            "header": [
+              { "key": "Cookie", "value": "session={{sessionCookie}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"key\": \"GLOBAL\", \"enabled\": false}"
+            },
+            "description": "AC11 — Zod regex rejeita uppercase. Esperado: 400 com {error:'invalid_key_format',code:'validation'}"
+          }
+        },
+        {
+          "name": "AC12: PATCH /api/toggles key=inexistente",
+          "request": {
+            "method": "PATCH",
+            "url": "{{adminBaseUrl}}/api/toggles",
+            "header": [
+              { "key": "Cookie", "value": "session={{sessionCookie}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"key\": \"toggle_inexistente\", \"enabled\": false}"
+            },
+            "description": "AC12 — Key não cadastrada. Esperado: 404 com {error:'toggle_not_found',code:'not_found'}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 — Whitelist",
+      "item": [
+        {
+          "name": "GET /api/whitelist",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/whitelist",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "Lista whitelist atual (3 phones seedados pela migration 002 após apply)"
+          }
+        },
+        {
+          "name": "AC8: POST /api/whitelist phone=...&mode=block",
+          "request": {
+            "method": "POST",
+            "url": "{{adminBaseUrl}}/api/whitelist",
+            "header": [
+              { "key": "Cookie", "value": "session={{sessionCookie}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"phone\": \"5511999998888\", \"mode\": \"block\", \"reason\": \"Teste AC8 — bloquear este phone\"}"
+            },
+            "description": "AC8 — Após POST, próxima msg do 5511999998888 é silenciada. Log do backend mostra 'mode=block'. Smoke real necessário."
+          }
+        },
+        {
+          "name": "GET /api/whitelist?mode=block",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/whitelist?mode=block",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "Filtro por mode — retorna só os com mode=block"
+          }
+        },
+        {
+          "name": "DELETE /api/whitelist/5511999998888 (cleanup AC8)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{adminBaseUrl}}/api/whitelist/5511999998888",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "Limpa entry do AC8. Esperado: 204 No Content."
+          }
+        },
+        {
+          "name": "POST /api/whitelist phone inválido",
+          "request": {
+            "method": "POST",
+            "url": "{{adminBaseUrl}}/api/whitelist",
+            "header": [
+              { "key": "Cookie", "value": "session={{sessionCookie}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"phone\": \"123\", \"mode\": \"allow\"}"
+            },
+            "description": "Phone com 3 dígitos rejeitado. Esperado: 400 com 'invalid_phone_format'"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 — Audit log",
+      "item": [
+        {
+          "name": "AC9: GET /api/audit-log (após PATCH /api/toggles)",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/audit-log?action=toggle.set&limit=5",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "AC9 — Após AC6/AC7, audit log tem entries com action='toggle.set', target_id='global', payload {before, after}"
+          }
+        },
+        {
+          "name": "AC10: GET /api/audit-log?user_id=<victor>",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/audit-log?user_id={{victorUserId}}",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "AC10 — Filtro por user_id retorna SOMENTE entries daquele usuário. Setar variable victorUserId antes."
+          }
+        },
+        {
+          "name": "GET /api/audit-log action prefix",
+          "request": {
+            "method": "GET",
+            "url": "{{adminBaseUrl}}/api/audit-log?action=whitelist.*&limit=10",
+            "header": [{ "key": "Cookie", "value": "session={{sessionCookie}}" }],
+            "description": "Prefix match: action=whitelist.* (vira whitelist.% no LIKE SQL)"
+          }
+        }
+      ]
+    }
+  ]
+}
