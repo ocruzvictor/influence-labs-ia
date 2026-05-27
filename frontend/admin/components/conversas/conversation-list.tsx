@@ -35,6 +35,15 @@ interface ListResponse {
   next_cursor: string | null;
 }
 
+/** Guarda runtime mínimo — evita crash quando a API muda shape ou devolve erro semi-formado. */
+function isListResponse(value: unknown): value is ListResponse {
+  if (!value || typeof value !== "object") return false;
+  const v = value as { items?: unknown; next_cursor?: unknown };
+  if (!Array.isArray(v.items)) return false;
+  if (v.next_cursor !== null && typeof v.next_cursor !== "string") return false;
+  return true;
+}
+
 interface Props {
   /** Nomes pré-carregados pela page Server Component (phone → name). */
   initialNamesByPhone: Record<string, string | null>;
@@ -102,7 +111,11 @@ export function ConversationList({ initialNamesByPhone }: Props): React.ReactEle
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
-        const data = (await res.json()) as ListResponse;
+        const raw: unknown = await res.json();
+        if (!isListResponse(raw)) {
+          throw new Error("invalid_response_shape");
+        }
+        const data = raw;
         // Descarta resposta se outra requisição mais nova já completou
         if (seq !== fetchSeq.current) return;
         setItems(data.items);
@@ -153,7 +166,11 @@ export function ConversationList({ initialNamesByPhone }: Props): React.ReactEle
         cache: "no-store",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as ListResponse;
+      const raw: unknown = await res.json();
+      if (!isListResponse(raw)) {
+        throw new Error("invalid_response_shape");
+      }
+      const data = raw;
       setItems((prev) => [...prev, ...data.items]);
       setNextCursor(data.next_cursor);
     } catch {

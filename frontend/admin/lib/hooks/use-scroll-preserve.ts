@@ -53,14 +53,3 @@ export function useScrollPreserve<T extends HTMLElement>(
 
   return { capture, pendingRef };
 }
-
-/**
- * useOnlineStatus — simples wrapper de `navigator.onLine` + listeners.
- * Útil para banner offline (AC: estados de borda).
- */
-export function useOnlineStatusValue(): boolean {
-  // Implementação fica em arquivo próprio — aqui só re-export pra co-localizar
-  // hooks de "comportamento do browser". Ver use-online-status.ts.
-  if (typeof navigator === "undefined") return true;
-  return navigator.onLine;
-}

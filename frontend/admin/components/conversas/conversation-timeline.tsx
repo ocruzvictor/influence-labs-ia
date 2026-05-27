@@ -46,6 +46,10 @@ export function ConversationTimeline({ phone }: Props): React.ReactElement {
   const isAtBottomRef = useRef(true);
   const { capture } = useScrollPreserve(containerRef);
   const fetchSeq = useRef(0);
+  // Rastreia id da última mensagem (mais recente) já renderizada.
+  // Distingue "prepend de mensagens antigas" (mesma última msg) de
+  // "polling trouxe nova mensagem" (última msg id mudou).
+  const lastNewestIdRef = useRef<number | null>(null);
 
   // ─── Helpers ───────────────────────────────────────────────────────────
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto"): void => {
@@ -97,14 +101,22 @@ export function ConversationTimeline({ phone }: Props): React.ReactElement {
     return () => clearTimeout(id);
   }, [fetchRecent]);
 
-  // Quando lista de mensagens muda E user está no fim → autoscroll
+  // Quando lista de mensagens muda E houve mensagem nova no fim → considerar autoscroll/badge.
+  // Se a última msg permanece a mesma, o effect ignora (caso de prepend via loadOlder
+  // ou polling no-op) — assim evitamos badge fantasma e não anulamos useScrollPreserve.
   useEffect(() => {
     if (messages.length === 0) return;
     const el = containerRef.current;
     if (!el) return;
+    const currentNewestId = messages[messages.length - 1]!.id;
+    if (lastNewestIdRef.current === currentNewestId) return;
+    const isFirstPaint = lastNewestIdRef.current === null;
+    lastNewestIdRef.current = currentNewestId;
+
     if (isAtBottomRef.current) {
-      // Defer pra próximo paint
-      requestAnimationFrame(() => scrollToBottom("smooth"));
+      // No primeiro paint vai com "auto" pra evitar animação visível do nada;
+      // depois usa smooth pra novas mensagens.
+      requestAnimationFrame(() => scrollToBottom(isFirstPaint ? "auto" : "smooth"));
     } else {
       setHasNewBelow(true);
     }

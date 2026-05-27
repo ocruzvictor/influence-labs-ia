@@ -1,9 +1,12 @@
 /**
  * ConversationRow — single row da tabela de conversas.
  *
- * Memoized — props referentes a `summary` chegam estáveis por polling
- * (mesma referência se conteúdo não mudou — parent compara via JSON.stringify
- * no useMemo do items array).
+ * Memoizada via `React.memo` (shallow prop equality). O parent `ConversationList`
+ * cria novos objetos `summary` a cada fetch — então o memo só evita re-render
+ * quando o React identifica que `summary`, `clientName` e `preservedQuery` são
+ * a mesma referência do paint anterior (caso do polling no-op, onde `setItems`
+ * com mesma lista é debatível mas ocorre raramente). Em fetchs reais com dados
+ * novos a row re-renderiza — o que é o comportamento esperado.
  */
 
 "use client";

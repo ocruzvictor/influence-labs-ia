@@ -193,8 +193,19 @@ Entregar:
 
 - [ ] Smoke local apontando pra API prod — não rodado nesta sessão; fica pra Victor após @devops deploy
 - [ ] Smoke 7 ACs (AC2, AC4, AC9, AC10, AC16, AC20, AC21) em prod — bloqueado por deploy
-- [x] Commits locais 3/3 (Fase 1 + Fase 2 + Fase 3 em commits separados pra rollback cirúrgico se preciso)
-- [x] Handoff próximo: `@qa *qa-gate` antes do `@devops *push`
+- [x] Commits locais 4/4 (Fase 1 + Fase 2 + Fase 3 + QA fixes)
+- [x] Handoff próximo: `@devops *push` (gate auto-promove pra PASS após fixes M1+M2)
+
+### Fase 7 — QA fixes (~30min) ✅ CONCLUÍDA 2026-05-27
+
+Aplicação dos 2 fixes obrigatórios (M1 + M2) + 2 cleanups (L1 + I4) identificados pela @qa Quinn na gate CONCERNS.
+
+- [x] **M2 (HIGH/CodeRabbit MAJOR):** `conversation-list.tsx` — adicionado guard `isListResponse()` antes do cast em `fetchList` e `loadMore`. API com shape inesperada cai no catch → toast em vez de runtime crash.
+- [x] **M1 (MEDIUM):** `conversation-timeline.tsx` — adicionado `lastNewestIdRef` no effect `[messages]`. Distingue prepend (loadOlder) de novas mensagens (polling) via comparação do id da última msg. AC20 badge correto + AC21 scroll preserve não é mais anulado.
+- [x] **L1 (LOW):** Deletada função órfã `useOnlineStatusValue` em `use-scroll-preserve.ts` (10 LOC dead code).
+- [x] **I4 (informational):** Corrigido JSDoc de `conversation-row.tsx` — descrição precisa do mecanismo de memo (shallow equality via React.memo, não JSON.stringify).
+- [x] Validações pós-fix: lint ✅ typecheck ✅ build ✅ 22 testes ✅
+- [x] CodeRabbit uncommitted scan: **0 findings** ✅
 
 ## File List
 
@@ -343,6 +354,8 @@ Nenhuma. Esta story implementa fielmente os wireframes T3+T3b consumindo a API e
 | 2026-05-27 | @sm River | Story draftada a partir do epic, wireframes T3+T3b, contratos `/api/conversas/*` deployados na 1.2-DATA, e consult com advisor (4 ajustes críticos: stubs disabled, NULL agent fallback, AGENTS.md em destaque, atalhos cortados pro polish 1.7) |
 | 2026-05-27 | @po Pax | Validate-story-draft 10/10 GO → Status Draft → Ready. Observações não-bloqueantes: AC count alto (48) mas todos observáveis; AC11 (NULL agent) herda dívida 1.2-DATA Fase 2 #10 — OK; smoke AC42 depende de admin-frontend deployado (não bloqueia dev local). Pode iniciar `@dev *develop`. |
 | 2026-05-27 | @dev Dex | Fases 0-5 entregues em 3 commits incrementais (Fase 1 setup, Fase 2 lista, Fase 3 drill-down). 16 arquivos novos + 5 modificados. lint ✅ typecheck ✅ build ✅ 22 testes ✅. Status Ready → Ready for Review. 2 pivots vs plan: (1) `lib/clients.ts` adicionado pra AC16/AC22 seguindo pattern lib/conversas/toggles/whitelist da 1.2-DATA — não é backend change; (2) `load-more-old.tsx` embarcado em conversation-timeline.tsx (5 linhas, não justifica arquivo). Smoke prod (Fase 6) bloqueado até deploy. Pendente: `@qa *qa-gate`. |
+| 2026-05-27 | @qa Quinn | QA gate executado — verdict CONCERNS. 7 quality checks. 1 HIGH (M2 — shape validation em fetchList/loadMore, CodeRabbit committed MAJOR) + 1 MEDIUM (M1 — autoscroll/badge dispara em loadOlder, AC20/AC21) + 3 LOW + 1 INFO. Smoke prod e bundle KB pendentes deploy. CodeRabbit report salvo em docs/qa/coderabbit-reports/. Fix recomendado: 1 commit com M1+M2+L1+I4 (~14 LOC). Após fix → gate auto-promove PASS. |
+| 2026-05-27 | @dev Dex | Aplicados os 4 fixes da QA gate em 1 commit conforme recomendação Quinn: M2 (HIGH) shape validation + M1 (MEDIUM) lastNewestIdRef + L1 dead code + I4 JSDoc. lint ✅ typecheck ✅ build ✅ 22 testes ✅. CodeRabbit uncommitted: **0 findings**. Story Ready for Review (clean). Pendente: `@devops *push`. |
 
 ## QA Results
 
