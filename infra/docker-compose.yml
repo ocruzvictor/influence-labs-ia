@@ -206,6 +206,35 @@ services:
       timeout: 5s
       retries: 10
 
+  # Postgres isolado SOMENTE para testes de integração do admin-frontend (Story 1.2-DATA Fase 3).
+  # Não roda por default — apenas quando `--profile test` é passado.
+  # Usage: docker compose --profile test up -d postgres-test
+  # Port 5433 (não conflita com o prod postgres na 5432 interno).
+  postgres-test:
+    image: postgres:17-bookworm
+    container_name: postgres-test
+    profiles: ["test"]
+    environment:
+      POSTGRES_PASSWORD: test
+      POSTGRES_USER: postgres
+      # Mesmo nome do prod (container isolado, sem conflito). Permite que os scripts
+      # schema.sql + migrations rodem com `\c influence_labs_salon` sem ajustes.
+      POSTGRES_DB: influence_labs_salon
+    ports:
+      - "5433:5432"
+    volumes:
+      # schema.sql + migration 001 + migration 002 — ordem alfabética é respeitada por initdb.
+      - ./schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+      - ./migrations/001_admin_dashboard.sql:/docker-entrypoint-initdb.d/01-admin.sql:ro
+      - ./migrations/002_seed_whitelist_from_env.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d influence_labs_salon"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    tmpfs:
+      - /var/lib/postgresql/data  # in-memory: testes rápidos, sem persistência
+
   redis:
     image: redis:${REDIS_IMAGE_TAG:-7.4.7-alpine}
     container_name: redis
