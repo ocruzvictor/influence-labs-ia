@@ -334,6 +334,43 @@ async function fetchTrinks(path) {
   return res.json();
 }
 
+// --- Trinks health ping (Story 1.7) ---
+// Cache 60s aplicado em sucesso E falha pra nao martelar Trinks em outage.
+const TRINKS_PING_TTL_MS = 60_000;
+const TRINKS_SLOW_THRESHOLD_MS = 1500;
+let trinksPingCache = { payload: null, expiresAt: 0 };
+
+async function pingTrinks() {
+  const now = Date.now();
+  if (trinksPingCache.payload && now < trinksPingCache.expiresAt) {
+    return { ...trinksPingCache.payload, cached: true };
+  }
+  try {
+    const t0 = Date.now();
+    await fetchTrinks('/servicos');
+    const latency_ms = Date.now() - t0;
+    const payload = {
+      status: latency_ms > TRINKS_SLOW_THRESHOLD_MS ? 'slow' : 'ok',
+      latency_ms,
+      last_checked_at: new Date().toISOString(),
+    };
+    trinksPingCache = { payload, expiresAt: Date.now() + TRINKS_PING_TTL_MS };
+    return { ...payload, cached: false };
+  } catch (err) {
+    const payload = {
+      status: 'down',
+      latency_ms: null,
+      last_checked_at: new Date().toISOString(),
+      error: 'ping_failed',
+    };
+    trinksPingCache = { payload, expiresAt: Date.now() + TRINKS_PING_TTL_MS };
+    return { ...payload, cached: false };
+  }
+}
+
+// Postgres last-OK tracker (Story 1.7)
+let globalLastOkAt = null;
+
 async function getSlots(date) {
   try {
     const json = await fetchTrinks(`/agendamentos/profissionais/${date}`);
@@ -1612,7 +1649,18 @@ supervisor.startScheduler({
 });
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  // Postgres ping (Story 1.7 AC6) — atualiza globalLastOkAt em sucesso
+  try {
+    const r = await db.query('SELECT 1');
+    if (r) globalLastOkAt = new Date().toISOString();
+  } catch (_e) {
+    // mantem valor anterior; ausencia de DATABASE_URL faz query() retornar null sem throw
+  }
+
+  // Trinks ping (Story 1.7 AC7) — cache 60s, isolado por try/catch interno
+  const trinks_ping = await pingTrinks();
+
   res.json({
     status: 'ok',
     service: 'studio-tirra-webchat',
@@ -1621,6 +1669,12 @@ app.get('/health', (req, res) => {
       agent_id: TESS_AGENT_ID,
       url: TESS_URL,
     },
+    postgres: {
+      pool: db.getPoolStats(),
+      uptime_seconds: process.uptime(),
+      last_ok_query_at: globalLastOkAt,
+    },
+    trinks_ping,
     bot: {
       accept_all: BOT_ACCEPT_ALL,
       whitelist_count: BOT_ALLOWED_PHONES.length,
