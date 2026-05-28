@@ -116,6 +116,9 @@ services:
       BOT_ACCEPT_ALL: ${BOT_ACCEPT_ALL:-false}
       HUMAN_HANDLED_TTL_HOURS: ${HUMAN_HANDLED_TTL_HOURS:-6}
       TESS_AGENT_SUPERVISOR_ID: ${TESS_AGENT_SUPERVISOR_ID}
+      # Story 1.5 — KB dinâmica: backend Tirra envia memory_collections=[<id>]
+      # em cada callTESS() quando setado. Vazio = graceful degradation (bot opera sem KB).
+      TIRRA_KB_COLLECTION_ID: ${TIRRA_KB_COLLECTION_ID:-}
       META_VERIFY_TOKEN: ${META_VERIFY_TOKEN:-studio-tirra-verify-2026}
       META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
       META_PHONE_NUMBER_ID: ${META_PHONE_NUMBER_ID}
@@ -144,6 +147,12 @@ services:
       ADMIN_PUBLIC_URL: ${ADMIN_PUBLIC_URL:-https://admin.studiotirra.com.br}
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:3001}
       BACKEND_INTERNAL_TOKEN: ${BACKEND_INTERNAL_TOKEN}
+      # Story 1.5 — KB editor: admin precisa de TESS_API_TOKEN pra fazer CRUD em
+      # memories (proxy do route handler /api/kb/*). TIRRA_KB_COLLECTION_ID alimenta
+      # env.ts pra UI saber se está configurada (sem ID → banner + botão disabled).
+      TESS_API_TOKEN: ${TESS_API_TOKEN}
+      TESS_API_BASE: ${TESS_API_BASE:-https://tess.pareto.io}
+      TIRRA_KB_COLLECTION_ID: ${TIRRA_KB_COLLECTION_ID:-}
     depends_on:
       postgres:
         condition: service_healthy
