@@ -282,6 +282,7 @@ Em arquitetura (§1 Charts = Recharts; §17). Adicionar dep ao admin. Como a hom
 |------|---------|-------------|--------|
 | 2026-05-28 | 0.1 | Story 1.6 draftada. Descoberta crítica: Trinks sync worker nunca foi construído → `trinks_appointments` vazia. Victor decidiu incluir o worker nesta story (13 SP). Escopo: Fase 0 (verificação endpoint Trinks) + worker (backend image, container isolado) + `lib/metrics.ts` + `/api/metricas` + `/api/overview` + telas `/metricas` (Tela 5) e home `/` (Tela 2) com Recharts. Reuso forte das views `v_admin_appointments_daily`/`v_admin_conversations_summary` (migration 001), `fetchTrinks`, `db.js`, `usePolling`, `format/*`. Heatmap/sparklines/export CSV/alertas → OUT (V2/V1.1). Riscos P0: endpoint Trinks de listagem (Fase 0) + normalização de telefone pro join da taxa de sucesso. | @sm River |
 | 2026-05-28 | 0.2 | Adicionada **AC14-BASE** (P0) após review: conflito de base temporal entre arch §9.1 (`created_at_trinks`/booking) e a view `v_admin_appointments_daily` (`scheduled_at`/atendimento; coluna `created` é armadilha). Fixada a base por tela (booking em `/metricas` KPI+chart; `scheduled_at` em home/no-show/cancelamento) + teto superior em queries retrospectivas. Dev Notes §Risco P0 base temporal. | @sm River |
+| 2026-05-28 | 1.3 | **@dev: validação de integração contra schema real** (postgres-test). `getMetrics`/`getOverview` + worker `upsertChunk` executam corretamente (4 novos testes em `tests/api/metrics.test.ts`); suíte completa 99/99 pass. **Corrigido stub `admin-trinks-sync` duplicado no compose** (quebraria o deploy inteiro). Flags QA reduzidas a EXPLAIN + smoke prod (precisam de volume real). | @dev Dex |
 | 2026-05-28 | 1.2 | **@dev: Fases 2-3 (dashboard) implementadas → Ready for Review.** `lib/metrics.ts` + `/api/metricas` + `/api/overview` + `/metricas` (Recharts) + home overview + nav. Decisões D-A (worker backend) e D-B (phone /clientes cacheado) aplicadas. Validações: typecheck 0, lint 0, build 28 rotas, admin 78 testes pass (73+5) + backend 35 pass. Self-review pegou bug latente (params SQL sem cast `::int`). CodeRabbit self-healing: iter1 1 CRITICAL (optional chaining) auto-fix + 2 minors reais; iter2 0 CRITICAL. 2 minors documentados (trend-overlap tech-debt + skips justificados). Pendente QA/Victor: EXPLAIN + SQL contra DB real + smoke (sem acesso a DB local). Próximo: `@devops *push`. | @dev Dex |
 | 2026-05-28 | 1.1 | **@dev: Fase 0 executada (probes read-only Trinks, sem mutação) → InProgress.** Endpoint `/agendamentos?dataInicio&dataFim` confirmado (paginado, filtro por `scheduled_at`). Status no-show existe (id 6). 2 gaps achados: `created_at_trinks` não existe na API (→ tudo keyed em `scheduled_at`, NULL na coluna); telefone só via `/clientes/:id` N+1 (só afeta taxa de sucesso). De-para campos+status gravado em Completion Notes. **Bloqueado em 2 decisões com Victor:** (D-A) placement worker; (D-B) approach taxa de sucesso. | @dev Dex |
 | 2026-05-28 | 1.0 | **Validada GO 9/10 → Ready.** Anti-alucinação limpo (refs conferidas no código: `db.js`, `fetchTrinks`, views, `digitsOnly`, `usePolling`; Recharts e cron confirmados ausentes). 2 Should-Fix aplicados: (1) **AC14 corrigido** — métricas de período (takeovers/conversas/mensagens) devem consultar `conversation_history` direto com janela; **proibido** usar `had_takeover` de `v_admin_conversations_summary` (view é lifetime per-phone, sem janela temporal); (2) denominador de "Msgs/dia" explicitado (dias do período). Condições pré-dev registradas no header (Fase 0 first + @architect confirma Decisão A + checkpoint após worker). 0 critical. CodeRabbit completo. Pronta para `@dev *develop 1.6`. | @po Pax |
@@ -346,10 +347,16 @@ claude-opus-4-8 (@dev Dex)
 - **Tech-debt (trend-only):** janelas de `apptAgg` (getMetrics linhas ~209-214 e getOverview ~330-337) têm overlap de 1 dia na borda entre período atual/anterior → afeta levemente o **Δ do trend**, não o valor headline do KPI. Fix de borda precisa validação contra DB real → deferido pra QA junto do EXPLAIN. Registrar via `*backlog-debt` se não corrigido na QA.
 - Skipados na iter 1: `deepEqual` em float no test (determinístico — `expected` re-deriva a mesma expressão IEEE) e `shortDay` defensivo (input sempre `YYYY-MM-DD` de `toISOString().slice(0,10)`).
 
-**Flags para QA (precisam de DB com dados — eu não tenho acesso ao DB de prod, e a conexão direta foi bloqueada pelo guardrail de prod):**
-- AC33: rodar EXPLAIN ANALYZE das 6 queries de agregação (<100ms; índices da migration 001 cobrem).
-- Validar execução real das queries de `lib/metrics.ts` contra DB com dados (unit tests cobrem só a montagem pura; o SQL espelha o padrão de `conversas.ts` + cast `::int` aplicado).
-- Smoke: deploy `admin-trinks-sync` → confirmar backfill popula `trinks_appointments` → KPIs Trinks saem do empty-state.
+**Validação de integração contra schema real (postgres-test, NÃO prod) — FEITA ✅:**
+- `tests/api/metrics.test.ts` (novo): `getMetrics`/`getOverview` executam contra schema real (schema.sql + migration 001 com views + trinks tables). Caminho populado (agendamentos=2, no_show=1, cancelamento=1, takeover=1, no_show_rate=33.3%, taxa_sucesso=50%, série + top prof) + empty-state (KPIs Trinks null, conversa preservada). **Pegou bug de fixture que confirmou o contrato do join: telefone precisa estar normalizado com 55 dos 2 lados** (o worker garante isso via `normalizePhoneBR`).
+- Worker `upsertChunk` validado contra schema real: INSERT 17-col + `ON CONFLICT` idempotente (não duplica) + `COALESCE` preserva phone em re-sync + `raw`→jsonb + timezone (19:30 -03:00 → 22:30 UTC). Worker não crasha no 1º ciclo.
+- Suíte completa com DB: **99/99 pass, 0 skip**.
+
+**Compose fix:** havia um stub **duplicado** `admin-trinks-sync` (linha 181, da arch §13.2 original — imagem do admin, `dist/lib/trinks-sync-worker.js` inexistente) que tornava o `docker-compose.yml` **inválido** (quebraria o deploy de TODOS os serviços). Removido; consolidado na versão backend (Decisão A). `docker compose config` valida OK.
+
+**Flags remanescentes para QA/Victor (precisam de DB de prod com dados reais):**
+- AC33: EXPLAIN ANALYZE das queries com volume realista (<100ms; índices migration 001 cobrem). Estrutura já validada contra schema.
+- Smoke prod: deploy `admin-trinks-sync` → backfill popula `trinks_appointments` → KPIs Trinks saem do empty-state na UI.
 
 ### File List
 
@@ -372,8 +379,10 @@ claude-opus-4-8 (@dev Dex)
 - `frontend/admin/components/dashboard/overview-panel.tsx` (novo)
 - `frontend/admin/app/(dashboard)/page.tsx` (modificado — placeholder → overview)
 - `frontend/admin/components/dashboard/nav-links.ts` (modificado — /metricas enabled)
-- `frontend/admin/tests/metrics.test.ts` (novo — 5 testes)
+- `frontend/admin/tests/metrics.test.ts` (novo — 5 testes unit puros)
+- `frontend/admin/tests/api/metrics.test.ts` (novo — 4 testes de integração contra schema real)
 - `frontend/admin/package.json` + `package-lock.json` (modificado — recharts ^3.8.1)
+- `infra/docker-compose.yml` (modificado — removido stub `admin-trinks-sync` duplicado/quebrado)
 
 ## DoD Self-Assessment (@dev)
 
