@@ -23,6 +23,17 @@ const envSchema = z.object({
   BACKEND_INTERNAL_URL: z.string().url().optional().or(z.literal("")),
   BACKEND_INTERNAL_TOKEN: z.string().min(32).optional().or(z.literal("")),
 
+  // Story 1.5: TESS API integration for KB editor
+  // TESS_API_TOKEN é compartilhado com backend Tirra (mesmo Bearer token)
+  // TIRRA_KB_COLLECTION_ID é opcional — quando ausente, mutations no /api/kb retornam 503
+  TESS_API_TOKEN: z.string().min(8).optional().or(z.literal("")),
+  TESS_API_BASE: z.string().url().optional().or(z.literal("")),
+  TIRRA_KB_COLLECTION_ID: z
+    .string()
+    .regex(/^\d+$/, "TIRRA_KB_COLLECTION_ID must be a positive integer")
+    .optional()
+    .or(z.literal("")),
+
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });
 

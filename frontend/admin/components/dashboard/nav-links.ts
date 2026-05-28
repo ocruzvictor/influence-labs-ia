@@ -14,6 +14,6 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: "/conversas", label: "Conversas", enabled: true },
   { href: "/toggles", label: "Toggles", enabled: true },
   { href: "/metricas", label: "Métricas", enabled: false },
-  { href: "/kb", label: "Base de conhecimento", enabled: false },
+  { href: "/kb", label: "Base de conhecimento", enabled: true },
   { href: "/saude", label: "Saúde", enabled: false },
 ];

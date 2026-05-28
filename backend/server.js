@@ -34,6 +34,19 @@ const TESS_AGENT_ID = String(process.env.TESS_AGENT_ID || '33200');
 const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
 const TESS_URL = process.env.TESS_API_URL || `${TESS_API_BASE}/agents/${TESS_AGENT_ID}/execute`;
 // TESS workspace header removido — causa 403 na API TESS (testado 2026-03-09)
+
+// Story 1.5: KB dinâmica via TESS memory_collection.
+// Quando setado, callTESS() envia memory_collections=[<id>] em cada chamada, fazendo
+// o agente consultar memories editadas pelo painel admin via RAG semantic.
+// Unset = graceful degradation: bot opera sem KB dinâmica (apenas prompt da TESS UI).
+const TIRRA_KB_COLLECTION_ID = process.env.TIRRA_KB_COLLECTION_ID
+  ? Number(process.env.TIRRA_KB_COLLECTION_ID)
+  : null;
+if (TIRRA_KB_COLLECTION_ID !== null && !Number.isInteger(TIRRA_KB_COLLECTION_ID)) {
+  console.warn(`[tess] TIRRA_KB_COLLECTION_ID inválido: ${process.env.TIRRA_KB_COLLECTION_ID} — ignorando`);
+}
+const KB_ACTIVE = Number.isInteger(TIRRA_KB_COLLECTION_ID);
+console.log(`[tess] memory_collections ${KB_ACTIVE ? `ativo (id=${TIRRA_KB_COLLECTION_ID})` : 'inativo (graceful degradation)'}`);
 const TRINKS_KEY = process.env.TRINKS_API_KEY;
 const TRINKS_API_BASE = process.env.TRINKS_API_BASE || 'https://api.trinks.com/v1';
 const TRINKS_EST_ID = process.env.TRINKS_ESTABELECIMENTO_ID || '243868';
@@ -645,6 +658,9 @@ async function createBookingInTrinks(booking, professionalsData) {
 async function callTESS(messages, rootId) {
   const body = { messages, wait_execution: true };
   if (Number.isInteger(rootId)) body.root_id = rootId;
+  // Story 1.5: anexa memory_collections quando configurado — TESS faz RAG semantic
+  // injetando memories relevantes no contexto da próxima resposta do agente.
+  if (KB_ACTIVE) body.memory_collections = [TIRRA_KB_COLLECTION_ID];
   const headers = {
     'Authorization': `Bearer ${TESS_TOKEN}`,
     'Content-Type': 'application/json',
