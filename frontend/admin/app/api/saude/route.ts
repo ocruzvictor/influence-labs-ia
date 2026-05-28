@@ -26,6 +26,13 @@ interface CacheEntry {
 const CACHE_TTL_MS = 5_000;
 const FETCH_TIMEOUT_MS = 3_000;
 
+/**
+ * Limitação consciente: cache em memória do processo. Funciona pra deploy
+ * single-instance do admin-frontend (cenário atual — VPS Hostinger, 1 container,
+ * 2-3 admins ativos). Se escalar pra múltiplas réplicas, cada réplica terá seu
+ * próprio cache 5s e o overhead extra é aceitável (10s polling × 2 réplicas =
+ * 12 req/min ao backend em vez de 6). Migrar pra Redis só se hit-rate cair.
+ */
 let cache: CacheEntry | null = null;
 
 export const runtime = "nodejs";

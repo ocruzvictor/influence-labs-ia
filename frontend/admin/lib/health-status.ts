@@ -58,6 +58,22 @@ const STATUS_LABEL: Record<CardStatus, string> = {
   down: "Erro",
 };
 
+function safeHostname(url: string | undefined): string {
+  if (!url) return "—";
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "URL inválida";
+  }
+}
+
+function safeIsoMinute(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "data inválida";
+  return d.toISOString().slice(0, 16).replace("T", " ");
+}
+
 function uptimeLabel(seconds: number | null | undefined): string {
   if (!seconds || seconds < 0) return "—";
   if (seconds < 60) return `${Math.floor(seconds)}s`;
@@ -129,12 +145,7 @@ export function deriveCardStatus(h: HealthPayload): CardData[] {
       statusLabel: STATUS_LABEL[status],
       metrics: [
         { label: "Janela", value: whatsAppHoursRemaining(win.hours_since) },
-        {
-          label: "Última msg",
-          value: win.last_inbound_at
-            ? new Date(win.last_inbound_at).toISOString().slice(0, 16).replace("T", " ")
-            : "—",
-        },
+        { label: "Última msg", value: safeIsoMinute(win.last_inbound_at) },
       ],
     };
   })();
@@ -147,7 +158,7 @@ export function deriveCardStatus(h: HealthPayload): CardData[] {
       statusLabel: STATUS_LABEL[status],
       metrics: [
         { label: "Agent ID", value: String(h.tess?.agent_id ?? "—") },
-        { label: "URL", value: h.tess?.url ? new URL(h.tess.url).hostname : "—" },
+        { label: "URL", value: safeHostname(h.tess?.url) },
       ],
     };
   })();
@@ -202,4 +213,6 @@ export const __internal = {
   mapWaStatus,
   mapTrinksStatus,
   mapPgStatus,
+  safeHostname,
+  safeIsoMinute,
 };

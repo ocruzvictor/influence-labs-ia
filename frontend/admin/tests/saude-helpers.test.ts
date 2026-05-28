@@ -15,8 +15,15 @@ import {
 import { auditLogQuerySchema } from "../lib/audit-log-query";
 import { __test as exportInternals } from "../app/api/audit-log/export/route";
 
-const { uptimeLabel, whatsAppHoursRemaining, mapWaStatus, mapTrinksStatus, mapPgStatus } =
-  __internal;
+const {
+  uptimeLabel,
+  whatsAppHoursRemaining,
+  mapWaStatus,
+  mapTrinksStatus,
+  mapPgStatus,
+  safeHostname,
+  safeIsoMinute,
+} = __internal;
 
 // =============================================================================
 // deriveCardStatus
@@ -132,6 +139,29 @@ test("mapTrinksStatus — ok/slow/down", () => {
   assert.equal(mapTrinksStatus("ok"), "ok");
   assert.equal(mapTrinksStatus("slow"), "warn");
   assert.equal(mapTrinksStatus("down"), "down");
+});
+
+test("safeHostname — URL válida retorna hostname", () => {
+  assert.equal(
+    safeHostname("https://api.tess.im/agents/33200/execute"),
+    "api.tess.im",
+  );
+});
+
+test("safeHostname — URL inválida não throw, retorna fallback", () => {
+  assert.equal(safeHostname("not-a-url"), "URL inválida");
+  assert.equal(safeHostname(""), "—");
+  assert.equal(safeHostname(undefined), "—");
+});
+
+test("safeIsoMinute — ISO válida formatada YYYY-MM-DD HH:MM", () => {
+  assert.equal(safeIsoMinute("2026-05-28T12:34:56Z"), "2026-05-28 12:34");
+});
+
+test("safeIsoMinute — ISO inválida não throw, retorna fallback", () => {
+  assert.equal(safeIsoMinute("not-a-date"), "data inválida");
+  assert.equal(safeIsoMinute(null), "—");
+  assert.equal(safeIsoMinute(undefined), "—");
 });
 
 test("mapPgStatus — pool null vira down", () => {
