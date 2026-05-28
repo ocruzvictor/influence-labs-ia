@@ -1,7 +1,7 @@
 # Story 1.6: Admin UI — Métricas dashboard (+ Trinks sync worker)
 
 **Epic:** [EPIC-studio-tirra-admin-dashboard](epics/EPIC-studio-tirra-admin-dashboard.md)
-**Status:** InProgress (Fase 0 concluída — aguardando 2 decisões do Victor antes do build do worker)
+**Status:** Ready for Review
 **Agente executor:** @dev (suporte @data-engineer nas queries/worker; @architect aprova o desvio de placement do worker — ver Dev Notes §Decisão A)
 **⚠️ Condições pré-dev (PO, 2026-05-28):** (1) **começar pela Fase 0** — se a API Trinks não listar agendamentos por range, HALT e replanejar (AC4); (2) **@architect confirma Decisão A** (worker na imagem do backend vs admin) no kickoff — não codar o container antes; (3) **story grande (13 SP)** — recomendado checkpoint/commit após o worker (Fase 0 + AC5-12) antes de atacar o dashboard, pra QA incremental.
 **Story Points:** 13 (8 do dashboard + 5 do sync worker — Victor optou por incluir o worker, 2026-05-28)
@@ -201,24 +201,25 @@ Entregar, em três frentes que podem ser implementadas em sequência (Fase 0 →
   - [x] Atualiza `trinks_sync_state` (sucesso/erro/failures/total)
   - [x] Serviço `admin-trinks-sync` no `infra/docker-compose.yml` + runbook em `docs/ops/admin-dashboard-deploy.md`
   - [x] Testes: status mapping, normalização, timezone, syncWindow, idempotência UPSERT (13 testes, `backend/test/trinks-sync.test.js`) — validados; dry-run real fetch→map OK (112 recs)
-- [ ] **Camada de dados + API (AC13-AC20)**
-  - [ ] `lib/metrics.ts`: `getMetrics(period)` + `getOverview()` sobre views/tabelas + cache 60s
-  - [ ] Definir taxa de sucesso (heurística documentada, join normalizado)
-  - [ ] `app/api/metricas/route.ts` + `app/api/overview/route.ts` (Zod, sessão, Cache-Control)
-  - [ ] Empty-state (`null` quando sync nunca rodou) + flag `consecutive_failures`
-  - [ ] Testes: agregação, dataset vazio → null, Zod
-- [ ] **Rota /metricas (AC21-AC27, AC32)**
-  - [ ] Adicionar Recharts ao package.json
-  - [ ] `<KpiCard>` reutilizável + 6 cards
-  - [ ] Bar chart Recharts + tabela top profissionais + empty-states
-  - [ ] Period selector via `?period=` + polling 30s pausável + skeletons
-  - [ ] nav `/metricas` enabled
-- [ ] **Home overview (AC28-AC31)**
-  - [ ] Substituir placeholder de `app/(dashboard)/page.tsx`
-  - [ ] 3 KPI cards + status do sistema (reusa toggles) + conversas ativas (reusa conversas)
+- [x] **Camada de dados + API (AC13-AC20)** ✅
+  - [x] `lib/metrics.ts`: `getMetrics(period)` + `getOverview()` sobre `v_admin_appointments_daily` + `conversation_history` + cache LRU 60s (bypass `?fresh=1`)
+  - [x] Taxa de sucesso heurística (join por telefone normalizado `regexp_replace('\D')` dos 2 lados; null se sem dados)
+  - [x] `app/api/metricas/route.ts` + `app/api/overview/route.ts` (Zod, sessão via proxy, Cache-Control 60s, 500 gracioso)
+  - [x] Empty-state (`null` quando `last_success_at IS NULL` ou tabela vazia) + flag `consecutive_failures>=3`
+  - [x] Testes: `assembleMetrics` (dataset vazio→null, trend, no_show_rate) + `trend` (5 testes, `tests/metrics.test.ts`)
+- [x] **Rota /metricas (AC21-AC27, AC32)** ✅
+  - [x] Recharts adicionado (^3.8.1); chart só carrega na rota `/metricas` (home não importa)
+  - [x] `<KpiCard>` reutilizável + 6 cards na ordem do wireframe
+  - [x] Bar chart Recharts (`<AgendamentosChart>`) + tabela top profissionais + empty-states "Aguardando sync"
+  - [x] Period selector via `?period=` (router.replace) + polling 30s pausável + skeletons + banner de falha
+  - [x] nav `/metricas` enabled
+- [x] **Home overview (AC28-AC31)** ✅
+  - [x] `app/(dashboard)/page.tsx` substituído + `<OverviewPanel>` client
+  - [x] 3 KPI cards + card status (bot ativo via `bot_toggles.global` + sync Trinks) + conversas ativas (reusa `/api/conversas?status=active`)
 - [ ] **Fechamento (AC33-AC35)**
-  - [ ] EXPLAIN ANALYZE das queries; lint + typecheck + build + tests
-  - [ ] CodeRabbit pre-commit self-healing
+  - [x] lint 0 / typecheck 0 / build OK (28 rotas) / admin 73 pass + backend 35 pass
+  - [ ] CodeRabbit pre-commit self-healing (rodando)
+  - [ ] EXPLAIN ANALYZE das queries — **deferido pra QA** (precisa DB com dados reais; índices da migration 001 cobrem os filtros)
 
 ## Dev Notes
 
@@ -281,6 +282,7 @@ Em arquitetura (§1 Charts = Recharts; §17). Adicionar dep ao admin. Como a hom
 |------|---------|-------------|--------|
 | 2026-05-28 | 0.1 | Story 1.6 draftada. Descoberta crítica: Trinks sync worker nunca foi construído → `trinks_appointments` vazia. Victor decidiu incluir o worker nesta story (13 SP). Escopo: Fase 0 (verificação endpoint Trinks) + worker (backend image, container isolado) + `lib/metrics.ts` + `/api/metricas` + `/api/overview` + telas `/metricas` (Tela 5) e home `/` (Tela 2) com Recharts. Reuso forte das views `v_admin_appointments_daily`/`v_admin_conversations_summary` (migration 001), `fetchTrinks`, `db.js`, `usePolling`, `format/*`. Heatmap/sparklines/export CSV/alertas → OUT (V2/V1.1). Riscos P0: endpoint Trinks de listagem (Fase 0) + normalização de telefone pro join da taxa de sucesso. | @sm River |
 | 2026-05-28 | 0.2 | Adicionada **AC14-BASE** (P0) após review: conflito de base temporal entre arch §9.1 (`created_at_trinks`/booking) e a view `v_admin_appointments_daily` (`scheduled_at`/atendimento; coluna `created` é armadilha). Fixada a base por tela (booking em `/metricas` KPI+chart; `scheduled_at` em home/no-show/cancelamento) + teto superior em queries retrospectivas. Dev Notes §Risco P0 base temporal. | @sm River |
+| 2026-05-28 | 1.2 | **@dev: Fases 2-3 (dashboard) implementadas → Ready for Review.** `lib/metrics.ts` + `/api/metricas` + `/api/overview` + `/metricas` (Recharts) + home overview + nav. Decisões D-A (worker backend) e D-B (phone /clientes cacheado) aplicadas. Validações: typecheck 0, lint 0, build 28 rotas, admin 78 testes pass (73+5) + backend 35 pass. Self-review pegou bug latente (params SQL sem cast `::int`). CodeRabbit self-healing: iter1 1 CRITICAL (optional chaining) auto-fix + 2 minors reais; iter2 0 CRITICAL. 2 minors documentados (trend-overlap tech-debt + skips justificados). Pendente QA/Victor: EXPLAIN + SQL contra DB real + smoke (sem acesso a DB local). Próximo: `@devops *push`. | @dev Dex |
 | 2026-05-28 | 1.1 | **@dev: Fase 0 executada (probes read-only Trinks, sem mutação) → InProgress.** Endpoint `/agendamentos?dataInicio&dataFim` confirmado (paginado, filtro por `scheduled_at`). Status no-show existe (id 6). 2 gaps achados: `created_at_trinks` não existe na API (→ tudo keyed em `scheduled_at`, NULL na coluna); telefone só via `/clientes/:id` N+1 (só afeta taxa de sucesso). De-para campos+status gravado em Completion Notes. **Bloqueado em 2 decisões com Victor:** (D-A) placement worker; (D-B) approach taxa de sucesso. | @dev Dex |
 | 2026-05-28 | 1.0 | **Validada GO 9/10 → Ready.** Anti-alucinação limpo (refs conferidas no código: `db.js`, `fetchTrinks`, views, `digitsOnly`, `usePolling`; Recharts e cron confirmados ausentes). 2 Should-Fix aplicados: (1) **AC14 corrigido** — métricas de período (takeovers/conversas/mensagens) devem consultar `conversation_history` direto com janela; **proibido** usar `had_takeover` de `v_admin_conversations_summary` (view é lifetime per-phone, sem janela temporal); (2) denominador de "Msgs/dia" explicitado (dias do período). Condições pré-dev registradas no header (Fase 0 first + @architect confirma Decisão A + checkpoint após worker). 0 critical. CodeRabbit completo. Pronta para `@dev *develop 1.6`. | @po Pax |
 
@@ -327,7 +329,27 @@ claude-opus-4-8 (@dev Dex)
 
 **GAP 2 — telefone não está no agendamento:** `cliente` na listagem só tem `{id, nome}`. Telefone só em `GET /clientes/:id` → `telefone` (11 dígitos, DDD+número, **SEM o `55`**; `conversation_history.client_phone` tem 13 dígitos COM `55`). Normalização da taxa de sucesso (AC18) precisa reconciliar isso (prefixar `55`). Resolver phone exige N+1 (`/clientes/:id` por cliente distinto, cacheável) ou sync separado de clientes — **só impacta a taxa de sucesso**, nenhum outro KPI.
 
-**BLOQUEIO ATIVO:** 2 decisões pendentes com Victor antes de codar (ver Change Log v1.1): (D-A) placement do worker; (D-B) approach da taxa de sucesso (phone via N+1 cacheado vs adiar p/ V1.1).
+**Decisões resolvidas (Victor, 2026-05-28):** D-A → worker na **imagem do backend** (container isolado). D-B → taxa de sucesso **com phone via /clientes cacheado** (prefixa 55).
+
+**FASE 2-3 — Dashboard — IMPLEMENTADO ✅**
+- `lib/metrics.ts`: `getMetrics(period)` + `getOverview()`, cache LRU 60s. KPIs de agendamento via view `v_admin_appointments_daily` (base `scheduled_at` — `created_at_trinks` não existe na API); KPIs de conversa via `conversation_history` direto com janela `created_at` (NÃO a view lifetime). Taxa de sucesso = join heurístico por telefone normalizado (`regexp_replace('\D')` nos 2 lados). Empty-state: KPIs Trinks → `null` quando `last_success_at IS NULL` ou tabela vazia. Montagem pura extraída (`assembleMetrics`/`trend`) → testável.
+- `app/api/metricas/route.ts` + `app/api/overview/route.ts`: Zod, sessão via proxy, Cache-Control 60s, 500 gracioso.
+- `/metricas` (Tela 5): period selector `?period=`, 6 KPI cards (`<KpiCard>`), bar chart Recharts (`<AgendamentosChart>`), top profissionais, refresh (`?fresh=1`), polling 30s pausável, banner de falha (`consecutive_failures>=3`).
+- Home `/` (Tela 2): `<OverviewPanel>` — 3 KPI cards + status (bot `bot_toggles.global` + sync Trinks) + conversas ativas (reusa `/api/conversas?status=active`).
+- Recharts ^3.8.1 (só carrega em `/metricas`). nav `/metricas` enabled.
+
+**Validações:** typecheck 0, lint 0, build OK (28 rotas), admin 73 pass (+5 métricas), backend 35 pass (+13 worker). Dry-run real fetch→map: 112 recs OK.
+
+**Self-review pegou bug latente:** queries `convAgg`/`taxaSucesso` tinham `$1 + $2` sem cast → pg inferiria `text` e `text + text` daria erro runtime (500). Corrigido com `$1::int + $2::int`.
+
+**CodeRabbit (self-healing @dev light):** iter 1 → 1 CRITICAL (optional chaining `data?.syncStatus?.lastSuccessAt` em overview-panel) auto-corrigido + 2 minors reais aplicados (`toNum` NaN→null; key de tabela com índice). iter 2 → **0 CRITICAL**. 2 minors documentados (não corrigidos — modo @dev light = document_only):
+- **Tech-debt (trend-only):** janelas de `apptAgg` (getMetrics linhas ~209-214 e getOverview ~330-337) têm overlap de 1 dia na borda entre período atual/anterior → afeta levemente o **Δ do trend**, não o valor headline do KPI. Fix de borda precisa validação contra DB real → deferido pra QA junto do EXPLAIN. Registrar via `*backlog-debt` se não corrigido na QA.
+- Skipados na iter 1: `deepEqual` em float no test (determinístico — `expected` re-deriva a mesma expressão IEEE) e `shortDay` defensivo (input sempre `YYYY-MM-DD` de `toISOString().slice(0,10)`).
+
+**Flags para QA (precisam de DB com dados — eu não tenho acesso ao DB de prod, e a conexão direta foi bloqueada pelo guardrail de prod):**
+- AC33: rodar EXPLAIN ANALYZE das 6 queries de agregação (<100ms; índices da migration 001 cobrem).
+- Validar execução real das queries de `lib/metrics.ts` contra DB com dados (unit tests cobrem só a montagem pura; o SQL espelha o padrão de `conversas.ts` + cast `::int` aplicado).
+- Smoke: deploy `admin-trinks-sync` → confirmar backfill popula `trinks_appointments` → KPIs Trinks saem do empty-state.
 
 ### File List
 
@@ -339,7 +361,31 @@ claude-opus-4-8 (@dev Dex)
 - `infra/docker-compose.yml` (modificado) — serviço `admin-trinks-sync`
 - `docs/ops/admin-dashboard-deploy.md` (modificado) — runbook do worker
 
-**Fase 2-3 — Dashboard:** _(em progresso)_
+**Fase 2-3 — Dashboard:**
+- `frontend/admin/lib/metrics.ts` (novo) — getMetrics/getOverview + assembleMetrics/trend (puros) + cache 60s
+- `frontend/admin/app/api/metricas/route.ts` (novo)
+- `frontend/admin/app/api/overview/route.ts` (novo)
+- `frontend/admin/components/metricas/kpi-card.tsx` (novo)
+- `frontend/admin/components/metricas/agendamentos-chart.tsx` (novo — Recharts)
+- `frontend/admin/components/metricas/metricas-panel.tsx` (novo)
+- `frontend/admin/app/(dashboard)/metricas/page.tsx` (novo)
+- `frontend/admin/components/dashboard/overview-panel.tsx` (novo)
+- `frontend/admin/app/(dashboard)/page.tsx` (modificado — placeholder → overview)
+- `frontend/admin/components/dashboard/nav-links.ts` (modificado — /metricas enabled)
+- `frontend/admin/tests/metrics.test.ts` (novo — 5 testes)
+- `frontend/admin/package.json` + `package-lock.json` (modificado — recharts ^3.8.1)
+
+## DoD Self-Assessment (@dev)
+
+- **Requisitos/AC:** Funcionais implementados. AC33 (EXPLAIN <100ms) e validação do SQL contra DB com dados → **deferidos pra QA** (não tenho acesso a DB; conexão direta a prod foi bloqueada por guardrail). Smoke prod (worker popula tabela → KPIs saem do empty-state) → Victor.
+- **Padrões/estrutura:** ✅ espelha padrões existentes (`conversas.ts`, saude components, route handlers). Lint 0, typecheck 0.
+- **Testes:** ✅ unit (worker mapping/UPSERT 13; metrics puro 5). Integração contra DB **não rodada** (sem DB) — `lib/metrics.ts` SQL testado só na montagem pura; cobre QA.
+- **Verificação funcional:** worker fetch→map validado contra API real (dry-run 112 recs). UI **não verificada em app rodando** (precisa DB + dev server) → smoke Victor/QA.
+- **Story admin:** ✅ tasks marcados, decisões documentadas, File List + Change Log atualizados.
+- **Build/deps:** ✅ build OK (28 rotas). Recharts ^3.8.1 (in-spec arch §17/AC32). Serviço compose + runbook documentados.
+- **Não-resolvido (honesto):** trend Δ com overlap de 1 dia na borda (minor, tech-debt documentado); EXPLAIN + smoke prod pendentes.
+
+**Veredito:** pronto para review/QA. Bloqueios de validação são por falta de acesso a DB (ambiente), não por código incompleto.
 
 ## QA Results
 _(preenchido pelo @qa)_

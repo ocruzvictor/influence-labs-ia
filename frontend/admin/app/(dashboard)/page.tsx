@@ -1,5 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/session";
+import { OverviewPanel } from "@/components/dashboard/overview-panel";
 
 export default async function DashboardHomePage(): Promise<React.ReactElement> {
   const user = await getCurrentUser();
@@ -12,28 +12,11 @@ export default async function DashboardHomePage(): Promise<React.ReactElement> {
           Olá, {user?.name?.split(" ")[0] ?? "admin"} 👋
         </h1>
         <p className="mt-1 text-sm text-zinc-600">
-          O painel está sendo construído story por story. A visão geral chega na
-          próxima entrega.
+          Visão geral do atendimento — conversas, agendamentos e saúde do bot.
         </p>
       </div>
 
-      <Card className="border-[rgba(26,26,46,0.08)] bg-white">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold text-[#1A1A2E]">
-            Em construção
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-zinc-600">
-          <p>
-            Esta home receberá KPIs e atividade recente na <strong>Story 1.2</strong>{" "}
-            (Conversas) e <strong>Story 1.4</strong> (Métricas).
-          </p>
-          <p>
-            Você já consegue navegar pelo menu — itens marcados como “em breve”
-            ainda não têm tela; aparecem só pra dar sensação do produto final.
-          </p>
-        </CardContent>
-      </Card>
+      <OverviewPanel />
     </div>
   );
 }
