@@ -381,20 +381,47 @@ test('renderDigest: vazio → mensagem positiva (nada fura a fila)', () => {
 test('renderDigest: híbrido — "furam a fila" + horário de chegada + marcador de agendamento', () => {
   const txt = renderDigest({ items: [
     {
-      phone: '5511964540007',
+      phone: '5511964540007', client_name: 'Maria Silva',
       verdict: { categoria: 'novo_agendamento', reason_for_human: 'Quer corte novo com Érick', suggested_action: 'Oferecer horários' },
       score: 72, last_client_ts: '2026-05-29T13:05:00Z', tem_agendamento: { tem: false },
     },
     {
-      phone: '5518998240447',
+      phone: '5518998240447', client_name: null, // sem nome → só telefone
       verdict: { categoria: 'conflito_agenda', reason_for_human: 'Quer remarcar sábado', suggested_action: 'Reagendar' },
       score: 70, last_client_ts: '2026-05-29T14:30:00Z', tem_agendamento: { tem: true },
     },
   ], lookbackHours: 24 });
   assert.match(txt, /furam a fila/i);
   assert.match(txt, /atenda primeiro/i);
+  assert.match(txt, /Maria Silva \(5511964540007\)/); // nome + telefone
   assert.match(txt, /chegou 10:05/);       // arrival do item 1 (BRT)
   assert.match(txt, /chegou 11:30/);       // arrival do item 2
   assert.match(txt, /já tem agendamento/); // marcador booking do item 2
   assert.match(txt, /ordem de chegada/i);  // rodapé FIFO
+  // item 2 sem nome → só telefone (sem parênteses de nome)
+  assert.match(txt, /\n 2\. 5518998240447 —/);
+});
+
+// ---- Camada 2.1: nome do cliente (contact_name Kapso + clients.name) ----
+test('buildLastSpeakerMap: captura contact_name da Kapso por telefone', () => {
+  const { contactNames } = buildLastSpeakerMap([
+    { kapso: { phone_number: '5511964540007', direction: 'inbound', contact_name: 'Thayná Fernanda' }, timestamp: 100 },
+    { kapso: { phone_number: '5511964540007', direction: 'outbound' }, timestamp: 200 }, // sem nome → não sobrescreve
+    { kapso: { phone_number: '5518998240447', direction: 'inbound' }, timestamp: 50 }, // sem nome
+  ]);
+  assert.equal(contactNames.get('5511964540007'), 'Thayná Fernanda');
+  assert.equal(contactNames.has('5518998240447'), false);
+});
+
+test('classifyConversation: clientName resolvido vai em DADOS_CLIENTE.nome (cobre cliente novo sem clients)', async () => {
+  const origFetch = global.fetch;
+  let captured = null;
+  global.fetch = async (_url, opts) => {
+    captured = JSON.parse(JSON.parse(opts.body).messages[0].content);
+    return { ok: true, json: async () => ({ output: '{"decision":"ignore","priority_score":0,"categoria":"falso_positivo","severity":"low","reason_for_human":"","suggested_action":""}' }), text: async () => '' };
+  };
+  try {
+    await classifyConversation({ phone: 'p', client: null, clientName: 'Fagner (WhatsApp)', messages: [{ role: 'user', content: 'oi' }] });
+    assert.equal(captured.DADOS_CLIENTE.nome, 'Fagner (WhatsApp)'); // sem clients, usa o nome da Kapso
+  } finally { global.fetch = origFetch; }
 });
