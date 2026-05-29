@@ -40,7 +40,8 @@ function getKapsoApiBaseUrl() {
 // lastKnownKapsoPhoneNumberId (server.js:1110) || env || hardcode confirmado em prod.
 const KAPSO_PHONE_NUMBER_ID_FALLBACK = '1016003164939443';
 // Quantas msgs por página e teto de páginas — evita loop infinito; loga page_cap_hit se truncar.
-const KAPSO_PAGE_LIMIT = parseInt(process.env.KAPSO_PAGE_LIMIT || '200', 10);
+// ⚠️ Máximo aceito pela API Kapso = 100 (limit=200 → 400 "Invalid limit parameter"; probado em prod).
+const KAPSO_PAGE_LIMIT = parseInt(process.env.KAPSO_PAGE_LIMIT || '100', 10);
 const KAPSO_MAX_PAGES = parseInt(process.env.KAPSO_MAX_PAGES || '50', 10);
 const KAPSO_FETCH_TIMEOUT_MS = parseInt(process.env.KAPSO_FETCH_TIMEOUT_MS || '20000', 10);
 

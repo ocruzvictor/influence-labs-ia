@@ -186,7 +186,10 @@ test('fetchKapsoLastSpeaker: SEGUE paging.next (keyset DESC) por 2 páginas e pa
   const nowSec = Math.floor(Date.now() / 1000);
   const calls = [];
   const fetchImpl = async (url) => {
-    const after = new URL(url).searchParams.get('after');
+    const sp = new URL(url).searchParams;
+    // Guard de regressão: a API Kapso rejeita limit>100 (400 Invalid limit parameter — pego no smoke).
+    assert.ok(Number(sp.get('limit')) <= 100, `limit deve ser <=100, veio ${sp.get('limit')}`);
+    const after = sp.get('after');
     calls.push(after);
     if (!after) {
       // página 1 (mais recentes) → aponta p/ página 2 via paging.next
