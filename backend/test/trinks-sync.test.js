@@ -37,6 +37,16 @@ test('normalizePhoneBR → null quando insuficiente', () => {
   assert.equal(normalizePhoneBR(''), null);
   assert.equal(normalizePhoneBR(null), null);
 });
+test('normalizePhoneBR → null quando longo demais (evita estourar VARCHAR(20))', () => {
+  // cliente com 2 números no campo telefone → 20+ dígitos
+  assert.equal(normalizePhoneBR('11999998888 / 1133334444'), null);
+  assert.equal(normalizePhoneBR('5511999998888888888'), null); // 19 díg
+  // garante que o resultado válido nunca passa de 13
+  for (const v of ['11964540007', '1133334444', '5511964540007']) {
+    const out = normalizePhoneBR(v);
+    assert.ok(out === null || out.length <= 13, `${v} → ${out}`);
+  }
+});
 
 // ---- valorToCents ----
 test('valorToCents converte reais → centavos', () => {
@@ -70,6 +80,10 @@ test('mapAppointment mapeia campos + injeta phone resolvido', () => {
   assert.equal(row.price_cents, 10500);
   assert.equal(row.created_at_trinks, null); // gap Fase 0
   assert.deepEqual(row.raw, REC);
+});
+test('mapAppointment → duration_min null quando duração 0 (CHECK > 0)', () => {
+  assert.equal(mapAppointment({ ...REC, duracaoEmMinutos: 0 }, null).duration_min, null);
+  assert.equal(mapAppointment({ ...REC, duracaoEmMinutos: -5 }, null).duration_min, null);
 });
 test('mapAppointment → null sem id ou dataHoraInicio', () => {
   assert.equal(mapAppointment({ dataHoraInicio: '2026-01-01T10:00:00' }), null);

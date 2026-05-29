@@ -33,12 +33,13 @@ function mapStatus(statusId) {
  */
 function normalizePhoneBR(raw) {
   const digits = String(raw ?? '').replace(/\D/g, '');
-  if (digits.length < 10) return null;
-  // Já vem com DDI 55 (12-13 dígitos): mantém.
-  if (digits.length >= 12 && digits.startsWith('55')) return digits;
-  // DDD + número (10-11 dígitos): prefixa 55.
+  // DDD + número (10-11 dígitos): prefixa 55 → 12-13 dígitos.
   if (digits.length === 10 || digits.length === 11) return '55' + digits;
-  return digits;
+  // Já vem com DDI 55 (12-13 dígitos): mantém.
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) return digits;
+  // Qualquer outra coisa (curto demais, longo demais, ou multi-número concatenado
+  // que estouraria VARCHAR(20)) → descarta. Telefone é só pra taxa de sucesso (best-effort).
+  return null;
 }
 
 /** valor em reais (ex.: 105 ou 105.5) → price_cents inteiro. null-safe. */
@@ -67,7 +68,8 @@ function mapAppointment(rec, phone = null) {
     service_name: rec.servico?.nome ?? null,
     status: mapStatus(rec.status?.id),
     scheduled_at: rec.dataHoraInicio,
-    duration_min: Number.isFinite(Number(rec.duracaoEmMinutos)) ? Number(rec.duracaoEmMinutos) : null,
+    // CHECK (duration_min > 0): duração 0/negativa/inválida → null.
+    duration_min: Number(rec.duracaoEmMinutos) > 0 ? Number(rec.duracaoEmMinutos) : null,
     price_cents: valorToCents(rec.valor),
     // Gaps Fase 0: a listagem não traz criação/cancelamento; ficam NULL.
     created_at_trinks: null,
