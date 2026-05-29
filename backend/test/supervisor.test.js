@@ -20,35 +20,38 @@ const {
 // Aqui validamos a LÓGICA: direção, join de telefone, fail-open e o reduce.
 // ============================================================================
 
-// ---- extractContactPhone: telefone do CONTATO (cliente), direction-aware ----
-test('extractContactPhone: usa phone do contato/conversa quando presente', () => {
+// ---- extractContactPhone: telefone do CONTATO (cliente) ----
+// SHAPE REAL DE PROD (probe @devops 2026-05-29): a msg traz `kapso.phone_number` = telefone do
+// CLIENTE nas DUAS direções (inbound from=cliente; outbound from=salão fixo, kapso.phone_number=cliente).
+// Estes mocks usam o shape real; se a Kapso mudar o campo, um destes QUEBRA (era a armadilha da v1).
+test('extractContactPhone: usa kapso.phone_number (campo REAL de prod) — inbound', () => {
   assert.equal(
-    extractContactPhone({ conversation: { phone_number: '5518998240447' }, kapso: { direction: 'outbound' } }),
-    '5518998240447',
+    extractContactPhone({ from: '5511961401417', timestamp: 1780072982, kapso: { direction: 'inbound', phone_number: '5511961401417' } }),
+    '5511961401417',
   );
 });
 
-test('extractContactPhone: outbound → cliente é o `to` (NUNCA o from cego do salão)', () => {
-  // from = número do salão; to = cliente. Sem campo de contato → fallback por direção.
+test('extractContactPhone: outbound → kapso.phone_number é o CLIENTE (from é o salão fixo, NÃO há `to`)', () => {
+  // Shape real outbound: from=número do salão (5511948319426), kapso.phone_number=cliente, sem campo `to`.
   assert.equal(
-    extractContactPhone({ from: '551130000000', to: '5511964540007', kapso: { direction: 'outbound' } }),
-    '5511964540007',
+    extractContactPhone({ from: '5511948319426', kapso: { direction: 'outbound', phone_number: '5511943569567', origin: 'business_app' } }),
+    '5511943569567',
   );
 });
 
-test('extractContactPhone: inbound → cliente é o `from`', () => {
+test('extractContactPhone: fallback inbound sem kapso.phone_number → usa `from`', () => {
   assert.equal(
-    extractContactPhone({ from: '5511964540007', to: '551130000000', kapso: { direction: 'inbound' } }),
+    extractContactPhone({ from: '5511964540007', kapso: { direction: 'inbound' } }),
     '5511964540007',
   );
 });
 
 test('extractContactPhone: prefixa 55 (normalizePhoneBR) em telefone de 11 díg', () => {
-  assert.equal(extractContactPhone({ conversation: { phone_number: '11964540007' } }), '5511964540007');
+  assert.equal(extractContactPhone({ kapso: { phone_number: '11964540007' } }), '5511964540007');
 });
 
 test('extractContactPhone: lixo → null (fail-open por item no chamador)', () => {
-  assert.equal(extractContactPhone({ conversation: { phone_number: '123' } }), null);
+  assert.equal(extractContactPhone({ kapso: { phone_number: '123' } }), null);
   assert.equal(extractContactPhone(null), null);
 });
 
@@ -69,10 +72,10 @@ test('extractTimestampMs: epoch-segundos → ms; ISO → ms', () => {
 // ---- buildLastSpeakerMap: reduce por max-timestamp por telefone ----
 test('buildLastSpeakerMap: guarda a direção da msg de MAIOR timestamp por telefone', () => {
   const msgs = [
-    { conversation: { phone_number: '5511964540007' }, direction: 'inbound', timestamp: 100 },
-    { conversation: { phone_number: '5511964540007' }, direction: 'outbound', timestamp: 200 }, // mais nova
-    { conversation: { phone_number: '5518998240447' }, direction: 'outbound', timestamp: 50 },
-    { conversation: { phone_number: '5518998240447' }, direction: 'inbound', timestamp: 60 }, // mais nova
+    { kapso: { phone_number: '5511964540007', direction: 'inbound' }, timestamp: 100 },
+    { kapso: { phone_number: '5511964540007', direction: 'outbound' }, timestamp: 200 }, // mais nova
+    { kapso: { phone_number: '5518998240447', direction: 'outbound' }, timestamp: 50 },
+    { kapso: { phone_number: '5518998240447', direction: 'inbound' }, timestamp: 60 }, // mais nova
   ];
   const { map, matchedPhones, messagesSeen, messagesWithTs } = buildLastSpeakerMap(msgs);
   assert.equal(map.get('5511964540007'), 'outbound'); // última foi do salão
@@ -84,8 +87,8 @@ test('buildLastSpeakerMap: guarda a direção da msg de MAIOR timestamp por tele
 
 test('buildLastSpeakerMap: conta msgs SEM timestamp parseável (guardrail do 4º no-op)', () => {
   const { messagesWithTs, messagesSeen } = buildLastSpeakerMap([
-    { conversation: { phone_number: '5511964540007' }, direction: 'inbound' }, // sem ts
-    { conversation: { phone_number: '5518998240447' }, direction: 'outbound', timestamp: 100 },
+    { kapso: { phone_number: '5511964540007', direction: 'inbound' } }, // sem ts
+    { kapso: { phone_number: '5518998240447', direction: 'outbound' }, timestamp: 100 },
   ]);
   assert.equal(messagesSeen, 2);
   assert.equal(messagesWithTs, 1);
@@ -93,16 +96,16 @@ test('buildLastSpeakerMap: conta msgs SEM timestamp parseável (guardrail do 4º
 
 test('buildLastSpeakerMap: ordem das msgs é irrelevante (só max-timestamp importa)', () => {
   const a = buildLastSpeakerMap([
-    { conversation: { phone_number: '5511964540007' }, direction: 'outbound', timestamp: 200 },
-    { conversation: { phone_number: '5511964540007' }, direction: 'inbound', timestamp: 100 },
+    { kapso: { phone_number: '5511964540007', direction: 'outbound' }, timestamp: 200 },
+    { kapso: { phone_number: '5511964540007', direction: 'inbound' }, timestamp: 100 },
   ]);
   assert.equal(a.map.get('5511964540007'), 'outbound');
 });
 
 test('buildLastSpeakerMap: ignora msgs sem telefone ou sem direção', () => {
   const { map } = buildLastSpeakerMap([
-    { conversation: { phone_number: '123' }, direction: 'inbound', timestamp: 1 }, // telefone inválido
-    { conversation: { phone_number: '5511964540007' }, timestamp: 1 }, // sem direção
+    { kapso: { phone_number: '123', direction: 'inbound' }, timestamp: 1 }, // telefone inválido
+    { kapso: { phone_number: '5511964540007' }, timestamp: 1 }, // sem direção
   ]);
   assert.equal(map.size, 0);
 });
@@ -156,23 +159,55 @@ function fakeResponse(jsonBody, { ok = true, status = 200 } = {}) {
   };
 }
 
-test('fetchKapsoLastSpeaker: monta o Map a partir de 1 página (sem cursor)', async () => {
+test('fetchKapsoLastSpeaker: monta o Map a partir de 1 página (shape REAL: data[]+kapso+paging)', async () => {
   // precisa de KAPSO_API_BASE_URL/KEY no env p/ não falhar no guard
   process.env.KAPSO_API_BASE_URL = 'https://api.kapso.ai';
   process.env.KAPSO_API_KEY = 'test-key';
-  const now = Date.now();
+  const nowSec = Math.floor(Date.now() / 1000); // epoch-segundos como a Kapso entrega
   const fetchImpl = async () => fakeResponse({
     data: [
-      { conversation: { phone_number: '5511964540007' }, direction: 'outbound', timestamp: now },
-      { conversation: { phone_number: '5518998240447' }, direction: 'inbound', timestamp: now },
+      { from: '5511948319426', timestamp: nowSec, kapso: { phone_number: '5511964540007', direction: 'outbound', origin: 'business_app' } },
+      { from: '5518998240447', timestamp: nowSec, kapso: { phone_number: '5518998240447', direction: 'inbound' } },
     ],
-    meta: { has_more: false },
+    paging: { next: null }, // 1 página só
   });
   const res = await fetchKapsoLastSpeaker({ phoneNumberId: '1016003164939443', lookbackHours: 24, fetchImpl });
   assert.equal(res.ok, true);
-  assert.equal(res.map.get('5511964540007'), 'outbound');
+  assert.equal(res.map.get('5511964540007'), 'outbound'); // resposta manual do salão (business_app)
   assert.equal(res.map.get('5518998240447'), 'inbound');
   assert.equal(res.diag.distinct_phones_in_map, 2);
+  assert.equal(res.diag.window_fully_covered, true); // paging.next=null → hasMore_exhausted
+});
+
+test('fetchKapsoLastSpeaker: SEGUE paging.next (keyset DESC) por 2 páginas e para', async () => {
+  // Garante que o cursor REAL (paging.next) é seguido — não para na página 1 (risco #2 / no-op parcial).
+  process.env.KAPSO_API_BASE_URL = 'https://api.kapso.ai';
+  process.env.KAPSO_API_KEY = 'test-key';
+  const nowSec = Math.floor(Date.now() / 1000);
+  const calls = [];
+  const fetchImpl = async (url) => {
+    const after = new URL(url).searchParams.get('after');
+    calls.push(after);
+    if (!after) {
+      // página 1 (mais recentes) → aponta p/ página 2 via paging.next
+      return fakeResponse({
+        data: [{ from: 's', timestamp: nowSec, kapso: { phone_number: '5511964540007', direction: 'inbound' } }],
+        paging: { next: 'CURSOR_P2', cursors: { after: 'CURSOR_P2' } },
+      });
+    }
+    // página 2 (mais antiga, ainda dentro da janela) → fim
+    return fakeResponse({
+      data: [{ from: 's', timestamp: nowSec - 10, kapso: { phone_number: '5518998240447', direction: 'outbound' } }],
+      paging: { next: null },
+    });
+  };
+  const res = await fetchKapsoLastSpeaker({ phoneNumberId: '1016003164939443', lookbackHours: 24, fetchImpl });
+  assert.equal(res.ok, true);
+  assert.deepEqual(calls, [null, 'CURSOR_P2']); // seguiu o cursor da p1 → p2
+  assert.equal(res.map.get('5511964540007'), 'inbound');
+  assert.equal(res.map.get('5518998240447'), 'outbound');
+  assert.equal(res.diag.pages, 2);
+  assert.equal(res.diag.window_fully_covered, true);
 });
 
 test('fetchKapsoLastSpeaker: FAIL-OPEN — fetch 5xx → ok=false, map=null (não derruba digest)', async () => {
@@ -199,10 +234,10 @@ test('fetchKapsoLastSpeaker: FAIL-OPEN — msgs sem timestamp parseável → ok=
   process.env.KAPSO_API_KEY = 'test-key';
   const fetchImpl = async () => fakeResponse({
     data: [
-      { conversation: { phone_number: '5511964540007' }, direction: 'outbound' }, // SEM ts
-      { conversation: { phone_number: '5518998240447' }, direction: 'inbound' }, // SEM ts
+      { from: 's', kapso: { phone_number: '5511964540007', direction: 'outbound' } }, // SEM ts
+      { from: 's', kapso: { phone_number: '5518998240447', direction: 'inbound' } }, // SEM ts
     ],
-    meta: { has_more: false },
+    paging: { next: null },
   });
   const res = await fetchKapsoLastSpeaker({ phoneNumberId: '1016003164939443', lookbackHours: 24, fetchImpl });
   assert.equal(res.ok, false);

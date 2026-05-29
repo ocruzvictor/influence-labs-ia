@@ -181,9 +181,10 @@ function renderDigest({ items, lookbackHours }) {
 // CRÍTICO (alerta do @architect): em `outbound`, `from`=número do salão e `to`=cliente.
 // Nunca usar `from` cego. Preferimos campos do contato/conversa; só caímos em from/to por
 // direção como último recurso. Normalizado com normalizePhoneBR (mesmo join da Story 1.6).
-// ⚠️ RISCO DE PROD #1: o campo exato de telefone-por-msg do endpoint nativo Kapso não está
-// documentado na skill e não pôde ser probado localmente (sem KAPSO_API_KEY). Cobrimos os
-// candidatos mais prováveis; o smoke (AC11) + o log de funil confirmam o join em prod.
+// ✅ RISCO #1 RESOLVIDO (probe read-only em prod, @devops 2026-05-29): o campo do telefone do
+// CLIENTE é `kapso.phone_number` — ESTÁVEL nas duas direções (inbound: from=cliente=kapso.phone_number;
+// outbound: from=número do salão fixo, kapso.phone_number=cliente). É a chave de join primária.
+// Os demais candidatos ficam como fallback defensivo p/ drift de payload.
 function extractContactPhone(msg) {
   if (!msg || typeof msg !== 'object') return null;
   const k = msg.kapso || {};
@@ -191,7 +192,9 @@ function extractContactPhone(msg) {
   const direction = msg.direction || k.direction;
 
   // 1) Telefone do contato/conversa (independe da direção — fonte mais segura).
+  //    `k.phone_number` é o campo REAL confirmado em prod; os outros são fallback defensivo.
   const contactCandidates = [
+    k.phone_number,
     conv.phone_number, conv.contact_phone, conv.customer_phone,
     msg.contact_phone, msg.customer_phone,
     msg.contact && msg.contact.phone_number, msg.contact && msg.contact.phone,
@@ -203,7 +206,8 @@ function extractContactPhone(msg) {
     if (norm) return norm;
   }
 
-  // 2) Fallback por direção: outbound → cliente é o `to`; inbound → cliente é o `from`.
+  // 2) Fallback por direção: inbound → cliente é o `from`. (No payload real o outbound NÃO traz
+  //    `to`; por isso `kapso.phone_number` acima é a fonte — este galho é só rede de segurança.)
   const directional = direction === 'outbound' ? (msg.to ?? k.to) : (msg.from ?? k.from);
   return normalizePhoneBR(directional);
 }
@@ -268,6 +272,10 @@ async function fetchKapsoMessagesRaw({ phoneNumberId, lookbackHours, fetchImpl =
   let after = null;
   let pages = 0;
   let pageCapHit = false;
+  // Fix #3 (truncamento barulhento): rastreia COMO o loop terminou + a msg mais antiga vista.
+  // "page_cap_hit" sem cobrir a janela = truncamento silencioso → tem que aparecer no diag.
+  let termination = 'page_cap_hit';
+  let globalOldestTs = Number.POSITIVE_INFINITY;
 
   while (pages < KAPSO_MAX_PAGES) {
     pages++;
@@ -296,25 +304,34 @@ async function fetchKapsoMessagesRaw({ phoneNumberId, lookbackHours, fetchImpl =
       const t = extractTimestampMs(m);
       return t > 0 && t < min ? t : min;
     }, Number.POSITIVE_INFINITY);
+    if (Number.isFinite(oldestTs) && oldestTs < globalOldestTs) globalOldestTs = oldestTs;
     const coveredWindow = Number.isFinite(oldestTs) && oldestTs < windowStartMs;
 
-    // Cursor defensivo: meta.next_cursor | next_cursor | meta.after | has_more.
+    // Cursor: envelope REAL confirmado em prod = `paging.next` (keyset DESC, after avança p/
+    // msgs mais antigas — probe @devops 2026-05-29). Demais formas ficam como fallback defensivo.
+    const paging = json.paging || {};
     const meta = json.meta || json.pagination || {};
-    const nextCursor = meta.next_cursor ?? meta.after ?? json.next_cursor ?? json.after ?? null;
+    const nextCursor = paging.next ?? (paging.cursors && paging.cursors.after)
+      ?? meta.next_cursor ?? meta.after ?? json.next_cursor ?? json.after ?? null;
     const hasMore = (meta.has_more ?? json.has_more) === true || (nextCursor != null && nextCursor !== after);
 
-    if (batch.length === 0 || coveredWindow || !hasMore || !nextCursor) break;
+    if (batch.length === 0) { termination = 'empty_batch'; break; }
+    if (coveredWindow) { termination = 'covered_window'; break; }
+    if (!hasMore || !nextCursor) { termination = 'hasMore_exhausted'; break; }
     after = nextCursor;
   }
   if (pages >= KAPSO_MAX_PAGES) pageCapHit = true;
-  return { messages: all, pages, pageCapHit };
+  // window_fully_covered: terminamos porque cobrimos a janela OU esgotamos as msgs disponíveis.
+  // Se paramos por teto de páginas SEM cobrir a janela → truncamento (loud no diag).
+  const windowFullyCovered = termination === 'covered_window' || termination === 'hasMore_exhausted' || termination === 'empty_batch';
+  return { messages: all, pages, pageCapHit, termination, windowFullyCovered, oldestMsgTs: globalOldestTs, windowStartMs };
 }
 
 // Orquestra fetch + build do Map. Retorna o Map + métricas de diagnóstico (AC4),
 // OU { ok:false } se a Kapso estiver indisponível (→ fail-OPEN no chamador).
 async function fetchKapsoLastSpeaker({ phoneNumberId, lookbackHours, fetchImpl } = {}) {
   try {
-    const { messages, pages, pageCapHit } = await fetchKapsoMessagesRaw({
+    const { messages, pages, pageCapHit, termination, windowFullyCovered } = await fetchKapsoMessagesRaw({
       phoneNumberId, lookbackHours, fetchImpl,
     });
     const { map, matchedPhones, messagesSeen, messagesWithTs } = buildLastSpeakerMap(messages);
@@ -328,15 +345,15 @@ async function fetchKapsoLastSpeaker({ phoneNumberId, lookbackHours, fetchImpl }
         ok: false,
         error: 'kapso_timestamps_unparseable (msgs sem campo de timestamp reconhecido)',
         map: null,
-        diag: { kapso_msgs_fetched: messagesSeen, distinct_phones_in_map: 0, kapso_msgs_with_ts: 0, pages, page_cap_hit: pageCapHit },
+        diag: { kapso_msgs_fetched: messagesSeen, distinct_phones_in_map: 0, kapso_msgs_with_ts: 0, pages, page_cap_hit: pageCapHit, termination, window_fully_covered: windowFullyCovered },
       };
     }
     return {
       ok: true, map,
-      diag: { kapso_msgs_fetched: messagesSeen, distinct_phones_in_map: matchedPhones, kapso_msgs_with_ts: messagesWithTs, pages, page_cap_hit: pageCapHit },
+      diag: { kapso_msgs_fetched: messagesSeen, distinct_phones_in_map: matchedPhones, kapso_msgs_with_ts: messagesWithTs, pages, page_cap_hit: pageCapHit, termination, window_fully_covered: windowFullyCovered },
     };
   } catch (err) {
-    return { ok: false, error: err.message, map: null, diag: { kapso_msgs_fetched: 0, distinct_phones_in_map: 0, kapso_msgs_with_ts: 0, pages: 0, page_cap_hit: false } };
+    return { ok: false, error: err.message, map: null, diag: { kapso_msgs_fetched: 0, distinct_phones_in_map: 0, kapso_msgs_with_ts: 0, pages: 0, page_cap_hit: false, termination: 'error', window_fully_covered: false } };
   }
 }
 
@@ -446,6 +463,8 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
     conversations_matched_in_map: matchedInMap,
     excluded_outbound: excludedOutbound,
     page_cap_hit: lastSpeaker.diag.page_cap_hit,
+    termination: lastSpeaker.diag.termination,
+    window_fully_covered: lastSpeaker.diag.window_fully_covered,
     apos_filtro_last_speaker: conversations.length,
     enviadas_tess: conversations.length,
     classificadas: verdicts.length,
@@ -455,6 +474,10 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
   console.log(`[supervisor] funil: ${JSON.stringify(funil)}`);
   if (lastSpeaker.diag.page_cap_hit) {
     console.warn('[supervisor] page_cap_hit=true → pode ter truncado a janela antes de cobri-la (aumentar KAPSO_MAX_PAGES)');
+  }
+  // Fix #3: truncamento silencioso barulhento — janela NÃO coberta (sem ser cap) também alerta.
+  if (lastSpeaker.ok && lastSpeaker.diag.window_fully_covered === false) {
+    console.warn(`[supervisor] window_fully_covered=false (termination=${lastSpeaker.diag.termination}) → janela pode ter sido truncada; filtro opera sobre amostra parcial`);
   }
 
   if (isDryRun) {
