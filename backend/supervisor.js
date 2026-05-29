@@ -16,6 +16,13 @@ const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').repla
 const SUPERVISOR_URL = `${TESS_API_BASE}/agents/${SUPERVISOR_AGENT_ID}/execute`;
 const TESS_TOKEN = process.env.TESS_API_TOKEN;
 const TIAGO_PHONE = (process.env.TIAGO_NOTIFICATION_PHONE || '').replace(/\D/g, '');
+// Destinatários EXTRAS do resumo matinal (além do Tiago). CSV de números (só dígitos).
+// Separado de TIAGO_NOTIFICATION_PHONE de propósito: só afeta o resumo — NÃO mexe no
+// pedido-de-ajuda (takeover) nem na identidade "msg veio do Tiago" do server.js.
+const SUPERVISOR_EXTRA_PHONES = (process.env.SUPERVISOR_EXTRA_PHONES || '')
+  .split(',')
+  .map((p) => p.replace(/\D/g, ''))
+  .filter(Boolean);
 const TOP_N = parseInt(process.env.SUPERVISOR_TOP_N || '10', 10);
 const SALON_TZ = 'America/Sao_Paulo';
 
@@ -181,19 +188,23 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
     console.log('[supervisor] DRY RUN — nao envia ao Tiago. Texto:\n' + text);
     return { text, ranked, lookbackHours };
   }
-  if (!TIAGO_PHONE) {
-    console.warn('[supervisor] TIAGO_NOTIFICATION_PHONE nao configurado — nao envia digest');
+  const recipients = [...new Set([TIAGO_PHONE, ...SUPERVISOR_EXTRA_PHONES].filter(Boolean))];
+  if (!recipients.length) {
+    console.warn('[supervisor] nenhum destinatario (TIAGO_NOTIFICATION_PHONE / SUPERVISOR_EXTRA_PHONES) — nao envia digest');
     return { text, ranked, lookbackHours };
   }
   if (!kapsoPhoneNumberId) {
     console.warn('[supervisor] kapsoPhoneNumberId ausente — nao envia digest');
     return { text, ranked, lookbackHours };
   }
-  try {
-    await sendKapsoMessage(TIAGO_PHONE, text, kapsoPhoneNumberId);
-    console.log(`[supervisor] digest enviado a ${TIAGO_PHONE}`);
-  } catch (err) {
-    console.error(`[supervisor] falha ao enviar digest: ${err.message}`);
+  // Envia a cada destinatario de forma independente (falha em um nao bloqueia os outros).
+  for (const phone of recipients) {
+    try {
+      await sendKapsoMessage(phone, text, kapsoPhoneNumberId);
+      console.log(`[supervisor] digest enviado a ${phone}`);
+    } catch (err) {
+      console.error(`[supervisor] falha ao enviar digest a ${phone}: ${err.message}`);
+    }
   }
   return { text, ranked, lookbackHours };
 }
