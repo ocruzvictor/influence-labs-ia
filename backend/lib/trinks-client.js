@@ -14,14 +14,27 @@ const TRINKS_API_BASE = (process.env.TRINKS_API_BASE || 'https://api.trinks.com/
 const TRINKS_KEY = process.env.TRINKS_API_KEY;
 const TRINKS_EST_ID = process.env.TRINKS_ESTABELECIMENTO_ID || '243868';
 const TIMEOUT_MS = 12_000;
+const MAX_429_RETRIES = 5;
 
 async function fetchTrinks(path) {
-  const res = await fetch(`${TRINKS_API_BASE}${path}`, {
-    headers: { 'X-Api-Key': TRINKS_KEY, estabelecimentoId: String(TRINKS_EST_ID) },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`Trinks ${res.status}: ${path}`);
-  return res.json();
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${TRINKS_API_BASE}${path}`, {
+      headers: { 'X-Api-Key': TRINKS_KEY, estabelecimentoId: String(TRINKS_EST_ID) },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    // Rate limit: respeita Retry-After, senão backoff exponencial (2s,4s,8s,16s,30s).
+    if (res.status === 429 && attempt < MAX_429_RETRIES) {
+      const retryAfter = Number(res.headers.get('retry-after'));
+      const waitMs =
+        Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : Math.min(2000 * 2 ** attempt, 30_000);
+      await sleep(waitMs);
+      continue;
+    }
+    if (!res.ok) throw new Error(`Trinks ${res.status}: ${path}`);
+    return res.json();
+  }
 }
 
 /** Uma página de agendamentos no range [dataInicio, dataFim] (datas YYYY-MM-DD). */
@@ -41,7 +54,7 @@ async function listAgendamentosPage({ dataInicio, dataFim, page = 1 }) {
  * Todos os agendamentos do range, paginando por `page`. Sleep entre páginas pra
  * respeitar rate limit (arch §18). maxPages é um teto de segurança.
  */
-async function listAllAgendamentos({ dataInicio, dataFim, sleepMs = 250, maxPages = 200 }) {
+async function listAllAgendamentos({ dataInicio, dataFim, sleepMs = 600, maxPages = 200 }) {
   const all = [];
   const first = await listAgendamentosPage({ dataInicio, dataFim, page: 1 });
   all.push(...first.data);
