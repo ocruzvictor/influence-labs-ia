@@ -9,7 +9,14 @@ const {
   clientSpokeLastKapso,
   fetchKapsoLastSpeaker,
   mapWithConcurrency,
+  // Camada 2
+  classifyConversation,
+  fetchFutureBookings,
+  lastClientMsgTs,
+  formatArrival,
+  renderDigest,
 } = require('../supervisor');
+const db = require('../db');
 
 // ============================================================================
 // Supervisor v2 — Camada 1 (RE-DEV, fonte Kapso `kapso.direction`)
@@ -271,4 +278,123 @@ test('mapWithConcurrency: nunca excede o limite de concorrência', async () => {
 
 test('mapWithConcurrency: lista vazia → []', async () => {
   assert.deepEqual(await mapWithConcurrency([], 4, async (x) => x), []);
+});
+
+// ============================================================================
+// Supervisor v2 — Camada 2 (input enriquecido AC6 + sinal booking AC3 + render AC8)
+// ============================================================================
+
+// ---- lastClientMsgTs: horário da última msg do CLIENTE ----
+test('lastClientMsgTs: pega o ts da última msg role=user', () => {
+  const conv = { messages: [
+    { role: 'user', content: 'oi', ts: '2026-05-29T10:00:00Z' },
+    { role: 'assistant', content: 'olá', ts: '2026-05-29T10:01:00Z' },
+    { role: 'user', content: 'quero marcar', ts: '2026-05-29T10:05:00Z' },
+  ] };
+  assert.equal(lastClientMsgTs(conv), '2026-05-29T10:05:00Z');
+});
+
+test('lastClientMsgTs: sem msg do cliente → cai no last_ts', () => {
+  assert.equal(lastClientMsgTs({ messages: [{ role: 'assistant', ts: 'x' }], last_ts: '2026-05-29T09:00:00Z' }), '2026-05-29T09:00:00Z');
+  assert.equal(lastClientMsgTs({}), null);
+});
+
+// ---- formatArrival: HH:MM no fuso do salão ----
+test('formatArrival: ISO → HH:MM (America/Sao_Paulo)', () => {
+  // 2026-05-29T13:05:00Z = 10:05 em BRT (UTC-3)
+  assert.equal(formatArrival('2026-05-29T13:05:00Z'), '10:05');
+  assert.equal(formatArrival(null), null);
+  assert.equal(formatArrival('lixo'), null);
+});
+
+// ---- fetchFutureBookings: Map por telefone normalizado, mais próximo, dedup ----
+test('fetchFutureBookings: normaliza telefone e guarda o agendamento mais próximo', async () => {
+  const orig = db.query;
+  db.query = async () => ({ rows: [
+    { client_phone: '5511964540007', scheduled_at: '2026-05-30T13:00:00Z', status: 'confirmed' },
+    { client_phone: '5511964540007', scheduled_at: '2026-06-02T13:00:00Z', status: 'confirmed' }, // mais distante → ignorado
+    { client_phone: '11978905161', scheduled_at: '2026-05-31T13:00:00Z', status: 'confirmed' }, // sem 55
+  ] });
+  try {
+    const map = await fetchFutureBookings();
+    assert.equal(map.get('5511964540007').tem, true);
+    assert.equal(map.get('5511964540007').quando, '2026-05-30T13:00:00Z'); // o mais próximo (ASC)
+    assert.equal(map.get('5511978905161').tem, true); // 55 prefixado
+    assert.equal(map.size, 2);
+  } finally { db.query = orig; }
+});
+
+test('fetchFutureBookings: erro de DB → Map vazio (fail-open, booking é só sinal)', async () => {
+  const orig = db.query;
+  db.query = async () => { throw new Error('db down'); };
+  try {
+    const map = await fetchFutureBookings();
+    assert.equal(map.size, 0);
+  } finally { db.query = orig; }
+});
+
+// ---- classifyConversation: injeta os 3 sinais novos no input (AC6) ----
+test('classifyConversation: input carrega QUEM_FALOU_POR_ULTIMO, TEM_AGENDAMENTO, HORARIO', async () => {
+  const origFetch = global.fetch;
+  let capturedInput = null;
+  global.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    capturedInput = JSON.parse(body.messages[0].content);
+    return { ok: true, json: async () => ({ output: '{"decision":"escalate","priority_score":70,"categoria":"novo_agendamento","severity":"med","reason_for_human":"x","suggested_action":"y"}' }), text: async () => '' };
+  };
+  try {
+    const verdict = await classifyConversation({
+      phone: '5511964540007', client: { name: 'Ana', visit_count: 7 },
+      messages: [{ role: 'user', content: 'quero corte novo', ts: 't' }],
+      quemFalouPorUltimo: 'cliente',
+      temAgendamento: { tem: true, quando: '2026-05-30T13:00:00Z', status: 'confirmed' },
+      horarioUltimaMsgCliente: '2026-05-29T10:05:00Z',
+    });
+    assert.equal(capturedInput.QUEM_FALOU_POR_ULTIMO, 'cliente');
+    assert.equal(capturedInput.TEM_AGENDAMENTO.tem, true);
+    assert.equal(capturedInput.HORARIO_ULTIMA_MSG_CLIENTE, '2026-05-29T10:05:00Z');
+    assert.equal(verdict.decision, 'escalate');
+  } finally { global.fetch = origFetch; }
+});
+
+test('classifyConversation: sem sinais → defaults seguros (TEM_AGENDAMENTO.tem=false)', async () => {
+  const origFetch = global.fetch;
+  let capturedInput = null;
+  global.fetch = async (_url, opts) => {
+    capturedInput = JSON.parse(JSON.parse(opts.body).messages[0].content);
+    return { ok: true, json: async () => ({ output: '{"decision":"ignore","priority_score":0,"categoria":"falso_positivo","severity":"low","reason_for_human":"","suggested_action":""}' }), text: async () => '' };
+  };
+  try {
+    await classifyConversation({ phone: 'p', client: null, messages: [{ role: 'user', content: 'oi' }] });
+    assert.equal(capturedInput.QUEM_FALOU_POR_ULTIMO, null);
+    assert.deepEqual(capturedInput.TEM_AGENDAMENTO, { tem: false });
+    assert.equal(capturedInput.HORARIO_ULTIMA_MSG_CLIENTE, null);
+  } finally { global.fetch = origFetch; }
+});
+
+// ---- renderDigest: híbrido fura-fila (AC8) ----
+test('renderDigest: vazio → mensagem positiva (nada fura a fila)', () => {
+  const txt = renderDigest({ items: [], lookbackHours: 24 });
+  assert.match(txt, /Nada fura a fila/i);
+});
+
+test('renderDigest: híbrido — "furam a fila" + horário de chegada + marcador de agendamento', () => {
+  const txt = renderDigest({ items: [
+    {
+      phone: '5511964540007',
+      verdict: { categoria: 'novo_agendamento', reason_for_human: 'Quer corte novo com Érick', suggested_action: 'Oferecer horários' },
+      score: 72, last_client_ts: '2026-05-29T13:05:00Z', tem_agendamento: { tem: false },
+    },
+    {
+      phone: '5518998240447',
+      verdict: { categoria: 'conflito_agenda', reason_for_human: 'Quer remarcar sábado', suggested_action: 'Reagendar' },
+      score: 70, last_client_ts: '2026-05-29T14:30:00Z', tem_agendamento: { tem: true },
+    },
+  ], lookbackHours: 24 });
+  assert.match(txt, /furam a fila/i);
+  assert.match(txt, /atenda primeiro/i);
+  assert.match(txt, /chegou 10:05/);       // arrival do item 1 (BRT)
+  assert.match(txt, /chegou 11:30/);       // arrival do item 2
+  assert.match(txt, /já tem agendamento/); // marcador booking do item 2
+  assert.match(txt, /ordem de chegada/i);  // rodapé FIFO
 });

@@ -92,8 +92,59 @@ async function fetchClientInfo(phone) {
   return r?.rows?.[0] || null;
 }
 
+// AC3 (sinal, não filtro): agendamentos FUTUROS ativos por telefone normalizado.
+// Retorna Map<phoneNorm, {tem:true, quando, status}> (o mais próximo por telefone).
+// FAIL-OPEN: erro de DB → Map vazio (booking é só sinal pro agente, nunca derruba o digest).
+async function fetchFutureBookings() {
+  try {
+    const r = await db.query(
+      `SELECT client_phone, scheduled_at, status
+       FROM trinks_appointments
+       WHERE scheduled_at >= NOW() AND status NOT IN ('cancelled', 'no_show')
+       ORDER BY scheduled_at ASC`
+    );
+    const map = new Map();
+    for (const row of r?.rows || []) {
+      const p = normalizePhoneBR(row.client_phone);
+      if (!p || map.has(p)) continue; // ASC → o primeiro por telefone é o mais próximo
+      map.set(p, { tem: true, quando: row.scheduled_at, status: row.status });
+    }
+    return map;
+  } catch (err) {
+    console.warn(`[supervisor] fetchFutureBookings falhou (sinal de agendamento desativado): ${err.message}`);
+    return new Map();
+  }
+}
+
+// AC6: horário da última mensagem do CLIENTE (role='user'), pro Gabriel encaixar no FIFO.
+function lastClientMsgTs(conv) {
+  const msgs = conv?.messages;
+  if (Array.isArray(msgs)) {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i]?.role === 'user' && msgs[i]?.ts) return msgs[i].ts;
+    }
+  }
+  return conv?.last_ts || null;
+}
+
+// AC8: formata um timestamp como HH:MM no fuso do salão (pro digest escaneável).
+function formatArrival(ts) {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: SALON_TZ, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(d);
+}
+
 // --- Chamada Supervisor (TESS 46590) ---
-async function classifyConversation({ phone, client, messages }) {
+// AC6 (Camada 2): input enriquecido com os sinais "fura-fila" — quem falou por último
+// (reusa o Map Kapso do AC2, NÃO recomputa), se tem agendamento futuro (sinal, não filtro — AC3),
+// e o horário da última msg do cliente (pro Gabriel encaixar no FIFO).
+async function classifyConversation({
+  phone, client, messages,
+  quemFalouPorUltimo = null, temAgendamento = null, horarioUltimaMsgCliente = null,
+}) {
   const recent = messages.slice(-12); // ultimas 12 msgs por conversa
   const input = {
     CONVERSATION_ID: phone,
@@ -104,6 +155,9 @@ async function classifyConversation({ phone, client, messages }) {
       ultimo_servico: client.last_service,
       ultima_visita: client.last_visit,
     } : null,
+    QUEM_FALOU_POR_ULTIMO: quemFalouPorUltimo, // 'cliente' | 'salao' | null
+    TEM_AGENDAMENTO: temAgendamento || { tem: false }, // {tem, quando, status} — SINAL pro agente
+    HORARIO_ULTIMA_MSG_CLIENTE: horarioUltimaMsgCliente, // ISO | null
     TIPO_DE_VARREDURA: 'cron',
     TAG_ACIONADORA: null,
   };
@@ -147,25 +201,31 @@ function scoreFromVerdict(v) {
   return 0;
 }
 
-// --- Renderizacao da msg pro Tiago ---
+// --- Renderizacao da msg (AC8: híbrido "fura-fila") ---
+// Enquadra como "estes furam sua fila — atenda primeiro, depois siga o FIFO normal".
+// Cada item: horário de chegada (FIFO) + categoria + motivo + ação. Vazio → mensagem positiva.
 function renderDigest({ items, lookbackHours }) {
   if (items.length === 0) {
-    return `🌅 Resumo matinal — sem conversas das ultimas ${lookbackHours}h precisando da sua atencao. Bom dia!`;
+    return `🌅 Bom dia! Nada fura a fila hoje — pode seguir sua ordem de chegada normal. 🙌`;
   }
-  const lines = [`🌅 Bom dia! Top ${items.length} conversa(s) das ultimas ${lookbackHours}h pra voce olhar:\n`];
+  const lines = [
+    `🌅 Bom dia! ${items.length} conversa(s) que furam a fila — atenda primeiro, ` +
+    `depois siga sua ordem de chegada normal:\n`,
+  ];
   items.forEach((it, i) => {
     const num = String(i + 1).padStart(2, ' ');
-    const score = String(it.score).padStart(3, ' ');
     const cat = it.verdict?.categoria || '?';
     const reason = (it.verdict?.reason_for_human || '').slice(0, 250);
     const action = (it.verdict?.suggested_action || '').slice(0, 160);
+    const hora = formatArrival(it.last_client_ts);
+    const book = it.tem_agendamento?.tem ? ' · 📅 já tem agendamento' : '';
     lines.push(
-      `${num}. [${score}] ${it.phone} — ${cat}\n` +
+      `${num}. ${it.phone} — ${cat}${hora ? ` · chegou ${hora}` : ''}${book}\n` +
       `   ${reason}\n` +
       (action ? `   ➤ ${action}\n` : '')
     );
   });
-  lines.push(`\nLinks diretos: abre o WhatsApp do salao e procura cada numero.`);
+  lines.push(`\n➡️ Depois desses, siga normal pela ordem de chegada.`);
   return lines.join('\n');
 }
 
@@ -425,16 +485,31 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
     : 0;
   const excludedOutbound = allConversations.length - conversations.length;
 
+  // AC3 (Camada 2): sinal de agendamento futuro por telefone (1 query, fail-open). NÃO filtra.
+  const bookingMap = await fetchFutureBookings();
+
   // AC5: classificação com concorrência limitada (não sequencial) — evita o travamento visto com 131 convos.
   const verdictsRaw = await mapWithConcurrency(conversations, CLASSIFY_CONCURRENCY, async (conv) => {
     try {
       const client = await fetchClientInfo(conv.client_phone);
+      // AC6: sinais "fura-fila" derivados (reusa o Map Kapso do AC2 — não recomputa).
+      const phoneNorm = normalizePhoneBR(conv.client_phone);
+      const dir = phoneNorm && lastSpeaker.map ? lastSpeaker.map.get(phoneNorm) : undefined;
+      const quemFalouPorUltimo = dir === 'inbound' ? 'cliente' : dir === 'outbound' ? 'salao' : null;
+      const temAgendamento = (phoneNorm && bookingMap.get(phoneNorm)) || { tem: false };
+      const horarioUltimaMsgCliente = lastClientMsgTs(conv);
       const verdict = await classifyConversation({
         phone: conv.client_phone,
         client,
         messages: conv.messages,
+        quemFalouPorUltimo,
+        temAgendamento,
+        horarioUltimaMsgCliente,
       });
-      return { phone: conv.client_phone, verdict, score: scoreFromVerdict(verdict), msg_count: conv.msg_count };
+      return {
+        phone: conv.client_phone, verdict, score: scoreFromVerdict(verdict), msg_count: conv.msg_count,
+        last_client_ts: horarioUltimaMsgCliente, tem_agendamento: temAgendamento,
+      };
     } catch (err) {
       console.error(`[supervisor] erro classificando ${conv.client_phone}: ${err.message}`);
       return null;
@@ -541,4 +616,10 @@ module.exports = {
   fetchKapsoLastSpeaker,
   fetchKapsoMessagesRaw,
   mapWithConcurrency,
+  // Expostos para testes (Supervisor v2 Camada 2 — input enriquecido + render híbrido)
+  classifyConversation,
+  fetchFutureBookings,
+  lastClientMsgTs,
+  formatArrival,
+  renderDigest,
 };
