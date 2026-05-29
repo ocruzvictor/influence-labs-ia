@@ -150,17 +150,51 @@ function renderDigest({ items, lookbackHours }) {
   return lines.join('\n');
 }
 
+// --- Camada 1 (Supervisor v2): pré-filtro + robustez ---
+// AC2: "cliente falou por último" = última msg role='user' (cliente aguardando resposta).
+// `messages` vem ordenado por created_at (ARRAY_AGG ... ORDER BY) em fetchRecentConversations.
+function clientSpokeLast(conv) {
+  const msgs = conv?.messages;
+  if (!Array.isArray(msgs) || msgs.length === 0) return false;
+  return msgs[msgs.length - 1]?.role === 'user';
+}
+
+// AC5: map com concorrência limitada (substitui o loop sequencial que travava com 131 convos).
+// Cada item tem timeout próprio (AbortSignal em classifyConversation), então o pool tem teto de tempo.
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const i = cursor++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker);
+  await Promise.all(workers);
+  return results;
+}
+
+const CLASSIFY_CONCURRENCY = 4;
+
 // --- Pipeline completo ---
 async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun = false } = {}) {
   const startTime = Date.now();
   const lookbackHours = getLookbackHours();
   console.log(`[supervisor] triagem matinal iniciada (lookback=${lookbackHours}h, dryRun=${isDryRun})`);
 
-  const conversations = await fetchRecentConversations(lookbackHours);
-  console.log(`[supervisor] ${conversations.length} conversas distintas nas ultimas ${lookbackHours}h`);
+  const allConversations = await fetchRecentConversations(lookbackHours);
+  // AC2: filtro duro — só conversas onde o cliente falou por último (aguardando salão).
+  // Remove os 3 baldes de falso-positivo do Gabriel: já-respondidas + já-agendadas + cliente-sumiu
+  // (todos terminam com o salão/bot falando por último).
+  const conversations = allConversations.filter(clientSpokeLast);
+  console.log(
+    `[supervisor] ${allConversations.length} conversas distintas (${lookbackHours}h); ` +
+    `${conversations.length} com cliente aguardando resposta (filtradas ${allConversations.length - conversations.length})`
+  );
 
-  const verdicts = [];
-  for (const conv of conversations) {
+  // AC5: classificação com concorrência limitada (não sequencial) — evita o travamento visto com 131 convos.
+  const verdictsRaw = await mapWithConcurrency(conversations, CLASSIFY_CONCURRENCY, async (conv) => {
     try {
       const client = await fetchClientInfo(conv.client_phone);
       const verdict = await classifyConversation({
@@ -168,12 +202,13 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
         client,
         messages: conv.messages,
       });
-      const score = scoreFromVerdict(verdict);
-      verdicts.push({ phone: conv.client_phone, verdict, score, msg_count: conv.msg_count });
+      return { phone: conv.client_phone, verdict, score: scoreFromVerdict(verdict), msg_count: conv.msg_count };
     } catch (err) {
       console.error(`[supervisor] erro classificando ${conv.client_phone}: ${err.message}`);
+      return null;
     }
-  }
+  });
+  const verdicts = verdictsRaw.filter(Boolean);
 
   // Filtra ignore e ordena por score desc
   const ranked = verdicts
@@ -182,7 +217,11 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
     .slice(0, TOP_N);
 
   const text = renderDigest({ items: ranked, lookbackHours });
-  console.log(`[supervisor] digest pronto: ${ranked.length} itens (de ${verdicts.length} classificadas). Duracao: ${Date.now()-startTime}ms`);
+  // AC4: métricas do funil (total → aguardando → classificadas → sinalizadas).
+  console.log(
+    `[supervisor] funil: total=${allConversations.length} aguardando=${conversations.length} ` +
+    `classificadas=${verdicts.length} sinalizadas=${ranked.length} | ${Date.now()-startTime}ms`
+  );
 
   if (isDryRun) {
     console.log('[supervisor] DRY RUN — nao envia ao Tiago. Texto:\n' + text);
@@ -231,4 +270,11 @@ function startScheduler({ sendKapsoMessage, getKapsoPhoneNumberId }) {
   }, 60_000);
 }
 
-module.exports = { runMorningTriage, startScheduler, isSalonOpenForTests: getSalonTimeParts };
+module.exports = {
+  runMorningTriage,
+  startScheduler,
+  isSalonOpenForTests: getSalonTimeParts,
+  // Expostos para testes (Supervisor v2 Camada 1)
+  clientSpokeLast,
+  mapWithConcurrency,
+};
