@@ -10,6 +10,7 @@
  */
 
 const db = require('./db');
+const { normalizePhoneBR } = require('./lib/trinks-mapping');
 
 const SUPERVISOR_AGENT_ID = process.env.SUPERVISOR_AGENT_ID || '46590';
 const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
@@ -25,6 +26,23 @@ const SUPERVISOR_EXTRA_PHONES = (process.env.SUPERVISOR_EXTRA_PHONES || '')
   .filter(Boolean);
 const TOP_N = parseInt(process.env.SUPERVISOR_TOP_N || '10', 10);
 const SALON_TZ = 'America/Sao_Paulo';
+
+// --- Config Kapso (fonte do last-speaker — Supervisor v2 Camada 1, rota A: pull no digest) ---
+// O endpoint NATIVO Kapso (`/platform/v1/whatsapp/messages`) usa KAPSO_API_BASE_URL na skill
+// observe-whatsapp. O server.js usa KAPSO_API_BASE (proxy Meta) — provavelmente o MESMO host
+// (api.kapso.ai), mas resolvemos com fallback p/ não morrer se um dos dois não estiver setado.
+// Se a base escolhida NÃO servir /platform/v1, o fetch falha → fail-OPEN logado (não trava o digest).
+// Lidas LAZY (dentro do fetch) — env pode ser setado após o require (testes) e o VPS injeta em runtime.
+function getKapsoApiBaseUrl() {
+  return (process.env.KAPSO_API_BASE_URL || process.env.KAPSO_API_BASE || '').replace(/\/+$/, '');
+}
+// PIN do phone_number_id (evita reincidência do no-op por cache em memória frio pós-restart):
+// lastKnownKapsoPhoneNumberId (server.js:1110) || env || hardcode confirmado em prod.
+const KAPSO_PHONE_NUMBER_ID_FALLBACK = '1016003164939443';
+// Quantas msgs por página e teto de páginas — evita loop infinito; loga page_cap_hit se truncar.
+const KAPSO_PAGE_LIMIT = parseInt(process.env.KAPSO_PAGE_LIMIT || '200', 10);
+const KAPSO_MAX_PAGES = parseInt(process.env.KAPSO_MAX_PAGES || '50', 10);
+const KAPSO_FETCH_TIMEOUT_MS = parseInt(process.env.KAPSO_FETCH_TIMEOUT_MS || '20000', 10);
 
 // --- Helpers de tempo (fuso salao) ---
 function getSalonTimeParts(date = new Date()) {
@@ -150,13 +168,189 @@ function renderDigest({ items, lookbackHours }) {
   return lines.join('\n');
 }
 
-// --- Camada 1 (Supervisor v2): pré-filtro + robustez ---
-// AC2: "cliente falou por último" = última msg role='user' (cliente aguardando resposta).
-// `messages` vem ordenado por created_at (ARRAY_AGG ... ORDER BY) em fetchRecentConversations.
-function clientSpokeLast(conv) {
-  const msgs = conv?.messages;
-  if (!Array.isArray(msgs) || msgs.length === 0) return false;
-  return msgs[msgs.length - 1]?.role === 'user';
+// --- Camada 1 (Supervisor v2): pré-filtro via fonte Kapso + robustez ---
+//
+// AC2 (rota A — pull Kapso no digest): "quem falou por último" NÃO vem mais de
+// conversation_history (bot-only → no-op em prod, removia 0/127). Vem do `kapso.direction`
+// da API Kapso (inbound=cliente / outbound=salão, inclusive resposta MANUAL da recepção
+// que o conversation_history não vê). Mantém só conversas cuja última msg é `inbound`.
+//
+// O conversation_history segue como fonte do CONTEÚDO (12 msgs → TESS) — híbrido intacto.
+
+// Extrai o telefone do CONTATO (cliente) de uma msg Kapso, direction-aware.
+// CRÍTICO (alerta do @architect): em `outbound`, `from`=número do salão e `to`=cliente.
+// Nunca usar `from` cego. Preferimos campos do contato/conversa; só caímos em from/to por
+// direção como último recurso. Normalizado com normalizePhoneBR (mesmo join da Story 1.6).
+// ⚠️ RISCO DE PROD #1: o campo exato de telefone-por-msg do endpoint nativo Kapso não está
+// documentado na skill e não pôde ser probado localmente (sem KAPSO_API_KEY). Cobrimos os
+// candidatos mais prováveis; o smoke (AC11) + o log de funil confirmam o join em prod.
+function extractContactPhone(msg) {
+  if (!msg || typeof msg !== 'object') return null;
+  const k = msg.kapso || {};
+  const conv = msg.conversation || k.conversation || {};
+  const direction = msg.direction || k.direction;
+
+  // 1) Telefone do contato/conversa (independe da direção — fonte mais segura).
+  const contactCandidates = [
+    conv.phone_number, conv.contact_phone, conv.customer_phone,
+    msg.contact_phone, msg.customer_phone,
+    msg.contact && msg.contact.phone_number, msg.contact && msg.contact.phone,
+    k.contact_phone,
+    msg.whatsapp_conversation && msg.whatsapp_conversation.phone_number,
+  ];
+  for (const c of contactCandidates) {
+    const norm = normalizePhoneBR(c);
+    if (norm) return norm;
+  }
+
+  // 2) Fallback por direção: outbound → cliente é o `to`; inbound → cliente é o `from`.
+  const directional = direction === 'outbound' ? (msg.to ?? k.to) : (msg.from ?? k.from);
+  return normalizePhoneBR(directional);
+}
+
+// Extrai a direção (inbound/outbound) de uma msg Kapso de forma defensiva.
+function extractDirection(msg) {
+  return (msg && (msg.direction || (msg.kapso && msg.kapso.direction))) || null;
+}
+
+// Extrai o timestamp (ms) de uma msg Kapso, tolerante a vários nomes de campo.
+function extractTimestampMs(msg) {
+  const k = (msg && msg.kapso) || {};
+  const raw = msg && (msg.timestamp ?? msg.created_at ?? msg.sent_at ?? k.timestamp ?? k.created_at);
+  if (raw == null) return 0;
+  // Epoch em segundos (10 díg) vem da Meta; ISO string vem da REST nativa.
+  if (typeof raw === 'number' || /^\d+$/.test(String(raw))) {
+    const n = Number(raw);
+    return n < 1e12 ? n * 1000 : n; // segundos → ms
+  }
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? t : 0;
+}
+
+// Reduz uma lista de msgs Kapso → Map<phoneNorm, 'inbound'|'outbound'> guardando a direção
+// da msg de MAIOR timestamp por telefone. PURA (sem I/O) — testável sem mockar fetch.
+// Como guardamos só o max-timestamp, a ORDEM dentro/entre páginas é irrelevante (só importa
+// cobrir a janela inteira — ver paginação em fetchKapsoLastSpeaker).
+function buildLastSpeakerMap(messages) {
+  const map = new Map();
+  const bestTs = new Map();
+  let matchedPhones = 0;
+  let messagesWithTs = 0; // quantas msgs tiveram timestamp PARSEÁVEL (ts > 0)
+  for (const msg of messages || []) {
+    const phone = extractContactPhone(msg);
+    const direction = extractDirection(msg);
+    if (!phone || !direction) continue;
+    const ts = extractTimestampMs(msg);
+    if (ts > 0) messagesWithTs++;
+    const prev = bestTs.get(phone);
+    if (prev === undefined || ts >= prev) {
+      if (prev === undefined) matchedPhones++;
+      bestTs.set(phone, ts);
+      map.set(phone, direction);
+    }
+  }
+  return { map, matchedPhones, messagesSeen: (messages || []).length, messagesWithTs };
+}
+
+// Pull paginado do endpoint NATIVO Kapso, cobrindo TODA a janela de lookback.
+// Account-level: 1 sequência de chamadas (não 1 por conversa). Cursor `after` defensivo
+// (vários envelopes possíveis). Retorna lista crua de msgs (build do Map é separado/puro).
+// `fetchImpl` injetável p/ testes (default = global fetch).
+async function fetchKapsoMessagesRaw({ phoneNumberId, lookbackHours, fetchImpl = fetch }) {
+  const baseUrl = getKapsoApiBaseUrl();
+  const apiKey = process.env.KAPSO_API_KEY;
+  if (!phoneNumberId) throw new Error('phone_number_id ausente');
+  if (!baseUrl) throw new Error('KAPSO_API_BASE_URL/KAPSO_API_BASE ausente');
+  if (!apiKey) throw new Error('KAPSO_API_KEY ausente');
+
+  const windowStartMs = Date.now() - lookbackHours * 3600_000;
+  const all = [];
+  let after = null;
+  let pages = 0;
+  let pageCapHit = false;
+
+  while (pages < KAPSO_MAX_PAGES) {
+    pages++;
+    const params = new URLSearchParams();
+    params.set('phone_number_id', String(phoneNumberId));
+    params.set('limit', String(KAPSO_PAGE_LIMIT));
+    if (after) params.set('after', String(after));
+    const url = `${baseUrl}/platform/v1/whatsapp/messages?${params.toString()}`;
+    const res = await fetchImpl(url, {
+      method: 'GET',
+      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(KAPSO_FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Kapso messages ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const json = await res.json();
+    // Envelope defensivo: data[] | messages[] | array cru.
+    const batch = Array.isArray(json) ? json
+      : (json.data || json.messages || json.items || []);
+    all.push(...batch);
+
+    // Stop por janela: se a página mais antiga já passou do início da janela, paramos.
+    const oldestTs = batch.reduce((min, m) => {
+      const t = extractTimestampMs(m);
+      return t > 0 && t < min ? t : min;
+    }, Number.POSITIVE_INFINITY);
+    const coveredWindow = Number.isFinite(oldestTs) && oldestTs < windowStartMs;
+
+    // Cursor defensivo: meta.next_cursor | next_cursor | meta.after | has_more.
+    const meta = json.meta || json.pagination || {};
+    const nextCursor = meta.next_cursor ?? meta.after ?? json.next_cursor ?? json.after ?? null;
+    const hasMore = (meta.has_more ?? json.has_more) === true || (nextCursor != null && nextCursor !== after);
+
+    if (batch.length === 0 || coveredWindow || !hasMore || !nextCursor) break;
+    after = nextCursor;
+  }
+  if (pages >= KAPSO_MAX_PAGES) pageCapHit = true;
+  return { messages: all, pages, pageCapHit };
+}
+
+// Orquestra fetch + build do Map. Retorna o Map + métricas de diagnóstico (AC4),
+// OU { ok:false } se a Kapso estiver indisponível (→ fail-OPEN no chamador).
+async function fetchKapsoLastSpeaker({ phoneNumberId, lookbackHours, fetchImpl } = {}) {
+  try {
+    const { messages, pages, pageCapHit } = await fetchKapsoMessagesRaw({
+      phoneNumberId, lookbackHours, fetchImpl,
+    });
+    const { map, matchedPhones, messagesSeen, messagesWithTs } = buildLastSpeakerMap(messages);
+    // 4º disfarce do no-op: se o campo de timestamp da Kapso tiver outro nome (não probado),
+    // extractTimestampMs devolve 0 pra TUDO → "max-timestamp" degrada p/ "última na ordem do
+    // fetch" (arbitrária) → o filtro ranqueia em ruído sem ninguém ver. Se buscamos msgs mas
+    // NENHUMA tem ts parseável, tratamos Kapso como NÃO-CONFIÁVEL → fail-OPEN loud (mesmo
+    // movimento do 5xx). Melhor bypassar visível do que filtrar errado invisível.
+    if (messagesSeen > 0 && messagesWithTs === 0) {
+      return {
+        ok: false,
+        error: 'kapso_timestamps_unparseable (msgs sem campo de timestamp reconhecido)',
+        map: null,
+        diag: { kapso_msgs_fetched: messagesSeen, distinct_phones_in_map: 0, kapso_msgs_with_ts: 0, pages, page_cap_hit: pageCapHit },
+      };
+    }
+    return {
+      ok: true, map,
+      diag: { kapso_msgs_fetched: messagesSeen, distinct_phones_in_map: matchedPhones, kapso_msgs_with_ts: messagesWithTs, pages, page_cap_hit: pageCapHit },
+    };
+  } catch (err) {
+    return { ok: false, error: err.message, map: null, diag: { kapso_msgs_fetched: 0, distinct_phones_in_map: 0, kapso_msgs_with_ts: 0, pages: 0, page_cap_hit: false } };
+  }
+}
+
+// AC2: cliente falou por último, via Map Kapso. FAIL-OPEN por item:
+//   - Kapso indisponível (map=null) → mantém TODAS (bypass — sinalizado no chamador).
+//   - telefone não casa no Map (variância 9º dígito BR etc.) → MANTÉM (nunca dropa por dúvida).
+//   - só EXCLUI quando há certeza positiva de outbound.
+function clientSpokeLastKapso(conv, lastSpeakerMap) {
+  if (!lastSpeakerMap) return true; // fail-open global (Kapso indisponível)
+  const phone = normalizePhoneBR(conv?.client_phone);
+  if (!phone) return true; // telefone da conversa não normaliza → fail-open por item
+  const dir = lastSpeakerMap.get(phone);
+  if (dir === undefined) return true; // não casou no Map → fail-open por item
+  return dir === 'inbound'; // certeza positiva: outbound → exclui; inbound → mantém
 }
 
 // AC5: map com concorrência limitada (substitui o loop sequencial que travava com 131 convos).
@@ -184,14 +378,34 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
   console.log(`[supervisor] triagem matinal iniciada (lookback=${lookbackHours}h, dryRun=${isDryRun})`);
 
   const allConversations = await fetchRecentConversations(lookbackHours);
-  // AC2: filtro duro — só conversas onde o cliente falou por último (aguardando salão).
-  // Remove os 3 baldes de falso-positivo do Gabriel: já-respondidas + já-agendadas + cliente-sumiu
-  // (todos terminam com o salão/bot falando por último).
-  const conversations = allConversations.filter(clientSpokeLast);
-  console.log(
-    `[supervisor] ${allConversations.length} conversas distintas (${lookbackHours}h); ` +
-    `${conversations.length} com cliente aguardando resposta (filtradas ${allConversations.length - conversations.length})`
-  );
+
+  // AC2 (fonte Kapso): "quem falou por último" vem da API Kapso (kapso.direction), NÃO do
+  // conversation_history (bot-only → no-op em prod). 1 pull paginado account-level por run.
+  // PIN do phone_number_id (evita reincidência do no-op por cache em memória frio pós-restart):
+  //   webhook cache → env → hardcode confirmado em prod.
+  const pinnedPhoneNumberId =
+    kapsoPhoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || KAPSO_PHONE_NUMBER_ID_FALLBACK;
+  const lastSpeaker = await fetchKapsoLastSpeaker({ phoneNumberId: pinnedPhoneNumberId, lookbackHours });
+
+  // FAIL-OPEN: Kapso indisponível → não filtra (classifica TODAS). Logado DISTINTAMENTE do
+  // "filtro rodou e manteve N" — conflar os dois foi exatamente como o no-op da v1 passou.
+  const kapsoIndisponivel = !lastSpeaker.ok;
+  if (kapsoIndisponivel) {
+    console.warn(
+      `[supervisor] kapso_indisponivel=true → filtro last-speaker BYPASSED (classifica tudo). ` +
+      `motivo="${lastSpeaker.error}"`
+    );
+  }
+  // AC2: mantém só conversas com última msg INBOUND (cliente aguardando). Fail-open por item
+  // dentro de clientSpokeLastKapso (telefone sem match → mantém; só exclui outbound certo).
+  const conversations = allConversations.filter((c) => clientSpokeLastKapso(c, lastSpeaker.map));
+  const matchedInMap = lastSpeaker.map
+    ? allConversations.filter((c) => {
+        const p = normalizePhoneBR(c.client_phone);
+        return p && lastSpeaker.map.has(p);
+      }).length
+    : 0;
+  const excludedOutbound = allConversations.length - conversations.length;
 
   // AC5: classificação com concorrência limitada (não sequencial) — evita o travamento visto com 131 convos.
   const verdictsRaw = await mapWithConcurrency(conversations, CLASSIFY_CONCURRENCY, async (conv) => {
@@ -217,24 +431,44 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
     .slice(0, TOP_N);
 
   const text = renderDigest({ items: ranked, lookbackHours });
-  // AC4: métricas do funil (total → aguardando → classificadas → sinalizadas).
-  console.log(
-    `[supervisor] funil: total=${allConversations.length} aguardando=${conversations.length} ` +
-    `classificadas=${verdicts.length} sinalizadas=${ranked.length} | ${Date.now()-startTime}ms`
-  );
+  // AC4: funil DIAGNÓSTICO. Estende os campos literais c/ contadores de estágio que
+  // distinguem os 3 disfarces do no-op (lição da v1: 44/44 unit verde + filtro morto):
+  //   - kapso_indisponivel=true  → filtro BYPASSED (mantém tudo por design)
+  //   - matched=0 (com Kapso ok) → JOIN QUEBRADO (telefone não casa) ← "127→0" de chapéu novo
+  //   - matched alto, excluidos>0 → filtro FUNCIONANDO
+  // Sem isso, "manteve 127 de 127" lê idêntico a "127 legitimamente aguardando".
+  const funil = {
+    total_conversas: allConversations.length,
+    kapso_indisponivel: kapsoIndisponivel,
+    kapso_msgs_fetched: lastSpeaker.diag.kapso_msgs_fetched,
+    kapso_msgs_with_ts: lastSpeaker.diag.kapso_msgs_with_ts,
+    distinct_phones_in_map: lastSpeaker.diag.distinct_phones_in_map,
+    conversations_matched_in_map: matchedInMap,
+    excluded_outbound: excludedOutbound,
+    page_cap_hit: lastSpeaker.diag.page_cap_hit,
+    apos_filtro_last_speaker: conversations.length,
+    enviadas_tess: conversations.length,
+    classificadas: verdicts.length,
+    sinalizadas: ranked.length,
+    ms: Date.now() - startTime,
+  };
+  console.log(`[supervisor] funil: ${JSON.stringify(funil)}`);
+  if (lastSpeaker.diag.page_cap_hit) {
+    console.warn('[supervisor] page_cap_hit=true → pode ter truncado a janela antes de cobri-la (aumentar KAPSO_MAX_PAGES)');
+  }
 
   if (isDryRun) {
     console.log('[supervisor] DRY RUN — nao envia ao Tiago. Texto:\n' + text);
-    return { text, ranked, lookbackHours };
+    return { text, ranked, lookbackHours, funil };
   }
   const recipients = [...new Set([TIAGO_PHONE, ...SUPERVISOR_EXTRA_PHONES].filter(Boolean))];
   if (!recipients.length) {
     console.warn('[supervisor] nenhum destinatario (TIAGO_NOTIFICATION_PHONE / SUPERVISOR_EXTRA_PHONES) — nao envia digest');
-    return { text, ranked, lookbackHours };
+    return { text, ranked, lookbackHours, funil };
   }
   if (!kapsoPhoneNumberId) {
     console.warn('[supervisor] kapsoPhoneNumberId ausente — nao envia digest');
-    return { text, ranked, lookbackHours };
+    return { text, ranked, lookbackHours, funil };
   }
   // Envia a cada destinatario de forma independente (falha em um nao bloqueia os outros).
   for (const phone of recipients) {
@@ -245,7 +479,7 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
       console.error(`[supervisor] falha ao enviar digest a ${phone}: ${err.message}`);
     }
   }
-  return { text, ranked, lookbackHours };
+  return { text, ranked, lookbackHours, funil };
 }
 
 // --- Scheduler simples (sem dependencia externa) ---
@@ -274,7 +508,13 @@ module.exports = {
   runMorningTriage,
   startScheduler,
   isSalonOpenForTests: getSalonTimeParts,
-  // Expostos para testes (Supervisor v2 Camada 1)
-  clientSpokeLast,
+  // Expostos para testes (Supervisor v2 Camada 1 — fonte Kapso)
+  extractContactPhone,
+  extractDirection,
+  extractTimestampMs,
+  buildLastSpeakerMap,
+  clientSpokeLastKapso,
+  fetchKapsoLastSpeaker,
+  fetchKapsoMessagesRaw,
   mapWithConcurrency,
 };
