@@ -114,6 +114,10 @@ services:
       KAPSO_API_KEY: ${KAPSO_API_KEY}
       KAPSO_API_BASE: ${KAPSO_API_BASE:-https://api.kapso.ai}
       KAPSO_API_VERSION: ${KAPSO_API_VERSION:-v24.0}
+      # Supervisor v2: base da REST nativa Kapso (/platform/v1) + PIN do phone_number_id
+      # (evita no-op por cache em memória frio pós-restart). Defaults = valores de prod confirmados.
+      KAPSO_API_BASE_URL: ${KAPSO_API_BASE_URL:-https://api.kapso.ai}
+      KAPSO_PHONE_NUMBER_ID: ${KAPSO_PHONE_NUMBER_ID:-1016003164939443}
       BOT_ALLOWED_PHONES: ${BOT_ALLOWED_PHONES}
       BOT_ACCEPT_ALL: ${BOT_ACCEPT_ALL:-false}
       HUMAN_HANDLED_TTL_HOURS: ${HUMAN_HANDLED_TTL_HOURS:-6}
