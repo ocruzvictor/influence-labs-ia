@@ -14,17 +14,18 @@
  */
 
 const db = require('./db');
-const { listAllAgendamentos, getClientePhone } = require('./lib/trinks-client');
+const { listAgendamentosPage, getClientePhone } = require('./lib/trinks-client');
 const { mapAppointment, normalizePhoneBR } = require('./lib/trinks-mapping');
 
 const SYNC_INTERVAL_MS = 15 * 60 * 1000; // 15min
 const BR_OFFSET = '-03:00'; // Brasil sem DST desde 2019; dataHoraInicio é local naive
 const MAX_NEW_CLIENT_LOOKUPS = 500; // teto de /clientes por ciclo (resto preenche nos próximos)
-const UPSERT_CHUNK = 100;
+const PAGE_SLEEP_MS = 600; // pausa entre páginas (rate limit Trinks; 429 tem backoff próprio)
 
 const log = (msg, extra) =>
   console.log(JSON.stringify({ t: new Date().toISOString(), worker: 'trinks-sync', msg, ...extra }));
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fmtDate = (d) => d.toISOString().slice(0, 10);
 const daysAgo = (n) => new Date(Date.now() - n * 86400000);
 const daysAhead = (n) => new Date(Date.now() + n * 86400000);
@@ -43,9 +44,12 @@ async function readSyncState() {
 /** Janela a sincronizar: backfill amplo no 1º run, janela móvel depois. */
 function syncWindow(state) {
   if (!state || !state.last_success_at) {
-    return { dataInicio: fmtDate(daysAgo(90)), dataFim: fmtDate(daysAhead(30)), mode: 'backfill' };
+    // Backfill one-time: 90d atrás → 7d à frente.
+    return { dataInicio: fmtDate(daysAgo(90)), dataFim: fmtDate(daysAhead(7)), mode: 'backfill' };
   }
-  return { dataInicio: fmtDate(daysAgo(45)), dataFim: fmtDate(daysAhead(15)), mode: 'incremental' };
+  // Incremental leve (a cada 15min): janela curta pega novos bookings + mudanças de status
+  // recentes sem martelar a Trinks. Histórico antigo já está sincronizado pelo backfill.
+  return { dataInicio: fmtDate(daysAgo(10)), dataFim: fmtDate(daysAhead(10)), mode: 'incremental' };
 }
 
 /** Seed do cache de telefones a partir do que já está no banco (evita re-lookup). */
@@ -60,12 +64,12 @@ async function loadPhoneCache() {
 }
 
 /** Resolve telefone (normalizado) por cliente, usando cache + teto de lookups. */
-async function resolvePhones(records, cache) {
+async function resolvePhones(records, cache, remainingCap = MAX_NEW_CLIENT_LOOKUPS) {
   let lookups = 0;
   for (const rec of records) {
     const cid = rec.cliente?.id != null ? String(rec.cliente.id) : null;
     if (!cid || cache.has(cid)) continue;
-    if (lookups >= MAX_NEW_CLIENT_LOOKUPS) continue; // próximos ciclos preenchem
+    if (lookups >= remainingCap) break; // teto global do ciclo atingido
     try {
       const raw = await getClientePhone(cid);
       cache.set(cid, normalizePhoneBR(raw)); // pode ser null — cacheia mesmo assim p/ não repetir
@@ -117,30 +121,42 @@ async function runCycle() {
   const win = syncWindow(state);
   log('cycle_start', win);
   try {
-    const records = await listAllAgendamentos({ dataInicio: win.dataInicio, dataFim: win.dataFim });
     const cache = await loadPhoneCache();
-    const lookups = await resolvePhones(records, cache);
-
-    const rows = records
-      .map((rec) => {
-        const cid = rec.cliente?.id != null ? String(rec.cliente.id) : null;
-        return mapAppointment(rec, cid ? cache.get(cid) ?? null : null);
-      })
-      .filter(Boolean);
-
+    let page = 1;
+    let totalPages = 1;
     let synced = 0;
-    for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
-      synced += await upsertChunk(rows.slice(i, i + UPSERT_CHUNK));
-    }
+    let lookups = 0;
+
+    // Paginação com UPSERT por página: cada página persiste imediatamente, então
+    // um 429/erro numa página tardia NÃO descarta as anteriores (resiliente).
+    do {
+      const p = await listAgendamentosPage({ dataInicio: win.dataInicio, dataFim: win.dataFim, page });
+      totalPages = p.totalPages || 1;
+
+      lookups += await resolvePhones(p.data, cache, MAX_NEW_CLIENT_LOOKUPS - lookups);
+
+      const rows = p.data
+        .map((rec) => {
+          const cid = rec.cliente?.id != null ? String(rec.cliente.id) : null;
+          return mapAppointment(rec, cid ? cache.get(cid) ?? null : null);
+        })
+        .filter(Boolean);
+
+      synced += await upsertChunk(rows);
+      await db.query('UPDATE trinks_sync_state SET last_sync_at = NOW() WHERE id = 1');
+
+      page += 1;
+      if (page <= totalPages) await sleep(PAGE_SLEEP_MS);
+    } while (page <= totalPages);
 
     await db.query(
       `UPDATE trinks_sync_state
-       SET last_sync_at = NOW(), last_success_at = NOW(), consecutive_failures = 0,
-           last_error = NULL, records_synced_total = records_synced_total + $1
+       SET last_success_at = NOW(), consecutive_failures = 0, last_error = NULL,
+           records_synced_total = records_synced_total + $1
        WHERE id = 1`,
       [synced],
     );
-    log('cycle_ok', { fetched: records.length, synced, new_client_lookups: lookups, mode: win.mode });
+    log('cycle_ok', { synced, pages: totalPages, new_client_lookups: lookups, mode: win.mode });
   } catch (err) {
     await db.query(
       `UPDATE trinks_sync_state
