@@ -313,3 +313,32 @@ curl https://api.studiotirra.com.br/health
 - [ ] `infra/scripts/renew-certs.sh` cobre `admin.studiotirra.com.br` (editar lista de domínios)
 
 Após tudo verde → marcar Story 1.1 como **Done** + atualizar `MEMORY.md`.
+
+---
+
+## Story 1.6 — Trinks Sync Worker (`admin-trinks-sync`)
+
+Serviço Docker que popula `trinks_appointments` (fonte dos KPIs de negócio do dashboard de métricas). Mesma imagem do `backend` (reusa `fetchTrinks` + `db.js`), command override `node trinks-sync-worker.js`. Container isolado — crash do sync não afeta bot nem UI.
+
+**Deploy:**
+```bash
+ssh deploy@72.60.155.118 'cd /opt/influence-labs/infra && git pull && docker compose up -d --build admin-trinks-sync'
+```
+
+**Comportamento:**
+- Boot: se `trinks_sync_state.last_success_at IS NULL` → backfill `[hoje-90d, hoje+30d]` (paginado, `page=1..N`, sleep 250ms entre páginas).
+- A cada 15min (`setInterval`, sem cron lib): janela móvel `[hoje-45d, hoje+15d]` → UPSERT (pega novos bookings + mudanças de status). Idempotente (`ON CONFLICT (trinks_id)`).
+- Telefone resolvido via `/clientes/:id` (cacheado; teto 500 lookups/ciclo — resto preenche nos próximos). Só necessário pra "taxa de sucesso do bot".
+
+**Env necessária** (já no `.env` do backend): `TRINKS_API_KEY`, `TRINKS_API_BASE`, `TRINKS_ESTABELECIMENTO_ID`, `DATABASE_URL`.
+
+**Smoke pós-deploy:**
+```bash
+docker compose logs --tail=20 admin-trinks-sync          # ver {msg:"cycle_ok", fetched, synced}
+docker compose exec postgres psql -U postgres -d influence_labs_salon \
+  -c "SELECT count(*), min(scheduled_at), max(scheduled_at) FROM trinks_appointments;"
+docker compose exec postgres psql -U postgres -d influence_labs_salon \
+  -c "SELECT * FROM trinks_sync_state WHERE id=1;"        # last_success_at preenchido, consecutive_failures=0
+```
+
+> **Gaps conhecidos da API Trinks (Fase 0):** sem data de criação do booking → `created_at_trinks` NULL; todos os KPIs keyed em `scheduled_at`. Telefone só via N+1 `/clientes/:id`.

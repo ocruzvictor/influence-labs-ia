@@ -130,6 +130,25 @@ services:
         condition: service_healthy
     # Sem ports: acesso apenas via nginx (api.studiotirra.com.br)
 
+  # Trinks Sync Worker (Story 1.6) — popula trinks_appointments para o dashboard de métricas.
+  # Mesma imagem do backend (reusa fetchTrinks + db.js); command override roda o worker.
+  # Container isolado: crash do sync não derruba o bot nem a UI. Sem ports (nada exposto).
+  admin-trinks-sync:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: admin-trinks-sync
+    restart: unless-stopped
+    command: ["node", "trinks-sync-worker.js"]
+    environment:
+      TRINKS_API_BASE: ${TRINKS_API_BASE:-https://api.trinks.com/v1}
+      TRINKS_API_KEY: ${TRINKS_API_KEY}
+      TRINKS_ESTABELECIMENTO_ID: ${TRINKS_ESTABELECIMENTO_ID:-243868}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/influence_labs_salon
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # Admin Dashboard (Story 1.1+) — criado por @devops para EPIC-studio-tirra-admin-dashboard.
   # Next.js 15 standalone. Build context: ../frontend/admin (criado pela Story 1.1 @dev).
   admin-frontend:
@@ -157,24 +176,6 @@ services:
       postgres:
         condition: service_healthy
     # Sem ports: acesso apenas via nginx (admin.studiotirra.com.br → admin-frontend:3002)
-
-  # Trinks sync worker (cron 15min) — isolado do admin-frontend pra UI nao cair em crash do sync.
-  admin-trinks-sync:
-    build:
-      context: ../frontend/admin
-      dockerfile: Dockerfile
-    container_name: admin-trinks-sync
-    restart: unless-stopped
-    command: ["node", "dist/lib/trinks-sync-worker.js"]
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/influence_labs_salon
-      TRINKS_API_BASE: ${TRINKS_API_BASE:-https://api.trinks.com/v1}
-      TRINKS_API_KEY: ${TRINKS_API_KEY}
-      TRINKS_ESTABELECIMENTO_ID: ${TRINKS_ESTABELECIMENTO_ID:-243868}
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   nginx:
     image: nginx:alpine
