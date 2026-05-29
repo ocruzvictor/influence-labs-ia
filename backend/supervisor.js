@@ -142,18 +142,20 @@ function formatArrival(ts) {
 // (reusa o Map Kapso do AC2, NÃO recomputa), se tem agendamento futuro (sinal, não filtro — AC3),
 // e o horário da última msg do cliente (pro Gabriel encaixar no FIFO).
 async function classifyConversation({
-  phone, client, messages,
+  phone, client, messages, clientName = null,
   quemFalouPorUltimo = null, temAgendamento = null, horarioUltimaMsgCliente = null,
 }) {
   const recent = messages.slice(-12); // ultimas 12 msgs por conversa
+  // Nome resolvido (clients.name → contact_name Kapso) tem prioridade; cai no client.name.
+  const nome = clientName || client?.name || null;
   const input = {
     CONVERSATION_ID: phone,
     ULTIMAS_MENSAGENS: recent.map(m => ({ role: m.role, content: m.content, ts: m.ts })),
-    DADOS_CLIENTE: client ? {
-      nome: client.name,
-      visitas: client.visit_count || 0,
-      ultimo_servico: client.last_service,
-      ultima_visita: client.last_visit,
+    DADOS_CLIENTE: (client || nome) ? {
+      nome,
+      visitas: client?.visit_count || 0,
+      ultimo_servico: client?.last_service || null,
+      ultima_visita: client?.last_visit || null,
     } : null,
     QUEM_FALOU_POR_ULTIMO: quemFalouPorUltimo, // 'cliente' | 'salao' | null
     TEM_AGENDAMENTO: temAgendamento || { tem: false }, // {tem, quando, status} — SINAL pro agente
@@ -219,8 +221,10 @@ function renderDigest({ items, lookbackHours }) {
     const action = (it.verdict?.suggested_action || '').slice(0, 160);
     const hora = formatArrival(it.last_client_ts);
     const book = it.tem_agendamento?.tem ? ' · 📅 já tem agendamento' : '';
+    // Identificação: Nome (telefone) quando há nome; só telefone quando não há.
+    const quem = it.client_name ? `${it.client_name} (${it.phone})` : it.phone;
     lines.push(
-      `${num}. ${it.phone} — ${cat}${hora ? ` · chegou ${hora}` : ''}${book}\n` +
+      `${num}. ${quem} — ${cat}${hora ? ` · chegou ${hora}` : ''}${book}\n` +
       `   ${reason}\n` +
       (action ? `   ➤ ${action}\n` : '')
     );
@@ -298,6 +302,7 @@ function extractTimestampMs(msg) {
 // cobrir a janela inteira — ver paginação em fetchKapsoLastSpeaker).
 function buildLastSpeakerMap(messages) {
   const map = new Map();
+  const contactNames = new Map(); // phoneNorm -> contact_name da Kapso (nome do WhatsApp)
   const bestTs = new Map();
   let matchedPhones = 0;
   let messagesWithTs = 0; // quantas msgs tiveram timestamp PARSEÁVEL (ts > 0)
@@ -307,6 +312,9 @@ function buildLastSpeakerMap(messages) {
     if (!phone || !direction) continue;
     const ts = extractTimestampMs(msg);
     if (ts > 0) messagesWithTs++;
+    // Nome do contato (cobre clientes novos que não estão na tabela `clients`).
+    const name = (msg?.kapso?.contact_name || msg?.contact_name || '').trim();
+    if (name && !contactNames.has(phone)) contactNames.set(phone, name);
     const prev = bestTs.get(phone);
     if (prev === undefined || ts >= prev) {
       if (prev === undefined) matchedPhones++;
@@ -314,7 +322,7 @@ function buildLastSpeakerMap(messages) {
       map.set(phone, direction);
     }
   }
-  return { map, matchedPhones, messagesSeen: (messages || []).length, messagesWithTs };
+  return { map, contactNames, matchedPhones, messagesSeen: (messages || []).length, messagesWithTs };
 }
 
 // Pull paginado do endpoint NATIVO Kapso, cobrindo TODA a janela de lookback.
@@ -395,7 +403,7 @@ async function fetchKapsoLastSpeaker({ phoneNumberId, lookbackHours, fetchImpl }
     const { messages, pages, pageCapHit, termination, windowFullyCovered } = await fetchKapsoMessagesRaw({
       phoneNumberId, lookbackHours, fetchImpl,
     });
-    const { map, matchedPhones, messagesSeen, messagesWithTs } = buildLastSpeakerMap(messages);
+    const { map, contactNames, matchedPhones, messagesSeen, messagesWithTs } = buildLastSpeakerMap(messages);
     // 4º disfarce do no-op: se o campo de timestamp da Kapso tiver outro nome (não probado),
     // extractTimestampMs devolve 0 pra TUDO → "max-timestamp" degrada p/ "última na ordem do
     // fetch" (arbitrária) → o filtro ranqueia em ruído sem ninguém ver. Se buscamos msgs mas
@@ -405,16 +413,16 @@ async function fetchKapsoLastSpeaker({ phoneNumberId, lookbackHours, fetchImpl }
       return {
         ok: false,
         error: 'kapso_timestamps_unparseable (msgs sem campo de timestamp reconhecido)',
-        map: null,
+        map: null, contactNames,
         diag: { kapso_msgs_fetched: messagesSeen, distinct_phones_in_map: 0, kapso_msgs_with_ts: 0, pages, page_cap_hit: pageCapHit, termination, window_fully_covered: windowFullyCovered },
       };
     }
     return {
-      ok: true, map,
+      ok: true, map, contactNames,
       diag: { kapso_msgs_fetched: messagesSeen, distinct_phones_in_map: matchedPhones, kapso_msgs_with_ts: messagesWithTs, pages, page_cap_hit: pageCapHit, termination, window_fully_covered: windowFullyCovered },
     };
   } catch (err) {
-    return { ok: false, error: err.message, map: null, diag: { kapso_msgs_fetched: 0, distinct_phones_in_map: 0, kapso_msgs_with_ts: 0, pages: 0, page_cap_hit: false, termination: 'error', window_fully_covered: false } };
+    return { ok: false, error: err.message, map: null, contactNames: new Map(), diag: { kapso_msgs_fetched: 0, distinct_phones_in_map: 0, kapso_msgs_with_ts: 0, pages: 0, page_cap_hit: false, termination: 'error', window_fully_covered: false } };
   }
 }
 
@@ -498,17 +506,22 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
       const quemFalouPorUltimo = dir === 'inbound' ? 'cliente' : dir === 'outbound' ? 'salao' : null;
       const temAgendamento = (phoneNorm && bookingMap.get(phoneNorm)) || { tem: false };
       const horarioUltimaMsgCliente = lastClientMsgTs(conv);
+      // Nome: clients.name → contact_name da Kapso (cobre clientes novos) → null.
+      const clientName = client?.name
+        || (phoneNorm && lastSpeaker.contactNames ? lastSpeaker.contactNames.get(phoneNorm) : null)
+        || null;
       const verdict = await classifyConversation({
         phone: conv.client_phone,
         client,
         messages: conv.messages,
+        clientName,
         quemFalouPorUltimo,
         temAgendamento,
         horarioUltimaMsgCliente,
       });
       return {
         phone: conv.client_phone, verdict, score: scoreFromVerdict(verdict), msg_count: conv.msg_count,
-        last_client_ts: horarioUltimaMsgCliente, tem_agendamento: temAgendamento,
+        last_client_ts: horarioUltimaMsgCliente, tem_agendamento: temAgendamento, client_name: clientName,
       };
     } catch (err) {
       console.error(`[supervisor] erro classificando ${conv.client_phone}: ${err.message}`);
