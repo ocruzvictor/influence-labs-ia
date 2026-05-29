@@ -26,4 +26,14 @@ async function query(sql, params) {
   }
 }
 
-module.exports = { query };
+function getPoolStats() {
+  const p = getPool();
+  if (!p) return null;
+  return {
+    total: p.totalCount,
+    idle: p.idleCount,
+    waiting: p.waitingCount,
+  };
+}
+
+module.exports = { query, getPoolStats };

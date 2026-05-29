@@ -1,7 +1,7 @@
 "use client";
 
 import { LogOut, ShieldCheck } from "lucide-react";
-import { toast } from "sonner";
+import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,14 +59,11 @@ export function UserMenu({ name, email, role }: UserMenuProps): React.ReactEleme
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={(e) => {
-            e.preventDefault();
-            toast.info("Auditoria chega na Story 1.6");
-          }}
-        >
-          <ShieldCheck className="mr-2 h-4 w-4" />
-          Auditoria
+        <DropdownMenuItem asChild>
+          <Link href="/saude?tab=auditoria" className="cursor-pointer">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Auditoria
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

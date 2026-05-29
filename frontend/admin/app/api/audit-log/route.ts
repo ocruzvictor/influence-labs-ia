@@ -8,27 +8,14 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
-import { z } from "zod";
 import { listAuditLog } from "@/lib/audit-log";
-
-const querySchema = z.object({
-  user_id: z.string().uuid().nullish(),
-  action: z.string().max(100).nullish(),
-  target_type: z.string().max(50).nullish(),
-  since: z.string().datetime({ offset: true }).nullish(),
-  until: z.string().datetime({ offset: true }).nullish(),
-  limit: z.coerce.number().int().min(1).max(200).default(100),
-  cursor: z
-    .string()
-    .regex(/^\d+$/, "cursor_must_be_bigint")
-    .nullish(),
-});
+import { auditLogQuerySchema } from "@/lib/audit-log-query";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const params = Object.fromEntries(req.nextUrl.searchParams.entries());
-  const parsed = querySchema.safeParse(params);
+  const parsed = auditLogQuerySchema.safeParse(params);
   if (!parsed.success) {
     return NextResponse.json(
       {
