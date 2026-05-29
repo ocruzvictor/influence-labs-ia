@@ -1,7 +1,7 @@
 # Story 1.7: Admin UI — Saúde + Auditoria (combinada)
 
 **Epic:** [EPIC-studio-tirra-admin-dashboard](epics/EPIC-studio-tirra-admin-dashboard.md)
-**Status:** Ready for Review
+**Status:** Done
 **Agente executor:** @dev
 **Story Points:** 5
 **Pode executar agora:** ✅ Sim — toda dependência de dados já existe. Stories 1.2-DATA entregou `lib/audit-log.ts` + `/api/audit-log` (já populados pelas 1.3/1.4/1.5). Backend `/health` em prod retorna JSON rico desde dia 1.
