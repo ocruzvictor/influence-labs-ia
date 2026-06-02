@@ -144,6 +144,33 @@ Claude (Dex / @dev) — sessão 2026-06-02
 
 ### Change Log
 - 2026-06-02: Item 1 (nome do serviço no card) implementado + testado. Fase 0 bloqueada por rate-limit Trinks.
+- 2026-06-02: Fase 0 — achados consolidados (abaixo) + decisões do Victor. Pacote Trinks-acoplado encaminhado ao @architect.
+
+### Fase 0 — Achados (2026-06-02)
+
+**🔴 Trinks 429 em produção (REAL, nova frente aprovada por Victor):**
+- Evidência: logs de prod `2026-06-02T05:43Z` e `2026-06-02T17:35Z` (14:35 BRT) — **conversa real** (`getSlots`/`getProfessionals`, que só rodam em `processMessage`) com **~7-8 chamadas falhando no mesmo milissegundo** (17:35:05.695–698).
+- **Causa-raiz (diagnóstico @dev):** cada mensagem dispara **7 chamadas Trinks concorrentes** (`server.js:853` — `Promise.allSettled` de 5 dias de slots via `getNextBusinessDays(5)` + `getProfessionals` + `getServicesText`), **sem cache** (só `pingTrinks` tem TTL 60s) e **sem retry/backoff** (só o backfill worker tem). A rajada estoura o rate-limit da Trinks → bot degradado ("Erro ao consultar" em tudo).
+- Limite exato da Trinks não documentado publicamente; fix independe do número.
+- **Direção de fix (validar com @architect):** (1) cachear serviços+profissionais (quase estáticos) com TTL; (2) reduzir/cachear/serializar os 5 slots; (3) retry com Retry-After/backoff em 429; (4) limiter global de concorrência Trinks. **Victor vai checar quota/billing da conta Trinks em paralelo.**
+
+**🟡 Item 2 — fonte do mapa de habilitação encontrada na KB:**
+- `data/kb/conversa-v2/fichas-tecnicas-servicos.md` tem tabela completa **serviço → preço → duração → profissionais habilitados** (catálogo por categoria). O bot já consulta KB (collection 39496).
+- **Decisão Victor: abordagem HÍBRIDA** — KB validada contra Trinks (ou vice-versa) pra manter dado fresco e seguro. Mecanismo a desenhar (@architect). **Caveat:** KB usa nomes completos ("Tiago Rocha", "Erick Barros"); slots ao vivo usam `apelido` → precisa cruzar/normalizar nomes. Risco de staleness da KB vs Trinks.
+
+**🟢 Item 3 — decisão Victor: gate formal do @architect** para rota A (injetar agendamentos c/ ID no contexto) vs rota B (cancel por data + `findClientBooking`). Recomendação @dev: rota B (menos I/O Trinks, reusa código), com atenção à desambiguação (AC10).
+
+**Decisões do Victor (2026-06-02):** (1) Trinks 429 = investigar já (nova frente); (2) item 2 = híbrido KB↔Trinks; (3) item 3 = chamar @architect.
+
+### Decisões de Arquitetura (@architect Aria, 2026-06-02 — APROVADAS por Victor)
+
+**Princípio unificador:** a Trinks sai do caminho de resposta em tempo-real → vira **ingestão periódica (worker `admin-trinks-sync` da Story 1.6) + leitura local (DB/cache)**. Runtime não chama Trinks por mensagem.
+
+- **Decisão 1 — Resiliência Trinks (429): SHIP PRIMEIRO, story própria (Fase A).** Fix em camadas: (a) cache de serviços+profissionais (TTL 15–30min); (b) cache de slots por data (TTL 30–60s); (c) limiter global de concorrência Trinks (~3) + retry com Retry-After/backoff em 429. In-process (padrão `trinksPingCache` existente). Destrava operação confiável + o probe da Fase 0. **Esta é uma nova story — referência: `salon-whatsapp-trinks-resiliencia-429` (a draftar).**
+- **Decisão 3 — Item 3 = Rota C (DB-backed).** Lookup do agendamento em `trinks_appointments` local (`client_phone` + `scheduled_at>NOW()` + status scheduled/confirmed) → dá `trinks_id` pro PATCH com **zero chamada Trinks** e habilita desambiguação (AC10). Só o PATCH cancelar bate na Trinks. Fallback `findClientBooking` (Trinks) no lag de 15min do sync, ou usar booking criado na própria sessão. Schema confirmado: `trinks_appointments` tem `trinks_id, client_phone, professional_id/name, service_id/name, status, scheduled_at`.
+- **Decisão 2 — Item 2 = worker constrói + KB cruza (robusto).** Worker constrói mapa autoritativo `serviceId→[professionalId]` **por ID** (elimina o problema nomes-KB×apelido — runtime usa IDs). KB `fichas-tecnicas-servicos.md` = cross-check com alerta de drift Trinks×KB. Runtime lê local (zero custo/msg). **Ainda precisa do probe da forma de `/servicos` (pós-fix da Decisão 1 ou off-peak).** Fase C.
+
+**Sequenciamento:** Fase A (resiliência Trinks, story própria) → Fase B (item 3 Rota C + prompt: 5-novo, lado-prompt de 1/2) → Fase C (item 2 híbrido, pós-probe). Item 1 já entregue (independente).
 
 ## CodeRabbit Integration
 - **Specialized agents previstos:** backend (Node/Express), prompt-engineering (revisão das seções do 46589).
