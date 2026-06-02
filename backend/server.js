@@ -97,6 +97,9 @@ const {
   resolveServiceName,
 } = require('./lib/booking-parser');
 
+// Camada de resiliência Trinks (cache + limiter + retry) — story trinks-resiliencia-429.
+const { createTrinksCache } = require('./lib/trinks-cache');
+
 const app = express();
 app.use(cors());
 // verify captura o corpo cru — necessario para validar assinatura HMAC da Meta (X-Hub-Signature-256)
@@ -322,18 +325,27 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
 }
 
 // --- Trinks helpers ---
-async function fetchTrinks(path) {
-  const url = `${TRINKS_API_BASE}${path}`;
-  const res = await fetch(url, {
-    headers: {
-      'X-Api-Key': TRINKS_KEY,
-      'estabelecimentoId': TRINKS_EST_ID,
-    },
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) throw new Error(`Trinks ${res.status}: ${url}`);
-  return res.json();
-}
+// Resiliência Trinks (story trinks-resiliencia-429): limiter de concorrência + retry 429 + cache TTL.
+// Raiz do 429: cada mensagem dispara ~7 chamadas concorrentes sem cache → rajada estoura o rate-limit.
+// Lógica encapsulada em lib/trinks-cache.js (testável); aqui só instanciamos + TTLs configuráveis.
+const TRINKS_SERVICES_TTL_MS = (parseInt(process.env.TRINKS_SERVICES_TTL_S || '1200', 10)) * 1000; // 20min
+const TRINKS_PROFS_TTL_MS = (parseInt(process.env.TRINKS_PROFS_TTL_S || '1200', 10)) * 1000;       // 20min
+const TRINKS_SLOTS_TTL_MS = (parseInt(process.env.TRINKS_SLOTS_TTL_S || '45', 10)) * 1000;          // 45s
+
+const trinksCache = createTrinksCache({
+  baseUrl: TRINKS_API_BASE,
+  apiKey: TRINKS_KEY,
+  estId: TRINKS_EST_ID,
+  sleepImpl: sleep,
+  maxConcurrency: parseInt(process.env.TRINKS_MAX_CONCURRENCY || '3', 10),
+  maxRetries: parseInt(process.env.TRINKS_MAX_RETRIES || '2', 10),
+});
+// Wrappers finos: preservam a assinatura usada pelos callers existentes do server.js.
+const fetchTrinks = (path, opts) => trinksCache.fetchTrinks(path, opts);
+const cachedFetchTrinks = (path, ttlMs) => trinksCache.cachedFetchTrinks(path, ttlMs);
+const invalidateTrinksCache = (path) => trinksCache.invalidate(path);
+const slotsCacheKey = (date) => trinksCache.slotsCacheKey(date);
+const trinksCacheMetrics = trinksCache.metrics;
 
 // --- Trinks health ping (Story 1.7) ---
 // Cache 60s aplicado em sucesso E falha pra nao martelar Trinks em outage.
@@ -348,7 +360,7 @@ async function pingTrinks() {
   }
   try {
     const t0 = Date.now();
-    await fetchTrinks('/servicos');
+    await fetchTrinks('/servicos', { retries: 0 }); // health ping: sem retry, reflete 429 transitório honestamente
     const latency_ms = Date.now() - t0;
     const payload = {
       status: latency_ms > TRINKS_SLOW_THRESHOLD_MS ? 'slow' : 'ok',
@@ -374,7 +386,7 @@ let globalLastOkAt = null;
 
 async function getSlots(date) {
   try {
-    const json = await fetchTrinks(`/agendamentos/profissionais/${date}`);
+    const json = await cachedFetchTrinks(slotsCacheKey(date), TRINKS_SLOTS_TTL_MS);
     if (!json.data || !Array.isArray(json.data)) return 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
     const available = json.data.filter(p => p.horariosVagos?.length > 0);
     if (available.length === 0) return `HORARIOS VAGOS ${formatDateLabel(date)}:\n- Nenhum horario disponivel.`;
@@ -391,7 +403,7 @@ async function getSlots(date) {
 
 async function getProfessionals() {
   try {
-    const json = await fetchTrinks('/profissionais');
+    const json = await cachedFetchTrinks('/profissionais', TRINKS_PROFS_TTL_MS);
     if (!json.data || !Array.isArray(json.data)) return { text: 'PROFISSIONAIS: Erro ao consultar.', data: [] };
     let txt = 'PROFISSIONAIS ATIVOS:\n';
     for (const p of json.data) {
@@ -406,7 +418,7 @@ async function getProfessionals() {
 
 async function getServicesText() {
   try {
-    const json = await fetchTrinks('/servicos');
+    const json = await cachedFetchTrinks('/servicos', TRINKS_SERVICES_TTL_MS);
     const list = Array.isArray(json.data) ? json.data : [];
     if (!list.length) return { text: 'SERVICOS: Erro ao consultar.', data: [] };
     // Agrupa por profissional (campo "profissionalNome" ou similar), senão lista plana
@@ -943,6 +955,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     try {
       bookingResult = await createBookingInTrinks(bookingData, profsPayload.data);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
+      if (bookingData.date) invalidateTrinksCache(slotsCacheKey(bookingData.date)); // AC3: slot tomado não pode reaparecer
       // Story bot-46589 item 1: resolve o nome do serviço (legacy traz service_name; v2 só service_id → resolve pelo ID).
       const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
       if (phone && (servicoNome || bookingData.serviceId)) {
@@ -991,6 +1004,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
       bookingResult = await cancelBookingInTrinks(agendamentoId, clienteId, bookingCancel.motivo);
       console.log(`[${sessionId}] Booking cancelled in Trinks: agendamentoId ${agendamentoId}`);
+      if (bookingCancel.date) invalidateTrinksCache(slotsCacheKey(bookingCancel.date)); // AC3: slot liberado volta a aparecer
       finalMessages.push(`Pronto, cancelei seu horário! Qualquer coisa, é só chamar pra reagendar. 😊`);
     } catch (err) {
       console.error(`[${sessionId}] Booking cancel FAILED:`, err.message);
@@ -1025,6 +1039,9 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
       bookingResult = await rescheduleBookingInTrinks(agendamentoId, newBooking, profsPayload.data);
       console.log(`[${sessionId}] Booking rescheduled in Trinks: agendamentoId ${agendamentoId}`);
+      // AC3: invalida data antiga (libera slot) e nova (ocupa slot)
+      if (bookingReschedule.old_date) invalidateTrinksCache(slotsCacheKey(bookingReschedule.old_date));
+      if (newBooking.date) invalidateTrinksCache(slotsCacheKey(newBooking.date));
       const dataFmt = newBooking.date && newBooking.time
         ? `${newBooking.date.split('-').reverse().join('/')} às ${newBooking.time}`
         : 'no horario combinado';
@@ -1684,6 +1701,7 @@ app.get('/health', async (req, res) => {
       last_ok_query_at: globalLastOkAt,
     },
     trinks_ping,
+    trinks_cache: { ...trinksCacheMetrics, cached_keys: _trinksCache.size, concurrency_active: _trinksActive }, // story trinks-resiliencia-429
     bot: {
       accept_all: BOT_ACCEPT_ALL,
       whitelist_count: BOT_ALLOWED_PHONES.length,
