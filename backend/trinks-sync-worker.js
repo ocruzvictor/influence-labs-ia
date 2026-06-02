@@ -17,7 +17,10 @@ const db = require('./db');
 const { listAgendamentosPage, getClientePhone } = require('./lib/trinks-client');
 const { mapAppointment, normalizePhoneBR } = require('./lib/trinks-mapping');
 
-const SYNC_INTERVAL_MS = 15 * 60 * 1000; // 15min
+// Frequência do reconcile. ERA 15min (96×/dia × ~19 págs ≈ 55k chamadas/mês = 11× o limite Trinks de 5.000/mês).
+// Default agora 6h (4×/dia) como medida imediata de consumo; estado-final = webhooks em tempo real + reconcile diário.
+// Configurável via env TRINKS_SYNC_INTERVAL_MIN.
+const SYNC_INTERVAL_MS = (parseInt(process.env.TRINKS_SYNC_INTERVAL_MIN || '360', 10)) * 60 * 1000;
 const BR_OFFSET = '-03:00'; // Brasil sem DST desde 2019; dataHoraInicio é local naive
 const MAX_NEW_CLIENT_LOOKUPS = 500; // teto de /clientes por ciclo (resto preenche nos próximos)
 const PAGE_SLEEP_MS = 600; // pausa entre páginas (rate limit Trinks; 429 tem backoff próprio)

@@ -388,8 +388,10 @@ const slotsCacheKey = (date) => trinksCache.slotsCacheKey(date);
 const trinksCacheMetrics = trinksCache.metrics;
 
 // --- Trinks health ping (Story 1.7) ---
-// Cache 60s aplicado em sucesso E falha pra nao martelar Trinks em outage.
-const TRINKS_PING_TTL_MS = 60_000;
+// Cache aplicado em sucesso E falha pra nao martelar Trinks em outage.
+// ERA 60s → se o painel /saude fica aberto (polling 10s), eram ~1440 chamadas/dia só de ping.
+// Default 10min (configurável TRINKS_PING_TTL_S) pra preservar a cota mensal de 5.000.
+const TRINKS_PING_TTL_MS = (parseInt(process.env.TRINKS_PING_TTL_S || '600', 10)) * 1000;
 const TRINKS_SLOW_THRESHOLD_MS = 1500;
 let trinksPingCache = { payload: null, expiresAt: 0 };
 
