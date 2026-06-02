@@ -145,6 +145,15 @@ Claude (Dex / @dev) — sessão 2026-06-02
 ### Change Log
 - 2026-06-02: Item 1 (nome do serviço no card) implementado + testado. Fase 0 bloqueada por rate-limit Trinks.
 - 2026-06-02: Fase 0 — achados consolidados (abaixo) + decisões do Victor. Pacote Trinks-acoplado encaminhado ao @architect.
+- 2026-06-02 (YOLO): Fase A (resiliência Trinks) entregue em story própria (`salon-whatsapp-trinks-resiliencia-429`, commits `7c0e7b4`). Item 3 Rota C (backend) entregue (`a480d2b`). Prompt deliverables (I.2/I.3/I.6/CONTEXTO DINÂMICO) prontos em `docs/handoffs/46589-prompt-changes-2026-06-02.md` (Victor aplica).
+
+### Estado por item (2026-06-02, YOLO run)
+- **Item 1 (card):** ✅ código + testes, commit `59da171`. Smoke pós-deploy.
+- **Item 3 (cancelamento, Rota C):** ✅ backend (`loadClientFutureBookings` + injeção de `AGENDAMENTOS FUTUROS` com bookingId real + bloco 4b cancela por ID + fallback). Commit `a480d2b`. 94/94 testes. 📝 Prompt I.2/I.3 a aplicar. 🔴 e2e (AC9) precisa Trinks de volta.
+- **Item 5-novo (handoff multi-serviço):** 📝 texto I.6 pronto (Victor aplica). Sem código.
+- **Item 2 (filtro prof×serviço):** 🔴 Fase C — bloqueado pelo probe `/servicos` (Trinks 429). Worker constrói mapa (decisão @architect).
+- **AC14 (contrato CONTEXTO DINÂMICO):** 📝 texto pronto (parte do item 3); parte do item 2 fica pra Fase C.
+- **Fase A (resiliência Trinks):** ✅ código + 89→94 testes, commits na branch. 🔴 deploy+smoke (AC9 da Fase A) pendente de Trinks normalizar.
 
 ### Fase 0 — Achados (2026-06-02)
 
