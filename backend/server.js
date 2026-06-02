@@ -95,6 +95,7 @@ const {
   stripBookingTags,
   sanitizePrematureConfirm,
   resolveServiceName,
+  renderFutureBookings,
 } = require('./lib/booking-parser');
 
 // Camada de resiliência Trinks (cache + limiter + retry) — story trinks-resiliencia-429.
@@ -238,6 +239,43 @@ async function loadClientMemory(phone) {
   };
 }
 
+// Story bot-46589 item 3 (Rota C): agendamentos FUTUROS e ativos do cliente, lidos do
+// trinks_appointments local (sincronizado pelo worker da Story 1.6) — ZERO chamada Trinks.
+// Expõe o trinks_id (bookingId) que o prompt precisa pra cancelar/remarcar. Fail-soft: [] em erro.
+async function loadClientFutureBookings(phone) {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits) return [];
+  try {
+    const r = await db.query(
+      `SELECT trinks_id, service_name, professional_name, scheduled_at, status
+         FROM trinks_appointments
+        WHERE client_phone = $1 AND scheduled_at > NOW() AND status IN ('scheduled','confirmed')
+        ORDER BY scheduled_at ASC LIMIT 10`,
+      [digits]
+    );
+    return r ? r.rows : [];
+  } catch (err) {
+    console.error('[future-bookings] erro:', err.message);
+    return [];
+  }
+}
+
+// Formata timestamptz (scheduled_at) como "DD/MM/YYYY às HH:MM" no fuso do salão.
+function formatBookingDateTime(ts) {
+  try {
+    const d = ts instanceof Date ? ts : new Date(ts);
+    const fmt = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: SALON_TIME_ZONE, day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    const parts = fmt.formatToParts(d);
+    const pick = t => parts.find(p => p.type === t)?.value;
+    return `${pick('day')}/${pick('month')}/${pick('year')} às ${pick('hour')}:${pick('minute')}`;
+  } catch {
+    return String(ts);
+  }
+}
+
 async function saveConversationTurns(phone, turns) {
   const digits = (phone || '').replace(/\D/g, '');
   if (!digits || !turns.length) return;
@@ -298,8 +336,9 @@ function buildPersistedSection(persistedMemory) {
   return section;
 }
 
-function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null) {
+function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null, futureBookings = []) {
   const persistedSection = buildPersistedSection(persistedMemory);
+  const futureBookingsSection = renderFutureBookings(futureBookings, formatBookingDateTime); // item 3 Rota C
   const historyText = history.length
     ? '\n\nHISTORICO DA CONVERSA:\n' + history
         .map(m => `${m.role === 'user' ? 'Cliente' : 'Assistente'}: ${m.content}`)
@@ -320,6 +359,7 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
     professionalsText,
     servicesText,
     persistedSection,
+    futureBookingsSection,
     historyText,
   ].join('\n');
 }
@@ -860,12 +900,13 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
   console.log(`[${sessionId}] ${contactName}: "${messageText}"`);
 
-  // 1. Fetch Trinks data in parallel (next 5 business days)
+  // 1. Fetch Trinks data in parallel (next 5 business days) + agendamentos futuros do cliente (DB local, item 3 Rota C)
   const businessDays = getNextBusinessDays(5);
-  const [slotsResults, profsResult, svcTextResult] = await Promise.allSettled([
+  const [slotsResults, profsResult, svcTextResult, futureBookingsResult] = await Promise.allSettled([
     Promise.all(businessDays.map(date => getSlots(date))),
     getProfessionals(),
     getServicesText(),
+    phone ? loadClientFutureBookings(phone) : Promise.resolve([]),
   ]);
 
   const profsPayload = profsResult.status === 'fulfilled'
@@ -878,6 +919,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     ? svcTextResult.value
     : { text: 'SERVICOS: Erro ao consultar.', data: [] };
   const svcText = svcPayload.text;
+  const futureBookings = futureBookingsResult.status === 'fulfilled' ? futureBookingsResult.value : [];
 
   // 2. Call TESS
   // O agente TESS ignora role:system — contexto dinamico injetado no user message + root_id para thread.
@@ -885,7 +927,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   if (lastEntry?.role !== 'user' || lastEntry.content !== messageText) {
     state.history.push({ role: 'user', content: messageText });
   }
-  const dynamicContext = buildDynamicContext(businessDays, slotsAll, profsPayload.text, state.history, svcText, state.persistedMemory);
+  const dynamicContext = buildDynamicContext(businessDays, slotsAll, profsPayload.text, state.history, svcText, state.persistedMemory, futureBookings);
   const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${messageText}`;
   const tessRaw = await callTESS([
     { role: 'user', content: userMessageWithContext },

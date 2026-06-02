@@ -165,11 +165,30 @@ function resolveServiceName(servicesData, serviceId) {
   return match?.nome || null;
 }
 
+// Story bot-46589 item 3 (Rota C): renderiza os agendamentos futuros do cliente (lidos do
+// trinks_appointments local) para o contexto dinâmico, EXPONDO o bookingId real (trinks_id).
+// Resolve a causa-raiz do cancelamento quebrado: o prompt pedia bookingId em DADOS_CLIENTE,
+// mas o backend nunca injetava nenhum. Agora injeta — e habilita desambiguação (múltiplos → bot pergunta).
+// `fmtDateTime` é injetado (formatação no fuso do salão vive no server.js). Pura/testável.
+function renderFutureBookings(bookings, fmtDateTime) {
+  if (!Array.isArray(bookings) || bookings.length === 0) return '';
+  const fmt = typeof fmtDateTime === 'function' ? fmtDateTime : (v) => String(v);
+  const lines = bookings.map(b => {
+    const when = fmt(b.scheduled_at);
+    const svc = b.service_name || 'serviço';
+    const prof = b.professional_name ? ` com ${b.professional_name}` : '';
+    return `- bookingId=${b.trinks_id} | ${svc}${prof} em ${when}`;
+  });
+  return '\n\nAGENDAMENTOS FUTUROS DO CLIENTE (use o bookingId EXATO em [BOOKING_CANCEL]/[BOOKING_RESCHEDULE]; se houver mais de um e o cliente não especificar, PERGUNTE qual):\n'
+    + lines.join('\n');
+}
+
 module.exports = {
   normalizeJsonQuotes,
   parseInlineArgs,
   stripBookingTags,
   sanitizePrematureConfirm,
   resolveServiceName,
+  renderFutureBookings,
   PREMATURE_CONFIRM_PATTERNS,
 };
