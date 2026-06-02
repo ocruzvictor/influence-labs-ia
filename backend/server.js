@@ -94,6 +94,7 @@ const {
   parseInlineArgs,
   stripBookingTags,
   sanitizePrematureConfirm,
+  resolveServiceName,
 } = require('./lib/booking-parser');
 
 const app = express();
@@ -407,17 +408,18 @@ async function getServicesText() {
   try {
     const json = await fetchTrinks('/servicos');
     const list = Array.isArray(json.data) ? json.data : [];
-    if (!list.length) return 'SERVICOS: Erro ao consultar.';
+    if (!list.length) return { text: 'SERVICOS: Erro ao consultar.', data: [] };
     // Agrupa por profissional (campo "profissionalNome" ou similar), senão lista plana
     let txt = 'SERVICOS DISPONIVEIS (use o nome EXATO na tag BOOKING_CONFIRM):\n';
     for (const s of list) {
       const prof = s.profissionalNome || s.profissional || '';
       txt += `- ${s.nome}${prof ? ` [${prof}]` : ''} (ID ${s.id})\n`;
     }
-    return txt;
+    // Story bot-46589 item 1: retorna data estruturada p/ resolver nome do serviço pelo ID no card de confirmação.
+    return { text: txt, data: list };
   } catch (err) {
     console.error('Trinks services text error:', err.message);
-    return 'SERVICOS: Erro ao consultar.';
+    return { text: 'SERVICOS: Erro ao consultar.', data: [] };
   }
 }
 
@@ -860,9 +862,10 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   const slotsAll = slotsResults.status === 'fulfilled'
     ? slotsResults.value.join('\n')
     : 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
-  const svcText = svcTextResult.status === 'fulfilled'
+  const svcPayload = svcTextResult.status === 'fulfilled'
     ? svcTextResult.value
-    : 'SERVICOS: Erro ao consultar.';
+    : { text: 'SERVICOS: Erro ao consultar.', data: [] };
+  const svcText = svcPayload.text;
 
   // 2. Call TESS
   // O agente TESS ignora role:system — contexto dinamico injetado no user message + root_id para thread.
@@ -940,8 +943,11 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     try {
       bookingResult = await createBookingInTrinks(bookingData, profsPayload.data);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
-      if (phone && (bookingData.service || bookingData.serviceId)) {
-        updateClientAfterBooking(phone, bookingData.service || `id:${bookingData.serviceId}`).catch(() => {});
+      // Story bot-46589 item 1: resolve o nome do serviço (legacy traz service_name; v2 só service_id → resolve pelo ID).
+      const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
+      if (phone && (servicoNome || bookingData.serviceId)) {
+        // Persiste o nome real quando disponível (evita gravar "id:123" em last_service).
+        updateClientAfterBooking(phone, servicoNome || `id:${bookingData.serviceId}`).catch(() => {});
       }
       // 2-phase sucesso: mensagem final construida pelo backend, NAO pelo TESS.
       const valorFmt = (bookingData.valor ?? bookingResult?.valor ?? 0).toFixed(2).replace('.', ',');
@@ -949,9 +955,12 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         ? `${bookingData.date.split('-').reverse().join('/')} às ${bookingData.time}`
         : 'no horario combinado';
       const profNome = profObj?.apelido || profObj?.nome || 'a equipe';
+      // item 1: inclui a linha do serviço só quando resolvido (degrada graciosamente — AC4: nunca imprime "id:undefined").
+      const servicoLinha = servicoNome ? `💅 ${servicoNome}\n` : '';
       finalMessages.push(
         `Prontinho! Te esperamos no Studio Tirra 😊\n\n` +
         `📅 ${dataFmt}\n` +
+        servicoLinha +
         `💇 com ${profNome}\n` +
         `💰 R$ ${valorFmt}\n\n` +
         `📍 R. Espírito Santo, 385 - Santo Antônio, São Caetano do Sul\n` +

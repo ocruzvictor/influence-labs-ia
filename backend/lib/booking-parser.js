@@ -156,10 +156,20 @@ function sanitizePrematureConfirm(text) {
   return s || 'Confirmo aqui então 👀';
 }
 
+// Story bot-46589 item 1: resolve o nome do serviço pelo ID para o card de confirmação 2-phase.
+// Em v2 a tag BOOKING_CREATE só traz `service_id`; o nome vem da lista de /servicos (campo `nome`).
+// Retorna null quando não resolúvel (caller degrada graciosamente — não imprime "id:undefined").
+function resolveServiceName(servicesData, serviceId) {
+  if (!serviceId || !Array.isArray(servicesData)) return null;
+  const match = servicesData.find(s => String(s.id) === String(serviceId));
+  return match?.nome || null;
+}
+
 module.exports = {
   normalizeJsonQuotes,
   parseInlineArgs,
   stripBookingTags,
   sanitizePrematureConfirm,
+  resolveServiceName,
   PREMATURE_CONFIRM_PATTERNS,
 };
