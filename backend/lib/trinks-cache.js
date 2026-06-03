@@ -22,6 +22,7 @@ function createTrinksCache({
   fetchImpl,
   sleepImpl,
   nowFn,
+  onCall,
   maxConcurrency = 3,
   maxRetries = 2,
   timeoutMs = 10000,
@@ -29,6 +30,7 @@ function createTrinksCache({
   const doFetch = fetchImpl || ((...a) => fetch(...a));
   const sleep = sleepImpl || (ms => new Promise(r => setTimeout(r, ms)));
   const now = nowFn || Date.now;
+  const reportCall = typeof onCall === 'function' ? onCall : () => {}; // monitor de cota (story quota-monitor)
 
   // --- Semáforo de concorrência ---
   let active = 0;
@@ -51,6 +53,7 @@ function createTrinksCache({
       await acquire();
       let res;
       try {
+        try { reportCall(); } catch (_) {} // conta a chamada (cada tentativa consome cota Trinks, inclusive 429)
         res = await doFetch(url, {
           headers: { 'X-Api-Key': apiKey, 'estabelecimentoId': estId },
           signal: AbortSignal.timeout(timeoutMs),

@@ -16,8 +16,14 @@ const TRINKS_EST_ID = process.env.TRINKS_ESTABELECIMENTO_ID || '243868';
 const TIMEOUT_MS = 12_000;
 const MAX_429_RETRIES = 5;
 
+// Monitor de cota Trinks (story quota-monitor): o worker é o 2º processo que consome a mesma chave.
+// Conta no MESMO contador mensal (Postgres) que o backend. Fail-soft (require defensivo).
+let _db = null, _recordTrinksCall = null;
+try { _db = require('../db'); _recordTrinksCall = require('./trinks-usage').recordTrinksCall; } catch (_) {}
+
 async function fetchTrinks(path) {
   for (let attempt = 0; ; attempt++) {
+    if (_recordTrinksCall && _db) { try { _recordTrinksCall(_db); } catch (_) {} } // cada tentativa consome cota
     const res = await fetch(`${TRINKS_API_BASE}${path}`, {
       headers: { 'X-Api-Key': TRINKS_KEY, estabelecimentoId: String(TRINKS_EST_ID) },
       signal: AbortSignal.timeout(TIMEOUT_MS),

@@ -100,6 +100,8 @@ const {
 
 // Camada de resiliência Trinks (cache + limiter + retry) — story trinks-resiliencia-429.
 const { createTrinksCache } = require('./lib/trinks-cache');
+// Monitor de cota Trinks (contador mensal compartilhado) — story trinks-quota-monitor.
+const { recordTrinksCall, getTrinksUsage, newlyCrossed } = require('./lib/trinks-usage');
 
 const app = express();
 app.use(cors());
@@ -372,11 +374,15 @@ const TRINKS_SERVICES_TTL_MS = (parseInt(process.env.TRINKS_SERVICES_TTL_S || '1
 const TRINKS_PROFS_TTL_MS = (parseInt(process.env.TRINKS_PROFS_TTL_S || '1200', 10)) * 1000;       // 20min
 const TRINKS_SLOTS_TTL_MS = (parseInt(process.env.TRINKS_SLOTS_TTL_S || '45', 10)) * 1000;          // 45s
 
+// Cota mensal contratada (base 5.000 + adicionais R$60/+5.000, NÃO cumulativos). Configurável.
+const TRINKS_MONTHLY_BUDGET = parseInt(process.env.TRINKS_MONTHLY_BUDGET || '5000', 10);
+
 const trinksCache = createTrinksCache({
   baseUrl: TRINKS_API_BASE,
   apiKey: TRINKS_KEY,
   estId: TRINKS_EST_ID,
   sleepImpl: sleep,
+  onCall: () => recordTrinksCall(db),   // conta cada chamada Trinks do bot no contador mensal
   maxConcurrency: parseInt(process.env.TRINKS_MAX_CONCURRENCY || '3', 10),
   maxRetries: parseInt(process.env.TRINKS_MAX_RETRIES || '2', 10),
 });
@@ -1718,6 +1724,38 @@ supervisor.startScheduler({
   getKapsoPhoneNumberId: () => lastKnownKapsoPhoneNumberId,
 });
 
+// --- Monitor de cota Trinks (story quota-monitor) ---
+// Alerta no WhatsApp ao cruzar thresholds da cota mensal, pra decidir comprar +5.000 (R$60) ou esperar o mês virar.
+const TRINKS_ALERT_PHONES = (process.env.TRINKS_ALERT_PHONES || '')
+  .split(',').map(s => s.trim().replace(/\D/g, '')).filter(Boolean);
+const TRINKS_ALERT_THRESHOLDS = [0.8, 0.9, 1.0];
+const TRINKS_QUOTA_CHECK_MS = (parseInt(process.env.TRINKS_QUOTA_CHECK_MIN || '10', 10)) * 60 * 1000;
+let _quotaAlertState = { month: null, alerted: new Set() };
+
+async function checkTrinksQuota() {
+  const usage = await getTrinksUsage(db, TRINKS_MONTHLY_BUDGET);
+  if (_quotaAlertState.month !== usage.month) _quotaAlertState = { month: usage.month, alerted: new Set() };
+  const toAlert = newlyCrossed(usage.pct, TRINKS_ALERT_THRESHOLDS, _quotaAlertState.alerted);
+  if (!toAlert.length) return;
+  toAlert.forEach(t => _quotaAlertState.alerted.add(t));
+  const pctLabel = Math.round(usage.pct * 100);
+  const atLimit = Math.max(...toAlert) >= 1;
+  const msg = `⚠️ Cota Trinks: ${usage.used}/${usage.budget} (${pctLabel}%) em ${usage.month}. Restam ${usage.remaining}. `
+    + (atLimit
+      ? 'LIMITE ATINGIDO — a API vai bloquear até virar o mês ou contratar +5.000 (R$60).'
+      : 'Avalie contratar +5.000 (R$60) agora ou segurar até o reset mensal.');
+  console.warn('[trinks-quota] ' + msg);
+  const pnid = lastKnownKapsoPhoneNumberId;
+  if (pnid && TRINKS_ALERT_PHONES.length) {
+    for (const phone of TRINKS_ALERT_PHONES) {
+      sendKapsoMessage(phone, msg, pnid).catch(e => console.error('[trinks-quota] alerta falhou:', e.message));
+    }
+  } else {
+    console.warn('[trinks-quota] sem TRINKS_ALERT_PHONES ou phone_number_id — alerta só no log');
+  }
+}
+setInterval(() => { checkTrinksQuota().catch(e => console.error('[trinks-quota] check erro:', e.message)); }, TRINKS_QUOTA_CHECK_MS);
+
 // Health check
 app.get('/health', async (req, res) => {
   // Postgres ping (Story 1.7 AC6) — atualiza globalLastOkAt em sucesso
@@ -1730,6 +1768,8 @@ app.get('/health', async (req, res) => {
 
   // Trinks ping (Story 1.7 AC7) — cache 60s, isolado por try/catch interno
   const trinks_ping = await pingTrinks();
+  // Cota mensal Trinks (story quota-monitor) — leitura do contador compartilhado
+  const trinks_usage = await getTrinksUsage(db, TRINKS_MONTHLY_BUDGET);
 
   res.json({
     status: 'ok',
@@ -1745,7 +1785,8 @@ app.get('/health', async (req, res) => {
       last_ok_query_at: globalLastOkAt,
     },
     trinks_ping,
-    trinks_cache: { ...trinksCacheMetrics, cached_keys: _trinksCache.size, concurrency_active: _trinksActive }, // story trinks-resiliencia-429
+    trinks_cache: { ...trinksCacheMetrics, cached_keys: trinksCache._state.cachedKeys, concurrency_active: trinksCache._state.active }, // story trinks-resiliencia-429
+    trinks_usage, // story quota-monitor: { month, used, budget, remaining, pct }
     bot: {
       accept_all: BOT_ACCEPT_ALL,
       whitelist_count: BOT_ALLOWED_PHONES.length,
