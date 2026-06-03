@@ -23,12 +23,14 @@ Cota Trinks: **5.000/mês (R$120)** + adicionais **R$60/+5.000, NÃO cumulativos
 - [x] **AC3:** Alerta dispara 1× por threshold (80/90/100%) por mês; reseta no mês novo.
 - [x] **AC4:** Fire-and-forget — falha de DB nunca quebra o hot-path nem o worker.
 - [x] **AC5:** Testes unitários (db mock): 8 casos. Suíte 102/102.
-- [ ] **AC6:** Smoke pós-deploy: `/health.trinks_usage` reflete chamadas reais; (opcional) checar se a Trinks devolve header `X-RateLimit-Remaining` pra enriquecer com valor autoritativo.
+- [ ] **AC6 (PRIORIDADE quando a API voltar):** checar se a Trinks devolve header de rate-limit (`X-RateLimit-Remaining`/`-Limit`). Se SIM → é autoritativo, resolve o cold-start do contador (que começa em 0 cego à cota já gasta) e vira a fonte primária; o self-counter fica como tendência. **Não confiar no self-counter pra decisão de compra em junho sem antes checar isso.**
 
 ## Env novas
-- `TRINKS_MONTHLY_BUDGET` (default 5000) — setar 10000 em junho.
+- `TRINKS_MONTHLY_BUDGET` — **⚠️ em JUNHO usar ~5000 (o ADICIONAL), NÃO 10000.** O contador começa em 0 no deploy, mas a base de 5000 de junho **já foi gasta** (causa do bloqueio). Com budget=adicional, "chamadas desde o deploy" ≈ "adicional sendo consumido" → os alertas 80/90/100% disparam no que de fato dá pra esgotar. **Julho** é o 1º mês com contador preciso desde o dia 1 → aí usar o total contratado.
 - `TRINKS_ALERT_PHONES` (CSV, dígitos) — quem recebe o alerta (ex: número do Victor).
 - `TRINKS_QUOTA_CHECK_MIN` (default 10).
+
+> **Premissa do contador:** conta TODA tentativa, inclusive retries de 429 → roda **ligeiramente à frente** da contagem da Trinks (defensivo, alerta cedo). Se a Trinks não contar 429 rejeitado, a diferença é maior. Por isso o header autoritativo (AC6) é o alvo real.
 
 ## Follow-up (não nesta story)
 - Enriquecer com header autoritativo de rate-limit da Trinks (se existir) — verificar quando a API voltar.

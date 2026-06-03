@@ -1745,7 +1745,8 @@ async function checkTrinksQuota() {
       ? 'LIMITE ATINGIDO — a API vai bloquear até virar o mês ou contratar +5.000 (R$60).'
       : 'Avalie contratar +5.000 (R$60) agora ou segurar até o reset mensal.');
   console.warn('[trinks-quota] ' + msg);
-  const pnid = lastKnownKapsoPhoneNumberId;
+  // fallback: lastKnownKapsoPhoneNumberId é null até o 1º inbound pós-restart; worker pode cruzar limite em janela quieta
+  const pnid = lastKnownKapsoPhoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID;
   if (pnid && TRINKS_ALERT_PHONES.length) {
     for (const phone of TRINKS_ALERT_PHONES) {
       sendKapsoMessage(phone, msg, pnid).catch(e => console.error('[trinks-quota] alerta falhou:', e.message));
