@@ -28,15 +28,16 @@ async function fetchTrinks(path) {
       headers: { 'X-Api-Key': TRINKS_KEY, estabelecimentoId: String(TRINKS_EST_ID) },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    // Rate limit: respeita Retry-After, senão backoff exponencial (2s,4s,8s,16s,30s).
+    // Rate limit: só retenta 429 quando há Retry-After (limite TRANSITÓRIO/por-minuto).
+    // Cota MENSAL esgotada NÃO manda Retry-After → retentar só queima mais cota (cada 429
+    // conta) sem chance de sucesso. Sem header = cap duro: falha rápido (não retenta).
     if (res.status === 429 && attempt < MAX_429_RETRIES) {
       const retryAfter = Number(res.headers.get('retry-after'));
-      const waitMs =
-        Number.isFinite(retryAfter) && retryAfter > 0
-          ? retryAfter * 1000
-          : Math.min(2000 * 2 ** attempt, 30_000);
-      await sleep(waitMs);
-      continue;
+      if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        await sleep(retryAfter * 1000);
+        continue;
+      }
+      // sem Retry-After → não retenta
     }
     if (!res.ok) throw new Error(`Trinks ${res.status}: ${path}`);
     return res.json();

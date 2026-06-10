@@ -62,11 +62,16 @@ function createTrinksCache({
         release(); // libera o slot ANTES do backoff (não segura a fila durante o sleep)
       }
       if (res.status === 429 && attempt < retries) {
+        // Só retenta 429 quando há Retry-After (sinal de limite TRANSITÓRIO/por-minuto).
+        // Cota MENSAL esgotada NÃO manda Retry-After (confirmado em prod) → retentar só
+        // queima mais cota (cada 429 conta) sem chance de sucesso → falha rápido.
         const ra = parseInt(res.headers?.get?.('retry-after') || '0', 10);
-        const wait = ra > 0 ? ra * 1000 : Math.min(1000 * Math.pow(2, attempt), 8000);
-        metrics.retries++;
-        await sleep(wait);
-        continue;
+        if (ra > 0) {
+          metrics.retries++;
+          await sleep(ra * 1000);
+          continue;
+        }
+        // sem Retry-After → trata como cap duro: não retenta
       }
       if (!res.ok) throw new Error(`Trinks ${res.status}: ${url}`);
       return res.json();

@@ -111,7 +111,7 @@ test('AC4 — limiter: nunca mais de N fetches simultâneos', async () => {
   assert.equal(maxConcurrent, 2, `atingiu o teto de 2 simultâneas (observado ${maxConcurrent})`);
 });
 
-test('AC5 — retry em 429 depois sucesso, respeitando Retry-After', async () => {
+test('AC5 — retry em 429 SÓ com Retry-After (limite transitório), depois sucesso', async () => {
   const h = makeClient({
     responses: [mockRes(429, {}, { 'retry-after': '2' }), mockRes(200, { data: ['ok'] })],
     maxRetries: 2,
@@ -122,21 +122,20 @@ test('AC5 — retry em 429 depois sucesso, respeitando Retry-After', async () =>
   assert.equal(h.client.metrics.retries, 1);
 });
 
-test('AC5 — backoff exponencial quando não há Retry-After', async () => {
-  const h = makeClient({
-    responses: [mockRes(429, {}), mockRes(429, {}), mockRes(200, { data: ['ok'] })],
-    maxRetries: 3,
-  });
-  const r = await h.client.fetchTrinks('/servicos');
-  assert.deepEqual(r, { data: ['ok'] });
-  assert.deepEqual(h.sleeps, [1000, 2000], 'backoff 1s, 2s');
+test('AC5 — 429 SEM Retry-After (cap mensal) → falha rápido, NÃO retenta (não queima cota)', async () => {
+  const h = makeClient({ responses: [mockRes(429, {})], maxRetries: 3 });
+  await assert.rejects(() => h.client.fetchTrinks('/servicos'), /Trinks 429/);
+  assert.equal(h.calls.length, 1, 'só 1 chamada — sem retry sem Retry-After');
+  assert.equal(h.sleeps.length, 0, 'não dormiu');
+  assert.equal(h.client.metrics.retries, 0);
 });
 
-test('AC5 — desiste após maxRetries (429 persistente) e lança', async () => {
-  const h = makeClient({ responses: [mockRes(429, {})], maxRetries: 2 });
+test('AC5 — 429 com Retry-After persistente: retenta até maxRetries e desiste', async () => {
+  const h = makeClient({ responses: [mockRes(429, {}, { 'retry-after': '1' })], maxRetries: 2 });
   await assert.rejects(() => h.client.fetchTrinks('/servicos'), /Trinks 429/);
-  // 1 tentativa inicial + 2 retries = 3 fetches
+  // 1 inicial + 2 retries = 3 chamadas
   assert.equal(h.calls.length, 3);
+  assert.deepEqual(h.sleeps, [1000, 1000]);
 });
 
 test('AC6 — erro não-429 (500) lança imediatamente, sem retry', async () => {
