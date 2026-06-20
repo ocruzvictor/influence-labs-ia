@@ -14,6 +14,7 @@ import { deriveCardStatus, type HealthPayload } from "@/lib/health-status";
 import { HealthCard, HealthCardSkeleton } from "./health-card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { RefreshCw } from "lucide-react";
 
 const POLL_INTERVAL_MS = 10_000;
 
@@ -83,7 +84,8 @@ export function HealthTab(): React.ReactElement {
           onClick={() => void fetchHealth()}
           aria-label="Atualizar saúde agora"
         >
-          ↻ Atualizar agora
+          <RefreshCw aria-hidden className="size-4" />
+          Atualizar agora
         </Button>
       </div>
 

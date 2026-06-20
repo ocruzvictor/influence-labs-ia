@@ -9,6 +9,7 @@
     "test": "node tests/run-prompt-tests.js --mock",
     "test:router": "node tests/run-prompt-tests.js --agent router --mock",
     "test:faq": "node tests/run-prompt-tests.js --agent faq --mock",
-    "test:receptionist": "node tests/run-prompt-tests.js --agent receptionist --mock"
+    "test:receptionist": "node tests/run-prompt-tests.js --agent receptionist --mock",
+    "forecast:trinks": "node backend/trinks-forecast.js"
   }
 }

@@ -23,7 +23,7 @@ try { _db = require('../db'); _recordTrinksCall = require('./trinks-usage').reco
 
 async function fetchTrinks(path) {
   for (let attempt = 0; ; attempt++) {
-    if (_recordTrinksCall && _db) { try { _recordTrinksCall(_db); } catch (_) {} } // cada tentativa consome cota
+    if (_recordTrinksCall && _db) { try { await _recordTrinksCall(_db); } catch (_) {} } // cada tentativa consome cota
     const res = await fetch(`${TRINKS_API_BASE}${path}`, {
       headers: { 'X-Api-Key': TRINKS_KEY, estabelecimentoId: String(TRINKS_EST_ID) },
       signal: AbortSignal.timeout(TIMEOUT_MS),

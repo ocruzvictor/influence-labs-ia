@@ -48,9 +48,9 @@ export function HealthCard({ data }: { data: CardData }): React.ReactElement {
       </div>
       <dl className="space-y-1.5 text-sm">
         {data.metrics.map((m) => (
-          <div key={m.label} className="flex items-baseline gap-2">
+          <div key={m.label} className="flex min-w-0 items-baseline gap-2">
             <dt className="text-neutral-500 min-w-[5rem]">{m.label}:</dt>
-            <dd className="font-mono text-neutral-800">{m.value}</dd>
+            <dd className="min-w-0 break-words font-mono text-neutral-800">{m.value}</dd>
           </div>
         ))}
       </dl>

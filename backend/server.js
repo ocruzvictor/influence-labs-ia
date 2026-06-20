@@ -30,7 +30,7 @@ try {
 } catch {}
 
 const TESS_TOKEN = process.env.TESS_API_TOKEN;
-const TESS_AGENT_ID = String(process.env.TESS_AGENT_ID || '33200');
+const TESS_AGENT_ID = String(process.env.TESS_AGENT_ID || '46589');
 const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
 const TESS_URL = process.env.TESS_API_URL || `${TESS_API_BASE}/agents/${TESS_AGENT_ID}/execute`;
 // TESS workspace header removido — causa 403 na API TESS (testado 2026-03-09)
@@ -98,13 +98,20 @@ const {
   renderFutureBookings,
 } = require('./lib/booking-parser');
 
-// Camada de resiliência Trinks (cache + limiter + retry) — story trinks-resiliencia-429.
-const { createTrinksCache } = require('./lib/trinks-cache');
 // Monitor de cota Trinks (contador mensal compartilhado) — story trinks-quota-monitor.
-const { recordTrinksCall, getTrinksUsage, newlyCrossed } = require('./lib/trinks-usage');
+const { getRequestBudget, newlyCrossed } = require('./lib/trinks-usage');
+const { createTrinksApi } = require('./lib/trinks-api');
+const { createTrinksLocalStore } = require('./lib/trinks-local-store');
+const { createTrinksSnsHandler, SnsValidationError } = require('./lib/trinks-sns');
+const { createTrinksWebhookProcessor } = require('./lib/trinks-webhook-processor');
 
 const app = express();
 app.use(cors());
+app.use(express.text({
+  type: ['text/plain', 'text/*'],
+  limit: '256kb',
+  verify: (req, res, buf) => { req.rawBody = buf; },
+}));
 // verify captura o corpo cru — necessario para validar assinatura HMAC da Meta (X-Hub-Signature-256)
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 const sessionState = new Map();
@@ -216,7 +223,49 @@ function getNextBusinessDays(count) {
   return dates;
 }
 
-const DYNAMIC_CONTEXT_PREFIX = 'CONTEXTO DINAMICO - TRINKS (dados em tempo real):';
+function extractRequestedDate(text, now = new Date()) {
+  const value = String(text || '');
+  const iso = value.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  if (iso && !Number.isNaN(new Date(`${iso[1]}T12:00:00-03:00`).getTime())) return iso[1];
+  const br = value.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(20\d{2}))?\b/);
+  if (!br) return null;
+  const year = Number(br[3] || new Intl.DateTimeFormat('en', {
+    timeZone: SALON_TIME_ZONE,
+    year: 'numeric',
+  }).format(now));
+  const candidate = `${year}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
+  const parsed = new Date(`${candidate}T12:00:00-03:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (!br[3] && parsed.getTime() < now.getTime() - 86400000) {
+    return `${year + 1}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
+  }
+  return candidate;
+}
+
+function mapSlotPayload(date, payload) {
+  const rows = [];
+  for (const professional of Array.isArray(payload?.data) ? payload.data : []) {
+    for (const time of professional.horariosVagos || []) {
+      rows.push({
+        professionalId: professional.id,
+        startsAt: `${date}T${time}:00-03:00`,
+        available: true,
+        raw: { date, time, professional },
+      });
+    }
+  }
+  return rows;
+}
+
+async function ensureSlotSnapshot(date) {
+  if (!date || await trinksLocalStore.hasSlotSnapshotForDate(date)) return;
+  const payload = await trinksApi.request(`/agendamentos/profissionais/${date}`, {
+    origin: 'slot_outside_snapshot',
+  });
+  await trinksLocalStore.replaceSlotsForDate(date, mapSlotPayload(date, payload));
+}
+
+const DYNAMIC_CONTEXT_PREFIX = 'CONTEXTO DINAMICO - TRINKS (snapshot local alimentado por webhooks):';
 
 // --- Memory helpers (PostgreSQL) ---
 async function loadClientMemory(phone) {
@@ -367,37 +416,37 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
 }
 
 // --- Trinks helpers ---
-// Resiliência Trinks (story trinks-resiliencia-429): limiter de concorrência + retry 429 + cache TTL.
-// Raiz do 429: cada mensagem dispara ~7 chamadas concorrentes sem cache → rajada estoura o rate-limit.
-// Lógica encapsulada em lib/trinks-cache.js (testável); aqui só instanciamos + TTLs configuráveis.
-const TRINKS_SERVICES_TTL_MS = (parseInt(process.env.TRINKS_SERVICES_TTL_S || '1200', 10)) * 1000; // 20min
-const TRINKS_PROFS_TTL_MS = (parseInt(process.env.TRINKS_PROFS_TTL_S || '1200', 10)) * 1000;       // 20min
-const TRINKS_SLOTS_TTL_MS = (parseInt(process.env.TRINKS_SLOTS_TTL_S || '45', 10)) * 1000;          // 45s
-
-// Cota mensal contratada (base 5.000 + adicionais R$60/+5.000, NÃO cumulativos). Configurável.
-const TRINKS_MONTHLY_BUDGET = parseInt(process.env.TRINKS_MONTHLY_BUDGET || '5000', 10);
-
-const trinksCache = createTrinksCache({
+const TRINKS_MONTHLY_BUDGET = parseInt(process.env.TRINKS_MONTHLY_BUDGET || '10000', 10);
+const TRINKS_OPERATIONAL_CAP = parseInt(process.env.TRINKS_OPERATIONAL_CAP || '8500', 10);
+const trinksLocalStore = createTrinksLocalStore(db);
+const trinksApi = createTrinksApi({
+  db,
   baseUrl: TRINKS_API_BASE,
   apiKey: TRINKS_KEY,
-  estId: TRINKS_EST_ID,
-  sleepImpl: sleep,
-  onCall: () => recordTrinksCall(db),   // conta cada chamada Trinks do bot no contador mensal
-  maxConcurrency: parseInt(process.env.TRINKS_MAX_CONCURRENCY || '3', 10),
-  maxRetries: parseInt(process.env.TRINKS_MAX_RETRIES || '2', 10),
+  establishmentId: TRINKS_EST_ID,
+  budget: TRINKS_MONTHLY_BUDGET,
+  operationalCap: TRINKS_OPERATIONAL_CAP,
 });
-// Wrappers finos: preservam a assinatura usada pelos callers existentes do server.js.
-const fetchTrinks = (path, opts) => trinksCache.fetchTrinks(path, opts);
-const cachedFetchTrinks = (path, ttlMs) => trinksCache.cachedFetchTrinks(path, ttlMs);
-const invalidateTrinksCache = (path) => trinksCache.invalidate(path);
-const slotsCacheKey = (date) => trinksCache.slotsCacheKey(date);
-const trinksCacheMetrics = trinksCache.metrics;
+const trinksWebhookProcessor = createTrinksWebhookProcessor({
+  db,
+  store: trinksLocalStore,
+});
+const TRINKS_SNS_TOPIC_ARN = process.env.TRINKS_SNS_TOPIC_ARN || '';
+const trinksSnsHandler = createTrinksSnsHandler({
+  expectedTopicArn: TRINKS_SNS_TOPIC_ARN || undefined,
+  persistEnvelope: trinksWebhookProcessor.persistEnvelope,
+  processNotification: trinksWebhookProcessor.processNotification,
+  markSubscriptionConfirmed: trinksWebhookProcessor.markProcessed,
+  markSubscriptionFailed: (messageId, envelope, err) => (
+    trinksWebhookProcessor.markProcessed(messageId, String(err.message).slice(0, 500))
+  ),
+});
 
 // --- Trinks health ping (Story 1.7) ---
 // Cache aplicado em sucesso E falha pra nao martelar Trinks em outage.
 // ERA 60s → se o painel /saude fica aberto (polling 10s), eram ~1440 chamadas/dia só de ping.
 // Default 10min (configurável TRINKS_PING_TTL_S) pra preservar a cota mensal de 5.000.
-const TRINKS_PING_TTL_MS = (parseInt(process.env.TRINKS_PING_TTL_S || '600', 10)) * 1000;
+const TRINKS_PING_TTL_MS = (parseInt(process.env.TRINKS_PING_TTL_S || '21600', 10)) * 1000;
 const TRINKS_SLOW_THRESHOLD_MS = 1500;
 let trinksPingCache = { payload: null, expiresAt: 0 };
 
@@ -408,7 +457,7 @@ async function pingTrinks() {
   }
   try {
     const t0 = Date.now();
-    await fetchTrinks('/servicos', { retries: 0 }); // health ping: sem retry, reflete 429 transitório honestamente
+    await trinksApi.refreshConsumption();
     const latency_ms = Date.now() - t0;
     const payload = {
       status: latency_ms > TRINKS_SLOW_THRESHOLD_MS ? 'slow' : 'ok',
@@ -434,52 +483,95 @@ let globalLastOkAt = null;
 
 async function getSlots(date) {
   try {
-    const json = await cachedFetchTrinks(slotsCacheKey(date), TRINKS_SLOTS_TTL_MS);
-    if (!json.data || !Array.isArray(json.data)) return 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
-    const available = json.data.filter(p => p.horariosVagos?.length > 0);
-    if (available.length === 0) return `HORARIOS VAGOS ${formatDateLabel(date)}:\n- Nenhum horario disponivel.`;
+    const from = new Date(`${date}T00:00:00-03:00`);
+    const to = new Date(from.getTime() + 86400000);
+    const [slots, professionals] = await Promise.all([
+      trinksLocalStore.listSlots({ from, to }),
+      trinksLocalStore.listProfessionals(),
+    ]);
+    if (!slots.length) return `HORARIOS VAGOS ${formatDateLabel(date)}:\n- Nenhum horario disponivel no snapshot local.`;
+    const professionalNames = new Map(professionals.map(p => [
+      String(p.trinks_id),
+      p.nickname || p.name || `Profissional ${p.trinks_id}`,
+    ]));
+    const grouped = new Map();
+    for (const slot of slots) {
+      const key = String(slot.professional_id);
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(new Date(slot.starts_at).toLocaleTimeString('pt-BR', {
+        timeZone: SALON_TIME_ZONE,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }));
+    }
     let txt = `HORARIOS VAGOS ${formatDateLabel(date)}:\n`;
-    for (const p of available) {
-      txt += `- ${p.apelido || p.nome}: ${p.horariosVagos.join(', ')}\n`;
+    for (const [professionalId, times] of grouped) {
+      txt += `- ${professionalNames.get(professionalId) || `Profissional ${professionalId}`}: ${times.join(', ')}\n`;
     }
     return txt;
   } catch (err) {
-    console.error('Trinks slots error:', err.message);
-    return 'HORARIOS: Erro ao consultar. Peca ao cliente o dia desejado.';
+    console.error('Local slots error:', err.message);
+    return 'HORARIOS: Snapshot local indisponivel. Encaminhe para atendimento humano.';
   }
 }
 
 async function getProfessionals() {
   try {
-    const json = await cachedFetchTrinks('/profissionais', TRINKS_PROFS_TTL_MS);
-    if (!json.data || !Array.isArray(json.data)) return { text: 'PROFISSIONAIS: Erro ao consultar.', data: [] };
+    const rows = await trinksLocalStore.listProfessionals();
+    const data = rows.map(p => ({
+      id: /^\d+$/.test(String(p.trinks_id)) ? Number(p.trinks_id) : p.trinks_id,
+      nome: p.name,
+      apelido: p.nickname,
+      ativo: p.active,
+    }));
+    if (!data.length) return { text: 'PROFISSIONAIS: Snapshot local vazio.', data: [] };
     let txt = 'PROFISSIONAIS ATIVOS:\n';
-    for (const p of json.data) {
+    for (const p of data) {
       txt += `- ${p.apelido || p.nome} (ID ${p.id})\n`;
     }
-    return { text: txt, data: json.data };
+    return { text: txt, data };
   } catch (err) {
-    console.error('Trinks professionals error:', err.message);
-    return { text: 'PROFISSIONAIS: Erro ao consultar.', data: [] };
+    console.error('Local professionals error:', err.message);
+    return { text: 'PROFISSIONAIS: Snapshot local indisponivel.', data: [] };
   }
 }
 
 async function getServicesText() {
   try {
-    const json = await cachedFetchTrinks('/servicos', TRINKS_SERVICES_TTL_MS);
-    const list = Array.isArray(json.data) ? json.data : [];
+    const [services, compatibilities, professionals] = await Promise.all([
+      trinksLocalStore.listServices(),
+      trinksLocalStore.listCompatibility(),
+      trinksLocalStore.listProfessionals(),
+    ]);
+    const professionalNames = new Map(professionals.map(p => [
+      String(p.trinks_id),
+      p.nickname || p.name,
+    ]));
+    const namesByService = new Map();
+    for (const pair of compatibilities) {
+      const key = String(pair.service_id);
+      if (!namesByService.has(key)) namesByService.set(key, []);
+      const name = professionalNames.get(String(pair.professional_id));
+      if (name) namesByService.get(key).push(name);
+    }
+    const list = services.map(s => ({
+      id: /^\d+$/.test(String(s.trinks_id)) ? Number(s.trinks_id) : s.trinks_id,
+      nome: s.name,
+      duracaoEmMinutos: s.duration_min,
+      preco: Number(s.price_cents || 0) / 100,
+      profissionais: namesByService.get(String(s.trinks_id)) || [],
+    }));
     if (!list.length) return { text: 'SERVICOS: Erro ao consultar.', data: [] };
-    // Agrupa por profissional (campo "profissionalNome" ou similar), senão lista plana
     let txt = 'SERVICOS DISPONIVEIS (use o nome EXATO na tag BOOKING_CONFIRM):\n';
     for (const s of list) {
-      const prof = s.profissionalNome || s.profissional || '';
-      txt += `- ${s.nome}${prof ? ` [${prof}]` : ''} (ID ${s.id})\n`;
+      const prof = s.profissionais.length ? ` [${s.profissionais.join(', ')}]` : '';
+      txt += `- ${s.nome}${prof} (ID ${s.id})\n`;
     }
-    // Story bot-46589 item 1: retorna data estruturada p/ resolver nome do serviço pelo ID no card de confirmação.
     return { text: txt, data: list };
   } catch (err) {
-    console.error('Trinks services text error:', err.message);
-    return { text: 'SERVICOS: Erro ao consultar.', data: [] };
+    console.error('Local services text error:', err.message);
+    return { text: 'SERVICOS: Snapshot local indisponivel.', data: [] };
   }
 }
 
@@ -489,16 +581,20 @@ async function getServiceForProfessional(professionalId, serviceName) {
   // Remove prefixos de ruido comuns na extracao do historico
   const cleanedName = (serviceName || '').replace(/^(o\s+agendamento\s+de\s+|os?\s+servic[oa]s?\s+de\s+|a\s+confirmac[aã]o\s+de\s+)/i, '').trim();
   const target = norm(cleanedName);
-  const endpoints = [
-    `/profissionais/${professionalId}/servicos`,
-    `/servicos?profissionalId=${professionalId}`,
-    `/servicos`,
-  ];
-  for (const path of endpoints) {
-    try {
-      const json = await fetchTrinks(path);
-      const list = Array.isArray(json.data) ? json.data : [];
-      console.log(`[Trinks] ${path} → ${list.length} servicos:`, list.map(s => `${s.id}:${s.nome || s.name}`).join(' | '));
+  try {
+      const [services, compatibility] = await Promise.all([
+        trinksLocalStore.listServices(),
+        trinksLocalStore.listCompatibility({ professionalId }),
+      ]);
+      const allowed = new Set(compatibility.map(item => String(item.service_id)));
+      const list = services
+        .filter(service => allowed.has(String(service.trinks_id)))
+        .map(service => ({
+          id: /^\d+$/.test(String(service.trinks_id)) ? Number(service.trinks_id) : service.trinks_id,
+          nome: service.name,
+          duracaoEmMinutos: service.duration_min,
+          preco: Number(service.price_cents || 0) / 100,
+        }));
       // Sinonimos de dominio: "corte" = "cabelo" em contexto de salao
       const SYNONYMS = { corte: 'cabelo', cabelo: 'corte' };
       const words = (s) => norm(s).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
@@ -525,11 +621,10 @@ async function getServiceForProfessional(professionalId, serviceName) {
         if (score > bestScore) { bestScore = score; found = s; }
       }
       if (bestScore < 25) found = null;
-      console.log(`[Trinks] Match "${serviceName}" → "${found?.nome}" (score ${bestScore})`);
+      console.log(`[Local Trinks] Match "${serviceName}" → "${found?.nome}" (score ${bestScore})`);
       if (found) return { id: found.id, duracao: found.duracao || found.duracaoEmMinutos || found.duration || 60, valor: found.valor ?? found.preco ?? found.price ?? 0 };
-    } catch (err) {
-      console.error(`[Trinks] ${path} erro:`, err.message);
-    }
+  } catch (err) {
+    console.error('[Local Trinks] service lookup erro:', err.message);
   }
   return null;
 }
@@ -538,18 +633,62 @@ async function getServiceForProfessional(professionalId, serviceName) {
 // Documentacao oficial (trinks.readme.io): POST /agendamentos usa clienteId, nao clienteEstabelecimentoId.
 async function getClientId(phone) {
   const digits = (phone || '').replace(/\D/g, '');
+  const local = await trinksLocalStore.getClientByPhone(digits);
+  if (local?.trinks_id) return local.trinks_id;
   try {
-    const json = await fetchTrinks(`/clientes?telefone=${digits}`);
+    const json = await trinksApi.request(`/clientes?telefone=${digits}`, {
+      origin: 'agent_client_lookup',
+      essential: true,
+    });
     const item = Array.isArray(json.data) ? json.data[0] : json.data;
     if (item?.id) {
       console.log(`[Trinks] clienteId: ${item.id} (${item.nome})`);
+      await trinksLocalStore.upsertClient({
+        trinksId: item.id,
+        phone: digits,
+        name: item.nome,
+        email: item.email,
+        birthDate: item.dataNascimento,
+        active: item.ativo !== false,
+        raw: item,
+      });
       return item.id;
     }
   } catch (err) {
     console.log(`[Trinks] /clientes?telefone=${digits} → ${err.message}`);
+    throw err;
   }
   console.warn(`[Trinks] cliente nao encontrado para telefone ${digits}`);
   return null;
+}
+
+async function createClientInTrinks(phone, name) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  const national = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
+  const ddd = national.slice(0, 2);
+  const numero = national.slice(2);
+  if (ddd.length !== 2 || numero.length < 8) throw new Error('telefone invalido para criar cliente');
+  const payload = {
+    estabelecimentoId: String(TRINKS_EST_ID),
+    nome: name || 'Cliente WhatsApp',
+    telefones: [{ ddd, numero }],
+  };
+  const response = await trinksApi.request('/clientes', {
+    method: 'POST',
+    body: payload,
+    origin: 'agent_mutation_create_client',
+    essential: true,
+  });
+  const client = response.data || response;
+  const clientId = client.id || client.clienteId;
+  if (!clientId) throw new Error('Trinks nao retornou o id do novo cliente');
+  await trinksLocalStore.upsertClient({
+    trinksId: clientId,
+    phone: digits,
+    name: client.nome || payload.nome,
+    raw: client,
+  });
+  return clientId;
 }
 
 // Fuzzy name match (normaliza acentos e caixa)
@@ -599,56 +738,71 @@ function extractPhoneFromHistory(history) {
 
 // Busca agendamentos do cliente por data via GET /agendamentos
 async function findClientBooking(clienteId, date, professionalId) {
-  const dayStart = `${date}T00:00:00`;
-  const dayEnd   = `${date}T23:59:59`;
+  const dayStart = new Date(`${date}T00:00:00-03:00`);
+  const dayEnd = new Date(dayStart.getTime() + 86400000);
   try {
-    const json = await fetchTrinks(`/agendamentos?clienteId=${clienteId}&dataInicio=${dayStart}&dataFim=${dayEnd}`);
-    const list = Array.isArray(json.data) ? json.data : [];
-    console.log(`[Trinks] findClientBooking clienteId:${clienteId} data:${date} → ${list.length} agendamentos`);
+    const list = await trinksLocalStore.listAppointmentsByTrinksClient(clienteId, {
+      from: dayStart,
+      to: dayEnd,
+    });
+    console.log(`[Local Trinks] findClientBooking clienteId:${clienteId} data:${date} → ${list.length} agendamentos`);
     if (!list.length) return null;
-    // Se profissionalId fornecido, prioriza o agendamento desse profissional
+    let found = list[0];
     if (professionalId) {
-      const match = list.find(b => String(b.profissionalId) === String(professionalId));
-      if (match) return match;
+      const match = list.find(b => String(b.professional_id) === String(professionalId));
+      if (match) found = match;
     }
-    return list[0];
+    return { ...found, id: found.trinks_id };
   } catch (err) {
-    console.error(`[Trinks] findClientBooking erro:`, err.message);
+    console.error('[Local Trinks] findClientBooking erro:', err.message);
     return null;
   }
 }
 
 // Cancela agendamento via PATCH /agendamentos/{id}/status/cancelado
 async function cancelBookingInTrinks(agendamentoId, clienteId, motivo) {
-  const url = `${TRINKS_API_BASE}/agendamentos/${agendamentoId}/status/cancelado`;
+  const current = await trinksLocalStore.getAppointment(agendamentoId);
   const payload = {
     quemCancelou: clienteId,
     motivo: motivo || 'Cancelado pelo cliente via WhatsApp',
   };
-  console.log(`[Trinks] PATCH ${url} payload:`, JSON.stringify(payload));
-  const res = await fetch(url, {
+  const result = await trinksApi.request(`/agendamentos/${agendamentoId}/status/cancelado`, {
     method: 'PATCH',
-    headers: {
-      'X-Api-Key': TRINKS_KEY,
-      'estabelecimentoId': TRINKS_EST_ID,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10000),
+    body: payload,
+    origin: 'agent_mutation_cancel',
+    essential: true,
   });
-  const text = await res.text().catch(() => '');
-  console.log(`[Trinks] PATCH cancelado → ${res.status}:`, text || '(no body)');
-  if (!res.ok) throw new Error(`Trinks ${res.status}: ${text}`);
-  return { agendamentoId, cancelado: true };
+  try {
+    await trinksLocalStore.markAppointmentStatus(agendamentoId, 'cancelled', {
+      cancelledAt: new Date(),
+    });
+    if (current?.professional_id && current?.scheduled_at) {
+      await trinksLocalStore.markSlotAvailable(
+        current.professional_id,
+        current.scheduled_at,
+        true,
+      );
+    }
+  } catch (err) {
+    console.error('[Local Trinks] cancelamento confirmado, snapshot pendente:', err.message);
+  }
+  return { ...result, agendamentoId, cancelado: true };
 }
 
 // Reagenda agendamento via PUT /agendamentos/{id}
 async function rescheduleBookingInTrinks(agendamentoId, booking, professionalsData) {
+  const current = await trinksLocalStore.getAppointment(agendamentoId);
   const profId = booking.professionalId
     || matchByName(professionalsData, booking.professional || '', 'apelido', 'nome')?.id;
 
   const [svcData, clienteId] = await Promise.all([
-    profId ? getServiceForProfessional(profId, booking.service) : Promise.resolve(null),
+    booking.serviceId
+      ? trinksLocalStore.getService(booking.serviceId).then(service => service && ({
+        id: service.trinks_id,
+        duracao: service.duration_min,
+        valor: Number(service.price_cents || 0) / 100,
+      }))
+      : (profId ? getServiceForProfessional(profId, booking.service) : Promise.resolve(null)),
     booking.clientPhone ? getClientId(booking.clientPhone) : Promise.resolve(null),
   ]);
 
@@ -662,22 +816,38 @@ async function rescheduleBookingInTrinks(agendamentoId, booking, professionalsDa
     valor: svcData?.valor ?? 0,
   };
 
-  const url = `${TRINKS_API_BASE}/agendamentos/${agendamentoId}`;
-  console.log(`[Trinks] PUT ${url} payload:`, JSON.stringify(payload));
-  const res = await fetch(url, {
+  if (!payload.profissionalId || !payload.servicoId) {
+    throw new Error('profissional ou servico nao resolvido para reagendamento');
+  }
+  if (!(await trinksLocalStore.isCompatible(payload.servicoId, payload.profissionalId))) {
+    throw new Error('combinacao profissional-servico incompativel');
+  }
+  const result = await trinksApi.request(`/agendamentos/${agendamentoId}`, {
     method: 'PUT',
-    headers: {
-      'X-Api-Key': TRINKS_KEY,
-      'estabelecimentoId': TRINKS_EST_ID,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10000),
+    body: payload,
+    origin: 'agent_mutation_reschedule',
+    essential: true,
   });
-  const text = await res.text().catch(() => '');
-  console.log(`[Trinks] PUT reagendamento → ${res.status}:`, text || '(no body)');
-  if (!res.ok) throw new Error(`Trinks ${res.status}: ${text}`);
-  return { agendamentoId, reagendado: true };
+  try {
+    await trinksLocalStore.markAppointmentStatus(agendamentoId, 'scheduled', {
+      scheduledAt: `${booking.date}T${booking.time}:00-03:00`,
+    });
+    if (current?.professional_id && current?.scheduled_at) {
+      await trinksLocalStore.markSlotAvailable(
+        current.professional_id,
+        current.scheduled_at,
+        true,
+      );
+    }
+    await trinksLocalStore.markSlotAvailable(
+      payload.profissionalId,
+      `${booking.date}T${booking.time}:00-03:00`,
+      false,
+    );
+  } catch (err) {
+    console.error('[Local Trinks] reagendamento confirmado, snapshot pendente:', err.message);
+  }
+  return { ...result, agendamentoId, reagendado: true };
 }
 
 // Fallback: extrai dados do historico quando TESS nao emitiu tag estruturada
@@ -707,14 +877,23 @@ async function createBookingInTrinks(booking, professionalsData) {
 
   // Caminho rápido: se prompt v2 já mandou servicoId numérico, pulamos lookup por nome.
   // Senão, mantemos lookup legado por nome (compat com prompt v1 ou casos sem ID).
-  const hasDirectServiceId = Number.isInteger(booking.serviceId);
+  const hasDirectServiceId = booking.serviceId !== undefined && booking.serviceId !== null;
 
-  const [svcData, clienteId] = await Promise.all([
+  const [svcData, existingClientId] = await Promise.all([
     hasDirectServiceId
-      ? Promise.resolve(null) // serviceId direto — usar valor/duração do payload v2
+      ? trinksLocalStore.getService(booking.serviceId).then(service => service && ({
+        id: service.trinks_id,
+        duracao: service.duration_min,
+        valor: Number(service.price_cents || 0) / 100,
+      }))
       : (profId ? getServiceForProfessional(profId, booking.service) : Promise.resolve(null)),
     booking.clientPhone ? getClientId(booking.clientPhone) : Promise.resolve(null),
   ]);
+  const clienteId = existingClientId || (
+    booking.clientPhone
+      ? await createClientInTrinks(booking.clientPhone, booking.clientName)
+      : null
+  );
 
   const servicoId = hasDirectServiceId ? booking.serviceId : svcData?.id;
   const valor = booking.valor ?? svcData?.valor ?? 0;
@@ -732,22 +911,50 @@ async function createBookingInTrinks(booking, professionalsData) {
   };
 
   console.log(`[Trinks] Resolved — profId:${profId} svcId:${servicoId} clienteId:${clienteId} duracao:${duracao} valor:${valor} (v2:${hasDirectServiceId})`);
-
-  const url = `${TRINKS_API_BASE}/agendamentos`;
-  console.log(`[Trinks] POST ${url} payload:`, JSON.stringify(payload));
-  const res = await fetch(url, {
+  if (!profId || !servicoId || !clienteId) {
+    throw new Error('profissional, servico ou cliente nao resolvido para agendamento');
+  }
+  if (!(await trinksLocalStore.isCompatible(servicoId, profId))) {
+    throw new Error('combinacao profissional-servico incompativel');
+  }
+  const data = await trinksApi.request('/agendamentos', {
     method: 'POST',
-    headers: {
-      'X-Api-Key': TRINKS_KEY,
-      'estabelecimentoId': TRINKS_EST_ID,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10000),
+    body: payload,
+    origin: 'agent_mutation_create',
+    essential: true,
   });
-  const data = await res.json().catch(() => ({}));
-  console.log(`[Trinks] POST /agendamentos → ${res.status}:`, JSON.stringify(data));
-  if (!res.ok) throw new Error(`Trinks ${res.status}: ${JSON.stringify(data)}`);
+  const created = data.data || data;
+  const appointmentId = created.id || created.agendamentoId;
+  if (appointmentId) {
+    const professional = professionalsData.find(p => String(p.id) === String(profId));
+    try {
+      await trinksLocalStore.upsertAppointment({
+        trinksId: appointmentId,
+        clientTrinksId: clienteId,
+        clientPhone: (booking.clientPhone || '').replace(/\D/g, ''),
+        professionalId: profId,
+        professionalName: professional?.apelido || professional?.nome,
+        serviceId: servicoId,
+        serviceName: booking.service,
+        status: 'scheduled',
+        scheduledAt: `${booking.date}T${booking.time}:00-03:00`,
+        durationMin: duracao || null,
+        priceCents: Math.round(Number(valor || 0) * 100),
+        raw: created,
+      });
+    } catch (err) {
+      console.error('[Local Trinks] agendamento confirmado, snapshot pendente:', err.message);
+    }
+  }
+  try {
+    await trinksLocalStore.markSlotAvailable(
+      profId,
+      `${booking.date}T${booking.time}:00-03:00`,
+      false,
+    );
+  } catch (err) {
+    console.error('[Local Trinks] slot confirmado, snapshot pendente:', err.message);
+  }
   return data;
 }
 
@@ -910,6 +1117,16 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
   // 1. Fetch Trinks data in parallel (next 5 business days) + agendamentos futuros do cliente (DB local, item 3 Rota C)
   const businessDays = getNextBusinessDays(5);
+  const requestedDate = extractRequestedDate(messageText);
+  if (requestedDate && !businessDays.includes(requestedDate)) {
+    try {
+      await ensureSlotSnapshot(requestedDate);
+      businessDays.push(requestedDate);
+      businessDays.sort();
+    } catch (err) {
+      console.warn(`[${sessionId}] snapshot adicional ${requestedDate} falhou:`, err.message);
+    }
+  }
   const [slotsResults, profsResult, svcTextResult, futureBookingsResult] = await Promise.allSettled([
     Promise.all(businessDays.map(date => getSlots(date))),
     getProfessionals(),
@@ -1000,12 +1217,12 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       time: bookingConfirm.date_time?.split('T')[1]?.slice(0, 5),
       durationMinutes: bookingConfirm.duration_minutes,
       clientPhone,
+      clientName: contactName,
     };
     console.log(`[${sessionId}] Booking from tag:`, JSON.stringify(bookingData));
     try {
       bookingResult = await createBookingInTrinks(bookingData, profsPayload.data);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
-      if (bookingData.date) invalidateTrinksCache(slotsCacheKey(bookingData.date)); // AC3: slot tomado não pode reaparecer
       // Story bot-46589 item 1: resolve o nome do serviço (legacy traz service_name; v2 só service_id → resolve pelo ID).
       const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
       if (phone && (servicoNome || bookingData.serviceId)) {
@@ -1054,7 +1271,6 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
       bookingResult = await cancelBookingInTrinks(agendamentoId, clienteId, bookingCancel.motivo);
       console.log(`[${sessionId}] Booking cancelled in Trinks: agendamentoId ${agendamentoId}`);
-      if (bookingCancel.date) invalidateTrinksCache(slotsCacheKey(bookingCancel.date)); // AC3: slot liberado volta a aparecer
       finalMessages.push(`Pronto, cancelei seu horário! Qualquer coisa, é só chamar pra reagendar. 😊`);
     } catch (err) {
       console.error(`[${sessionId}] Booking cancel FAILED:`, err.message);
@@ -1089,9 +1305,6 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
       bookingResult = await rescheduleBookingInTrinks(agendamentoId, newBooking, profsPayload.data);
       console.log(`[${sessionId}] Booking rescheduled in Trinks: agendamentoId ${agendamentoId}`);
-      // AC3: invalida data antiga (libera slot) e nova (ocupa slot)
-      if (bookingReschedule.old_date) invalidateTrinksCache(slotsCacheKey(bookingReschedule.old_date));
-      if (newBooking.date) invalidateTrinksCache(slotsCacheKey(newBooking.date));
       const dataFmt = newBooking.date && newBooking.time
         ? `${newBooking.date.split('-').reverse().join('/')} às ${newBooking.time}`
         : 'no horario combinado';
@@ -1165,6 +1378,28 @@ function withTimeout(fn, ms) {
     }
   };
 }
+
+app.post('/webhook/trinks', async (req, res) => {
+  if (!TRINKS_SNS_TOPIC_ARN) {
+    return res.status(503).json({ error: 'trinks_sns_topic_not_configured' });
+  }
+  try {
+    const snsTypeHeader = req.headers['x-amz-sns-message-type'];
+    const envelope = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    if (snsTypeHeader && snsTypeHeader !== envelope?.Type) {
+      throw new SnsValidationError('SNS message type header does not match envelope');
+    }
+    const result = await trinksSnsHandler.handle(envelope);
+    return res.status(200).json(result);
+  } catch (err) {
+    if (err instanceof SnsValidationError) {
+      console.warn('[trinks-sns] envelope rejeitado:', err.message);
+      return res.status(401).json({ error: 'invalid_sns_envelope' });
+    }
+    console.error('[trinks-sns] processamento falhou:', err.message);
+    return res.status(500).json({ error: 'trinks_webhook_failed' });
+  }
+});
 
 // --- Webchat endpoint (demo / testes) ---
 app.post('/webhook/demo-chat', withTimeout(async (req, res) => {
@@ -1728,22 +1963,25 @@ supervisor.startScheduler({
 // Alerta no WhatsApp ao cruzar thresholds da cota mensal, pra decidir comprar +5.000 (R$60) ou esperar o mês virar.
 const TRINKS_ALERT_PHONES = (process.env.TRINKS_ALERT_PHONES || '')
   .split(',').map(s => s.trim().replace(/\D/g, '')).filter(Boolean);
-const TRINKS_ALERT_THRESHOLDS = [0.8, 0.9, 1.0];
+const TRINKS_ALERT_THRESHOLDS = [6000, 7500, 8200, 8500];
 const TRINKS_QUOTA_CHECK_MS = (parseInt(process.env.TRINKS_QUOTA_CHECK_MIN || '10', 10)) * 60 * 1000;
 let _quotaAlertState = { month: null, alerted: new Set() };
 
 async function checkTrinksQuota() {
-  const usage = await getTrinksUsage(db, TRINKS_MONTHLY_BUDGET);
+  const usage = await getRequestBudget(db, {
+    budget: TRINKS_MONTHLY_BUDGET,
+    operationalCap: TRINKS_OPERATIONAL_CAP,
+  });
   if (_quotaAlertState.month !== usage.month) _quotaAlertState = { month: usage.month, alerted: new Set() };
-  const toAlert = newlyCrossed(usage.pct, TRINKS_ALERT_THRESHOLDS, _quotaAlertState.alerted);
+  const toAlert = newlyCrossed(usage.effective_used, TRINKS_ALERT_THRESHOLDS, _quotaAlertState.alerted);
   if (!toAlert.length) return;
   toAlert.forEach(t => _quotaAlertState.alerted.add(t));
-  const pctLabel = Math.round(usage.pct * 100);
-  const atLimit = Math.max(...toAlert) >= 1;
-  const msg = `⚠️ Cota Trinks: ${usage.used}/${usage.budget} (${pctLabel}%) em ${usage.month}. Restam ${usage.remaining}. `
+  const pctLabel = Math.round((usage.effective_used / usage.budget) * 100);
+  const atLimit = Math.max(...toAlert) >= TRINKS_OPERATIONAL_CAP;
+  const msg = `⚠️ Cota Trinks: ${usage.effective_used}/${usage.budget} (${pctLabel}%) em ${usage.month}. Restam ${usage.remaining_to_cap} ate o teto operacional. `
     + (atLimit
-      ? 'LIMITE ATINGIDO — a API vai bloquear até virar o mês ou contratar +5.000 (R$60).'
-      : 'Avalie contratar +5.000 (R$60) agora ou segurar até o reset mensal.');
+      ? 'TETO OPERACIONAL ATINGIDO — novas chamadas foram bloqueadas pelo circuit breaker.'
+      : `Modo atual: ${usage.mode}.`);
   console.warn('[trinks-quota] ' + msg);
   // fallback: lastKnownKapsoPhoneNumberId é null até o 1º inbound pós-restart; worker pode cruzar limite em janela quieta
   const pnid = lastKnownKapsoPhoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID;
@@ -1756,6 +1994,10 @@ async function checkTrinksQuota() {
   }
 }
 setInterval(() => { checkTrinksQuota().catch(e => console.error('[trinks-quota] check erro:', e.message)); }, TRINKS_QUOTA_CHECK_MS);
+setInterval(() => {
+  trinksApi.refreshConsumption()
+    .catch(e => console.error('[trinks-consumption] refresh erro:', e.message));
+}, 6 * 60 * 60 * 1000);
 
 // Health check
 app.get('/health', async (req, res) => {
@@ -1769,8 +2011,86 @@ app.get('/health', async (req, res) => {
 
   // Trinks ping (Story 1.7 AC7) — cache 60s, isolado por try/catch interno
   const trinks_ping = await pingTrinks();
-  // Cota mensal Trinks (story quota-monitor) — leitura do contador compartilhado
-  const trinks_usage = await getTrinksUsage(db, TRINKS_MONTHLY_BUDGET);
+  const requestBudget = await getRequestBudget(db, {
+    budget: TRINKS_MONTHLY_BUDGET,
+    operationalCap: TRINKS_OPERATIONAL_CAP,
+  });
+  const providerUsed = requestBudget.provider?.consistent
+    ? Number(requestBudget.provider.total_used || 0)
+    : null;
+  const trinks_usage = {
+    ...requestBudget,
+    used: requestBudget.effective_used,
+    remaining: requestBudget.remaining_to_cap,
+    pct: requestBudget.budget > 0
+      ? requestBudget.effective_used / requestBudget.budget
+      : 0,
+    official_used: providerUsed,
+    divergence: providerUsed === null
+      ? null
+      : requestBudget.local_consumed - providerUsed,
+  };
+  let trinks_webhook = {
+    configured: Boolean(TRINKS_SNS_TOPIC_ARN),
+    last_received_at: null,
+    last_processed_at: null,
+    pending_notifications: 0,
+    last_error: null,
+  };
+  let trinks_snapshots = {
+    professionals: 0,
+    services: 0,
+    compatibility_pairs: 0,
+    available_slots: 0,
+    clients: 0,
+    latest_sync_at: null,
+  };
+  try {
+    const webhookResult = await db.query(
+      `SELECT MAX(received_at) AS last_received_at,
+              MAX(processed_at) FILTER (
+                WHERE processing_status = 'processed'
+              ) AS last_processed_at,
+              COUNT(*) FILTER (
+                WHERE message_type = 'Notification' AND processing_status = 'processing'
+              )::int AS pending_notifications,
+              (ARRAY_AGG(error ORDER BY received_at DESC)
+                FILTER (
+                  WHERE error IS NOT NULL
+                    AND received_at >= NOW() - INTERVAL '24 hours'
+                ))[1] AS last_error
+         FROM trinks_webhook_events`,
+    );
+    if (webhookResult?.rows?.[0]) {
+      trinks_webhook = { ...trinks_webhook, ...webhookResult.rows[0] };
+    }
+  } catch (_) {
+    // Health continua disponivel antes da migration.
+  }
+  try {
+    const snapshotResult = await db.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM trinks_professionals
+           WHERE active AND deleted_at IS NULL) AS professionals,
+         (SELECT COUNT(*)::int FROM trinks_services
+           WHERE active AND deleted_at IS NULL) AS services,
+         (SELECT COUNT(*)::int FROM trinks_service_professionals
+           WHERE active) AS compatibility_pairs,
+         (SELECT COUNT(*)::int FROM trinks_slots
+           WHERE available AND starts_at >= NOW()) AS available_slots,
+         (SELECT COUNT(*)::int FROM trinks_clients
+           WHERE active AND deleted_at IS NULL) AS clients,
+         GREATEST(
+           (SELECT MAX(synced_at) FROM trinks_professionals),
+           (SELECT MAX(synced_at) FROM trinks_services),
+           (SELECT MAX(synced_at) FROM trinks_slots),
+           (SELECT MAX(synced_at) FROM trinks_clients)
+         ) AS latest_sync_at`,
+    );
+    if (snapshotResult?.rows?.[0]) trinks_snapshots = snapshotResult.rows[0];
+  } catch (_) {
+    // Health continua disponivel antes da migration.
+  }
 
   res.json({
     status: 'ok',
@@ -1786,8 +2106,9 @@ app.get('/health', async (req, res) => {
       last_ok_query_at: globalLastOkAt,
     },
     trinks_ping,
-    trinks_cache: { ...trinksCacheMetrics, cached_keys: trinksCache._state.cachedKeys, concurrency_active: trinksCache._state.active }, // story trinks-resiliencia-429
-    trinks_usage, // story quota-monitor: { month, used, budget, remaining, pct }
+    trinks_webhook,
+    trinks_snapshots,
+    trinks_usage,
     bot: {
       accept_all: BOT_ACCEPT_ALL,
       whitelist_count: BOT_ALLOWED_PHONES.length,
@@ -1835,15 +2156,21 @@ app.get('/health', async (req, res) => {
 
 // --- Start ---
 const port = process.env.PORT || 3001;
-app.listen(port, () => {
-  console.log(`\n🚀 Studio Tirra Webchat Backend`);
-  console.log(`   POST http://localhost:${port}/webhook/demo-chat`);
-  console.log(`   POST http://localhost:${port}/webhook/kapso`);
-  console.log(`   GET/POST http://localhost:${port}/webhook/meta`);
-  console.log(`   GET  http://localhost:${port}/health\n`);
-  console.log(`   TESS agent: ${TESS_AGENT_ID}`);
-  const botMode = BOT_ACCEPT_ALL ? 'OPEN (responde todos)' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT (whitelist vazia)' : `WHITELIST (${BOT_ALLOWED_PHONES.length} telefone(s))`);
-  console.log(`   Bot mode: ${botMode}`);
-  if (!TESS_TOKEN) console.warn('⚠️  TESS_API_TOKEN not set!');
-  if (!TRINKS_KEY) console.warn('⚠️  TRINKS_API_KEY not set!');
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`\n🚀 Studio Tirra Webchat Backend`);
+    console.log(`   POST http://localhost:${port}/webhook/demo-chat`);
+    console.log(`   POST http://localhost:${port}/webhook/kapso`);
+    console.log(`   POST http://localhost:${port}/webhook/trinks`);
+    console.log(`   GET/POST http://localhost:${port}/webhook/meta`);
+    console.log(`   GET  http://localhost:${port}/health\n`);
+    console.log(`   TESS agent: ${TESS_AGENT_ID}`);
+    const botMode = BOT_ACCEPT_ALL ? 'OPEN (responde todos)' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT (whitelist vazia)' : `WHITELIST (${BOT_ALLOWED_PHONES.length} telefone(s))`);
+    console.log(`   Bot mode: ${botMode}`);
+    if (!TESS_TOKEN) console.warn('⚠️  TESS_API_TOKEN not set!');
+    if (!TRINKS_KEY) console.warn('⚠️  TRINKS_API_KEY not set!');
+    if (!TRINKS_SNS_TOPIC_ARN) console.warn('⚠️  TRINKS_SNS_TOPIC_ARN not set!');
+  });
+}
+
+module.exports = { app };

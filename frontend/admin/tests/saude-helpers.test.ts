@@ -20,6 +20,7 @@ const {
   whatsAppHoursRemaining,
   mapWaStatus,
   mapTrinksStatus,
+  deriveTrinksStatus,
   mapPgStatus,
   safeHostname,
   safeIsoMinute,
@@ -73,6 +74,25 @@ test("deriveCardStatus — Trinks slow vira warn", () => {
   const trinks = cards.find((c) => c.title === "Trinks");
   assert.ok(trinks);
   assert.equal(trinks.status, "warn");
+});
+
+test("deriveCardStatus — Trinks webhook ausente e orçamento restrito viram warn", () => {
+  const payload: HealthPayload = {
+    tess: { agent_id: "46589", url: "https://api.tess.im/agents/46589" },
+    postgres: { pool: { total: 5, idle: 5, waiting: 0 }, uptime_seconds: 1 },
+    trinks_ping: { status: "ok", latency_ms: 100, cached: false },
+    trinks_usage: {
+      mode: "restricted",
+      effective_used: 7600,
+      operational_cap: 8500,
+      local_consumed: 120,
+    },
+    trinks_webhook: { configured: false, pending_notifications: 0 },
+    whatsapp_window: { configured: true, status: "green", hours_since: 1 },
+  };
+  const trinks = deriveCardStatus(payload).find((c) => c.title === "Trinks");
+  assert.equal(trinks?.status, "warn");
+  assert.match(trinks?.metrics[0]?.value ?? "", /7600\/8500/);
 });
 
 test("deriveCardStatus — Postgres pool.waiting >= 5 vira down", () => {
@@ -139,6 +159,17 @@ test("mapTrinksStatus — ok/slow/down", () => {
   assert.equal(mapTrinksStatus("ok"), "ok");
   assert.equal(mapTrinksStatus("slow"), "warn");
   assert.equal(mapTrinksStatus("down"), "down");
+});
+
+test("deriveTrinksStatus — cap bloqueado ou erro de webhook vira down", () => {
+  assert.equal(deriveTrinksStatus({
+    trinks_ping: { status: "ok" },
+    trinks_usage: { mode: "blocked" },
+  }), "down");
+  assert.equal(deriveTrinksStatus({
+    trinks_ping: { status: "ok" },
+    trinks_webhook: { configured: true, last_error: "falha" },
+  }), "down");
 });
 
 test("safeHostname — URL válida retorna hostname", () => {

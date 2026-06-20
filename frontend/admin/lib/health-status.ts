@@ -29,6 +29,29 @@ export interface HealthPayload {
     cached?: boolean;
     error?: string;
   };
+  trinks_usage?: {
+    mode?: "normal" | "warning" | "restricted" | "essential_only" | "blocked";
+    effective_used?: number;
+    operational_cap?: number;
+    local_consumed?: number;
+    official_used?: number | null;
+    divergence?: number | null;
+    rejected_429?: number;
+  };
+  trinks_webhook?: {
+    configured?: boolean;
+    last_received_at?: string | null;
+    pending_notifications?: number;
+    last_error?: string | null;
+  };
+  trinks_snapshots?: {
+    professionals?: number;
+    services?: number;
+    compatibility_pairs?: number;
+    available_slots?: number;
+    clients?: number;
+    latest_sync_at?: string | null;
+  };
   whatsapp_window?: {
     configured?: boolean;
     status?: "green" | "yellow" | "red";
@@ -106,6 +129,22 @@ function mapTrinksStatus(s: string | undefined): CardStatus {
   return "down";
 }
 
+function deriveTrinksStatus(h: HealthPayload): CardStatus {
+  const ping = mapTrinksStatus(h.trinks_ping?.status);
+  if (ping === "down" || h.trinks_usage?.mode === "blocked" || h.trinks_webhook?.last_error) {
+    return "down";
+  }
+  if (
+    ping === "warn"
+    || h.trinks_webhook?.configured === false
+    || (h.trinks_webhook?.pending_notifications ?? 0) > 0
+    || ["warning", "restricted", "essential_only"].includes(h.trinks_usage?.mode ?? "")
+  ) {
+    return "warn";
+  }
+  return "ok";
+}
+
 function mapPgStatus(
   pg: HealthPayload["postgres"],
 ): { status: CardStatus; reason?: string } {
@@ -164,12 +203,41 @@ export function deriveCardStatus(h: HealthPayload): CardData[] {
   })();
 
   const trinks: CardData = (() => {
-    const status = mapTrinksStatus(h.trinks_ping?.status);
+    const status = deriveTrinksStatus(h);
+    const usage = h.trinks_usage;
+    const webhook = h.trinks_webhook;
+    const snapshots = h.trinks_snapshots;
+    const hasOperationalData = Boolean(usage || webhook || snapshots);
     return {
       title: "Trinks",
       status,
       statusLabel: STATUS_LABEL[status],
-      metrics: [
+      metrics: hasOperationalData ? [
+        {
+          label: "Consumo",
+          value: usage
+            ? `${usage.effective_used ?? 0}/${usage.operational_cap ?? 8500} (${usage.mode ?? "—"})`
+            : "—",
+        },
+        {
+          label: "Oficial/local",
+          value: usage?.official_used == null
+            ? `— / ${usage?.local_consumed ?? 0}`
+            : `${usage.official_used} / ${usage.local_consumed ?? 0}`,
+        },
+        {
+          label: "Webhook",
+          value: !webhook?.configured
+            ? "não configurado"
+            : `${webhook.pending_notifications ?? 0} pendente(s)`,
+        },
+        {
+          label: "Snapshots",
+          value: snapshots
+            ? `${snapshots.available_slots ?? 0} slots · ${safeIsoMinute(snapshots.latest_sync_at)}`
+            : "—",
+        },
+      ] : [
         {
           label: "Latência",
           value:
@@ -212,6 +280,7 @@ export const __internal = {
   whatsAppHoursRemaining,
   mapWaStatus,
   mapTrinksStatus,
+  deriveTrinksStatus,
   mapPgStatus,
   safeHostname,
   safeIsoMinute,

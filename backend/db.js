@@ -26,6 +26,23 @@ async function query(sql, params) {
   }
 }
 
+async function transaction(fn) {
+  const p = getPool();
+  if (!p) throw new Error('DATABASE_URL ausente');
+  const client = await p.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 function getPoolStats() {
   const p = getPool();
   if (!p) return null;
@@ -36,4 +53,4 @@ function getPoolStats() {
   };
 }
 
-module.exports = { query, getPoolStats };
+module.exports = { query, transaction, getPoolStats };

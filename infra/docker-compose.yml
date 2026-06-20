@@ -110,6 +110,9 @@ services:
       TRINKS_API_BASE: ${TRINKS_API_BASE:-https://api.trinks.com/v1}
       TRINKS_API_KEY: ${TRINKS_API_KEY}
       TRINKS_ESTABELECIMENTO_ID: ${TRINKS_ESTABELECIMENTO_ID:-243868}
+      TRINKS_MONTHLY_BUDGET: ${TRINKS_MONTHLY_BUDGET:-10000}
+      TRINKS_OPERATIONAL_CAP: ${TRINKS_OPERATIONAL_CAP:-8500}
+      TRINKS_SNS_TOPIC_ARN: ${TRINKS_SNS_TOPIC_ARN:-}
       KAPSO_WEBHOOK_SECRET: ${KAPSO_WEBHOOK_SECRET}
       KAPSO_API_KEY: ${KAPSO_API_KEY}
       KAPSO_API_BASE: ${KAPSO_API_BASE:-https://api.kapso.ai}
@@ -145,11 +148,17 @@ services:
       dockerfile: Dockerfile
     container_name: admin-trinks-sync
     restart: unless-stopped
-    command: ["node", "trinks-sync-worker.js"]
+    command: ["node", "trinks-state-worker.js"]
     environment:
       TRINKS_API_BASE: ${TRINKS_API_BASE:-https://api.trinks.com/v1}
       TRINKS_API_KEY: ${TRINKS_API_KEY}
       TRINKS_ESTABELECIMENTO_ID: ${TRINKS_ESTABELECIMENTO_ID:-243868}
+      TRINKS_MONTHLY_BUDGET: ${TRINKS_MONTHLY_BUDGET:-10000}
+      TRINKS_OPERATIONAL_CAP: ${TRINKS_OPERATIONAL_CAP:-8500}
+      TRINKS_RECONCILE_INTERVAL_MIN: ${TRINKS_RECONCILE_INTERVAL_MIN:-1440}
+      TRINKS_PAGE_DELAY_MS: ${TRINKS_PAGE_DELAY_MS:-1500}
+      TRINKS_SLOT_SNAPSHOT_DAYS: ${TRINKS_SLOT_SNAPSHOT_DAYS:-7}
+      TRINKS_CATALOG_MAX_AGE_DAYS: ${TRINKS_CATALOG_MAX_AGE_DAYS:-7}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/influence_labs_salon
     depends_on:
       postgres:
