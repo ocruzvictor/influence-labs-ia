@@ -79,10 +79,7 @@ async function catalogNeedsRefresh() {
 async function syncCatalog() {
   if (!(await catalogNeedsRefresh())) return { skipped: true };
   const professionalsPayload = await getApi().request('/profissionais', { origin: 'catalog_snapshot' });
-  await sleep(PAGE_DELAY_MS);
-  const servicesPayload = await getApi().request('/servicos', { origin: 'catalog_snapshot' });
   const professionals = Array.isArray(professionalsPayload.data) ? professionalsPayload.data : [];
-  const services = Array.isArray(servicesPayload.data) ? servicesPayload.data : [];
 
   for (const professional of professionals) {
     await store.upsertProfessional({
@@ -93,18 +90,9 @@ async function syncCatalog() {
       raw: professional,
     });
   }
-  for (const service of services) {
-    await store.upsertService({
-      trinksId: service.id,
-      name: service.nome,
-      durationMin: service.duracaoEmMinutos,
-      priceCents: valorToCents(service.preco),
-      active: service.visivelParaCliente !== false,
-      raw: service,
-    });
-  }
 
   let pairs = 0;
+  const servicesById = new Map();
   const compatibilities = [];
   for (const professional of professionals) {
     await sleep(PAGE_DELAY_MS);
@@ -112,6 +100,7 @@ async function syncCatalog() {
       origin: 'compatibility_snapshot',
     });
     for (const service of Array.isArray(payload.data) ? payload.data : []) {
+      servicesById.set(String(service.id), service);
       compatibilities.push({
         serviceId: service.id,
         professionalId: professional.id,
@@ -121,8 +110,18 @@ async function syncCatalog() {
       pairs++;
     }
   }
+  for (const service of servicesById.values()) {
+    await store.upsertService({
+      trinksId: service.id,
+      name: service.nome,
+      durationMin: service.duracaoEmMinutos,
+      priceCents: valorToCents(service.preco),
+      active: service.visivelParaCliente !== false,
+      raw: service,
+    });
+  }
   await store.replaceCompatibilitySnapshot(compatibilities);
-  return { professionals: professionals.length, services: services.length, pairs };
+  return { professionals: professionals.length, services: servicesById.size, pairs };
 }
 
 async function syncSlots() {

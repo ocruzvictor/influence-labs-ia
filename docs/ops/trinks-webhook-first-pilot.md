@@ -20,7 +20,7 @@ instrumentadas e bloqueio automatico antes de 8.500 requisicoes no mes.
 | Cliente novo + agendamento | Sim | ate 3 |
 | Atualizar `/consumo` | Sim | 1 por consulta |
 | Snapshot de horarios | Sim | 1 por data |
-| Catalogo e compatibilidade | Sim | 2 + 1 por profissional |
+| Catalogo e compatibilidade | Sim | 1 + 1 por profissional |
 | Reconcile | Sim | 1 por pagina |
 
 As chamadas removidas do processamento de cada mensagem sao:
