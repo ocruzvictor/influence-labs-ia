@@ -1,7 +1,7 @@
 # Story: Trinks Webhook-First + Orçamento REST do Agente SDR
 
 **Tipo:** Brownfield architecture/integration
-**Status:** Ready for Review — webhook real e smoke ainda bloqueiam o piloto
+**Status:** Ready for Review — webhook real ainda bloqueia o piloto
 **Agente executor:** @dev, com gates @architect, @data-engineer, @qa e deploy @devops
 **Branch:** `feature/bot-46589-ajustes-resposta`
 
@@ -48,7 +48,7 @@ operacional de 8.500 requisições por mês, sobre uma cota contratada de 10.000
 - [x] Refatorar runtime para leitura local e mutações com validação.
 - [x] Atualizar health, compose, env example e runbook externo.
 - [x] Executar QA e preparar handoff de deploy.
-- [ ] Executar smoke interno após migration aplicada.
+- [x] Executar smoke interno após migration aplicada.
 
 ## Dev Agent Record
 
@@ -72,13 +72,15 @@ GPT-5.4 / Codex, orquestrado por AIOS.
 - Receptor SNS valida assinatura, certificado, ARN, URL de confirmação e
   deduplica no banco.
 - Baseline de produção dos últimos 28 dias: 82,84 clientes/dia e
-  57,76 agendamentos/dia.
-- Projeção executada: 2.068 / 4.079 / 5.631 / 8.775 requisições por mês.
+  58,79 agendamentos/dia.
+- Projeção executada: 2.068 / 4.130 / 5.631 / 8.775 requisições por mês.
 - Gates raiz, backend e frontend verdes.
-- Migration validada em PostgreSQL real, dentro de schema isolado e transação
-  integralmente revertida.
-- Deploy e piloto permanecem bloqueados até migration aplicada e webhook real
-  confirmado.
+- Migration validada em transação revertida e aplicada em produção em 2026-06-20.
+- Snapshot inicial concluído: 12 profissionais, 117 serviços, 261 pares de
+  compatibilidade, 574 slots recebidos e 840 agendamentos reconciliados.
+- Smoke comum respondeu 200 e manteve o ledger em 45 chamadas antes/depois.
+- Deploy concluído; piloto permanece bloqueado somente até configurar o ARN e
+  confirmar um webhook SNS real.
 
 ### File List
 
@@ -115,6 +117,7 @@ GPT-5.4 / Codex, orquestrado por AIOS.
 
 - 2026-06-18: story criada a partir do plano acelerado aprovado por Victor.
 - 2026-06-19: implementação técnica, testes e runbook concluídos; gates externos pendentes.
+- 2026-06-20: migration e deploy aplicados; snapshot, forecast e smoke interno aprovados.
 
 ## QA Results
 
