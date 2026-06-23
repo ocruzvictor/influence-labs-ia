@@ -304,18 +304,27 @@ function createTrinksSnsHandler(options = {}) {
     return true;
   });
 
-  async function verify(envelope) {
+  async function verify(envelope, expectedTopicArn = options.expectedTopicArn) {
     return verifySnsSignature(envelope, {
       certificateCache,
       getCertificate: options.getCertificate,
-      expectedTopicArn: options.expectedTopicArn,
+      expectedTopicArn,
       expectedTopicArns: options.expectedTopicArns,
     });
   }
 
   async function handle(value) {
     const envelope = parseEnvelope(value);
-    await verify(envelope);
+    let expectedTopicArn = options.expectedTopicArn;
+    if (options.resolveExpectedTopicArn) {
+      expectedTopicArn = await options.resolveExpectedTopicArn(envelope);
+      const bootstrapAllowed = options.allowSubscriptionBootstrap
+        && envelope.Type === 'SubscriptionConfirmation';
+      if (!expectedTopicArn && !bootstrapAllowed) {
+        throw new SnsValidationError('SNS topic is not trusted');
+      }
+    }
+    await verify(envelope, expectedTopicArn);
 
     const duplicate = await dedupeMessage(envelope.MessageId, envelope);
     if (isDuplicateResult(duplicate)) {

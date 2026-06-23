@@ -21,6 +21,22 @@ test('mapeia cliente e profissional de webhook', () => {
   assert.equal(mapProfessional({ id: 2, nome: 'Ana', apelido: 'Aninha' }).nickname, 'Aninha');
 });
 
+test('retorna o TopicArn da ultima assinatura confirmada', async () => {
+  const processor = createTrinksWebhookProcessor({
+    db: {
+      async query(sql) {
+        assert.match(sql, /SubscriptionConfirmation/);
+        return { rows: [{ topic_arn: 'arn:aws:sns:us-east-1:123456789012:trinks' }] };
+      },
+    },
+    store: {},
+  });
+  assert.equal(
+    await processor.getConfirmedTopicArn(),
+    'arn:aws:sns:us-east-1:123456789012:trinks',
+  );
+});
+
 test('persistência é idempotente e evento de cliente é processado', async () => {
   const calls = [];
   const db = {

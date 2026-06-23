@@ -322,3 +322,36 @@ test('confirmacao padrao visita SubscribeURL depois da verificacao', async () =>
     { url: signed.SubscribeURL, method: 'GET' },
   ]);
 });
+
+test('bootstrap dinamico aceita somente SubscriptionConfirmation assinada', async () => {
+  const signedConfirmation = signEnvelope(confirmation());
+  const handler = createTrinksSnsHandler({
+    getCertificate: async () => PUBLIC_KEY_PEM,
+    resolveExpectedTopicArn: async () => null,
+    allowSubscriptionBootstrap: true,
+    confirmSubscription: async () => true,
+  });
+
+  const result = await handler.handle(signedConfirmation);
+  assert.equal(result.confirmed, true);
+
+  await assert.rejects(
+    () => handler.handle(signEnvelope(notification())),
+    /SNS topic is not trusted/,
+  );
+});
+
+test('topico resolvido dinamicamente restringe mensagens futuras', async () => {
+  const handler = createTrinksSnsHandler({
+    getCertificate: async () => PUBLIC_KEY_PEM,
+    resolveExpectedTopicArn: async () => TOPIC_ARN,
+  });
+
+  await handler.handle(signEnvelope(notification()));
+  await assert.rejects(
+    () => handler.handle(signEnvelope(notification({
+      TopicArn: 'arn:aws:sns:us-east-1:123456789012:other',
+    }))),
+    /Unexpected SNS TopicArn/,
+  );
+});

@@ -56,6 +56,12 @@ Configurar no backend o ARN exato recebido da Trinks:
 TRINKS_SNS_TOPIC_ARN=arn:aws:sns:<regiao>:<conta>:<topico>
 ```
 
+Quando a Trinks nao informar o ARN antes do primeiro convite, habilitar
+temporariamente `TRINKS_SNS_BOOTSTRAP=true`. Nesse modo, apenas uma
+`SubscriptionConfirmation` com assinatura AWS valida pode iniciar a confianca.
+Depois do aceite, copiar o `topic_arn` persistido para `TRINKS_SNS_TOPIC_ARN`,
+desligar o bootstrap e reiniciar o backend.
+
 O backend valida assinatura RSA, certificado AWS, regiao do `TopicArn`,
 `SubscribeURL`, token e deduplicacao por `MessageId`. O piloto real so pode
 iniciar depois que uma `SubscriptionConfirmation` e ao menos um evento real

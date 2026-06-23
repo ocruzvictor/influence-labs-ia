@@ -99,6 +99,19 @@ function mapWebhookAppointment(payload, { deleted = false, clientPhone = null } 
 }
 
 function createTrinksWebhookProcessor({ db, store }) {
+  async function getConfirmedTopicArn() {
+    const result = await db.query(
+      `SELECT topic_arn
+         FROM trinks_webhook_events
+        WHERE message_type = 'SubscriptionConfirmation'
+          AND processing_status = 'processed'
+        ORDER BY processed_at DESC
+        LIMIT 1`,
+    );
+    if (!result) throw new Error('Postgres unavailable while reading trusted SNS topic');
+    return result.rows?.[0]?.topic_arn || null;
+  }
+
   async function persistEnvelope(envelope) {
     const parsed = unwrapMessage(envelope);
     const result = await db.query(
@@ -173,7 +186,13 @@ function createTrinksWebhookProcessor({ db, store }) {
     }
   }
 
-  return { persistEnvelope, processNotification, markProcessed, unwrapMessage };
+  return {
+    getConfirmedTopicArn,
+    persistEnvelope,
+    processNotification,
+    markProcessed,
+    unwrapMessage,
+  };
 }
 
 module.exports = {

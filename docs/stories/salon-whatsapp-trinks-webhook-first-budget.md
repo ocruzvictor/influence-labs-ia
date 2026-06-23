@@ -71,6 +71,9 @@ GPT-5.4 / Codex, orquestrado por AIOS.
 - Cliente REST único registra tentativas e aplica os quatro limites.
 - Receptor SNS valida assinatura, certificado, ARN, URL de confirmação e
   deduplica no banco.
+- Bootstrap controlado aceita apenas `SubscriptionConfirmation` assinada quando
+  a Trinks nao fornece o ARN previamente; o tópico confirmado passa a ser a
+  fonte confiável para mensagens seguintes.
 - Baseline de produção dos últimos 28 dias: 82,84 clientes/dia e
   58,79 agendamentos/dia.
 - Projeção executada: 2.068 / 4.130 / 5.631 / 8.775 requisições por mês.
@@ -122,7 +125,7 @@ GPT-5.4 / Codex, orquestrado por AIOS.
 ## QA Results
 
 - Gate final: **PASS**.
-- Backend: 135/135.
+- Backend: 138/138.
 - Prompts raiz: 79/79.
 - Admin: 101 testes, 25 integrações Postgres ignoradas por container local indisponível.
 - Admin build: concluído.

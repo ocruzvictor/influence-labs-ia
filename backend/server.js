@@ -432,8 +432,18 @@ const trinksWebhookProcessor = createTrinksWebhookProcessor({
   store: trinksLocalStore,
 });
 const TRINKS_SNS_TOPIC_ARN = process.env.TRINKS_SNS_TOPIC_ARN || '';
+const TRINKS_SNS_BOOTSTRAP = process.env.TRINKS_SNS_BOOTSTRAP === 'true';
 const trinksSnsHandler = createTrinksSnsHandler({
-  expectedTopicArn: TRINKS_SNS_TOPIC_ARN || undefined,
+  resolveExpectedTopicArn: async (envelope) => {
+    if (TRINKS_SNS_TOPIC_ARN) return TRINKS_SNS_TOPIC_ARN;
+    const confirmedTopicArn = await trinksWebhookProcessor.getConfirmedTopicArn();
+    if (confirmedTopicArn) return confirmedTopicArn;
+    if (TRINKS_SNS_BOOTSTRAP && envelope.Type === 'SubscriptionConfirmation') {
+      return null;
+    }
+    return null;
+  },
+  allowSubscriptionBootstrap: TRINKS_SNS_BOOTSTRAP,
   persistEnvelope: trinksWebhookProcessor.persistEnvelope,
   processNotification: trinksWebhookProcessor.processNotification,
   markSubscriptionConfirmed: trinksWebhookProcessor.markProcessed,
@@ -1380,9 +1390,6 @@ function withTimeout(fn, ms) {
 }
 
 app.post('/webhook/trinks', async (req, res) => {
-  if (!TRINKS_SNS_TOPIC_ARN) {
-    return res.status(503).json({ error: 'trinks_sns_topic_not_configured' });
-  }
   try {
     const snsTypeHeader = req.headers['x-amz-sns-message-type'];
     const envelope = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -2051,6 +2058,11 @@ app.get('/health', async (req, res) => {
               MAX(processed_at) FILTER (
                 WHERE processing_status = 'processed'
               ) AS last_processed_at,
+              (ARRAY_AGG(topic_arn ORDER BY processed_at DESC)
+                FILTER (
+                  WHERE message_type = 'SubscriptionConfirmation'
+                    AND processing_status = 'processed'
+                ))[1] AS confirmed_topic_arn,
               COUNT(*) FILTER (
                 WHERE message_type = 'Notification' AND processing_status = 'processing'
               )::int AS pending_notifications,
@@ -2062,7 +2074,12 @@ app.get('/health', async (req, res) => {
          FROM trinks_webhook_events`,
     );
     if (webhookResult?.rows?.[0]) {
-      trinks_webhook = { ...trinks_webhook, ...webhookResult.rows[0] };
+      const { confirmed_topic_arn: confirmedTopicArn, ...webhookMetrics } = webhookResult.rows[0];
+      trinks_webhook = {
+        ...trinks_webhook,
+        ...webhookMetrics,
+        configured: Boolean(TRINKS_SNS_TOPIC_ARN || confirmedTopicArn),
+      };
     }
   } catch (_) {
     // Health continua disponivel antes da migration.
@@ -2169,7 +2186,12 @@ if (require.main === module) {
     console.log(`   Bot mode: ${botMode}`);
     if (!TESS_TOKEN) console.warn('⚠️  TESS_API_TOKEN not set!');
     if (!TRINKS_KEY) console.warn('⚠️  TRINKS_API_KEY not set!');
-    if (!TRINKS_SNS_TOPIC_ARN) console.warn('⚠️  TRINKS_SNS_TOPIC_ARN not set!');
+    if (!TRINKS_SNS_TOPIC_ARN && !TRINKS_SNS_BOOTSTRAP) {
+      console.warn('⚠️  TRINKS_SNS_TOPIC_ARN not set!');
+    }
+    if (TRINKS_SNS_BOOTSTRAP) {
+      console.warn('⚠️  TRINKS_SNS_BOOTSTRAP enabled for SubscriptionConfirmation only');
+    }
   });
 }
 
