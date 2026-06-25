@@ -1,7 +1,7 @@
 # Story: Trinks Webhook-First + Orçamento REST do Agente SDR
 
 **Tipo:** Brownfield architecture/integration
-**Status:** Ready for Review — webhook real ainda bloqueia o piloto
+**Status:** Ready for Review — webhook real confirmado
 **Agente executor:** @dev, com gates @architect, @data-engineer, @qa e deploy @devops
 **Branch:** `feature/bot-46589-ajustes-resposta`
 
@@ -35,7 +35,7 @@ operacional de 8.500 requisições por mês, sobre uma cota contratada de 10.000
   antes de 8.500.
 - [x] AC14: `/health` expõe webhook, snapshots, ledger local, consumo oficial e
   divergência.
-- [ ] AC15: webhook real validado é gate para clientes reais; `BOT_ACCEPT_ALL` permanece
+- [x] AC15: webhook real validado é gate para clientes reais; `BOT_ACCEPT_ALL` permanece
   desligado até aprovação operacional.
 - [x] AC16: lint, typecheck, testes raiz, testes backend e build passam.
 
@@ -82,8 +82,9 @@ GPT-5.4 / Codex, orquestrado por AIOS.
 - Snapshot inicial concluído: 12 profissionais, 117 serviços, 261 pares de
   compatibilidade, 574 slots recebidos e 840 agendamentos reconciliados.
 - Smoke comum respondeu 200 e manteve o ledger em 45 chamadas antes/depois.
-- Deploy concluído; piloto permanece bloqueado somente até configurar o ARN e
-  confirmar um webhook SNS real.
+- Deploy concluído e gate técnico do webhook liberado.
+- Assinatura SNS confirmada em produção em 2026-06-25; ARN fixado no ambiente e
+  bootstrap temporário desativado.
 
 ### File List
 

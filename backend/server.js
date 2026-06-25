@@ -446,7 +446,7 @@ const trinksSnsHandler = createTrinksSnsHandler({
   allowSubscriptionBootstrap: TRINKS_SNS_BOOTSTRAP,
   persistEnvelope: trinksWebhookProcessor.persistEnvelope,
   processNotification: trinksWebhookProcessor.processNotification,
-  markSubscriptionConfirmed: trinksWebhookProcessor.markProcessed,
+  markSubscriptionConfirmed: messageId => trinksWebhookProcessor.markProcessed(messageId),
   markSubscriptionFailed: (messageId, envelope, err) => (
     trinksWebhookProcessor.markProcessed(messageId, String(err.message).slice(0, 500))
   ),
