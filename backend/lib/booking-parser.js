@@ -146,6 +146,8 @@ const PREMATURE_CONFIRM_PATTERNS = [
   /\b(agendado|confirmado|pronto)\s*!+/gi,
   /\b(agendamento )?(realizado|finalizado|fechado)\b/gi,
   /\bte esperamos\b/gi,
+  /\b(cancelando|cancelado)\b[^\n]*/gi,
+  /\bvou (pedir o )?cancelamento\b[^\n]*/gi,
 ];
 
 function sanitizePrematureConfirm(text) {

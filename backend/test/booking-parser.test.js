@@ -11,7 +11,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { resolveServiceName, renderFutureBookings } = require('../lib/booking-parser');
+const { resolveServiceName, renderFutureBookings, sanitizePrematureConfirm } = require('../lib/booking-parser');
 
 const SERVICES = [
   { id: 12, nome: 'Corte Masculino' },
@@ -88,4 +88,15 @@ test('item3.4 — sem professional_name não quebra; sem service_name usa fallba
 test('item3.5 — formatter ausente não lança (usa String como fallback)', () => {
   const out = renderFutureBookings([{ trinks_id: '9', service_name: 'X', scheduled_at: 'TS' }]);
   assert.match(out, /em TS/);
+});
+
+// --- cancel sanitizer (AC11) ---
+test('cancel.1 — sanitize remove "Cancelando seu agendamento..." quando há tag', () => {
+  const out = sanitizePrematureConfirm('Cancelando seu agendamento agora, um instante!');
+  assert.ok(!/cancelando/i.test(out), 'não deve manter linguagem de cancelamento em progresso');
+});
+
+test('cancel.2 — sanitize remove "Vou pedir o cancelamento pra você"', () => {
+  const out = sanitizePrematureConfirm('Vou pedir o cancelamento pra você 👀');
+  assert.ok(!/cancelamento/i.test(out));
 });

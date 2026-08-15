@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createTrinksApi } = require('../lib/trinks-api');
+const { createTrinksApi, formatPayloadSummary } = require('../lib/trinks-api');
 
 function mockDb({ used = 0, provider = null, finalizeFails = false } = {}) {
   return {
@@ -139,4 +139,31 @@ test('snapshot oficial e reserva consideram somente o mês atual', async () => {
   const reservation = db.calls.find(c => c.sql.includes('pg_advisory_xact_lock'));
   assert.match(officialRead.sql, /checked_at >= date_trunc\('month'/);
   assert.match(reservation.sql, /checked_at >= date_trunc\('month'/);
+});
+
+test('400 inclui ProblemDetails no err.message', async () => {
+  const db = mockDb();
+  const api = createTrinksApi({
+    db,
+    baseUrl: 'https://example.test',
+    apiKey: 'x',
+    establishmentId: '1',
+    fetchImpl: async () => new Response(JSON.stringify({
+      Message: 'Invalid request.',
+      Errors: [{ PropertyName: 'QuemCancelou', ErrorMessage: 'Valor inválido.' }],
+    }), { status: 400 }),
+  });
+  await assert.rejects(
+    () => api.request('/agendamentos/1/status/cancelado', { method: 'PATCH', body: {} }),
+    (err) => {
+      assert.match(err.message, /QuemCancelou: Valor inválido/);
+      assert.equal(err.payload.Errors[0].PropertyName, 'QuemCancelou');
+      return true;
+    },
+  );
+});
+
+test('formatPayloadSummary trunca detail longo', () => {
+  const summary = formatPayloadSummary({ detail: 'x'.repeat(300) });
+  assert.equal(summary.length, 200);
 });

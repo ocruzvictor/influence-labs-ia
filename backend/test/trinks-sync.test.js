@@ -6,6 +6,8 @@ const {
   normalizePhoneBR,
   valorToCents,
   mapAppointment,
+  buildCancelPayload,
+  QUEM_CANCELOU,
 } = require('../lib/trinks-mapping');
 
 // ---- mapStatus (de-para confirmado na Fase 0) ----
@@ -144,4 +146,33 @@ test('upsertChunk vazio → 0 sem chamar db', async () => {
   } finally {
     db.query = orig;
   }
+});
+
+// ---- buildCancelPayload (Wave 1 cancel fix) ----
+test('buildCancelPayload usa enum int32 1=cliente por padrão', () => {
+  const payload = buildCancelPayload('Cliente desistiu');
+  assert.equal(payload.quemCancelou, 1);
+  assert.equal(typeof payload.quemCancelou, 'number');
+  assert.equal(payload.motivo, 'Cliente desistiu');
+});
+
+test('buildCancelPayload coerces string enum e rejeita id de cliente', () => {
+  assert.throws(
+    () => buildCancelPayload('x', '80045805'),
+    /quemCancelou invalido/,
+  );
+  assert.throws(
+    () => buildCancelPayload('x', 827204),
+    /quemCancelou invalido/,
+  );
+});
+
+test('buildCancelPayload aceita enum profissional quando explícito', () => {
+  const payload = buildCancelPayload('Salão cancelou', QUEM_CANCELOU.PROFISSIONAL);
+  assert.equal(payload.quemCancelou, 2);
+});
+
+test('buildCancelPayload motivo vazio usa fallback', () => {
+  const payload = buildCancelPayload('');
+  assert.equal(payload.motivo, 'Cancelado pelo cliente via WhatsApp');
 });

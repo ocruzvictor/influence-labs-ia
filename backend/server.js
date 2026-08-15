@@ -101,9 +101,11 @@ const {
 // Monitor de cota Trinks (contador mensal compartilhado) — story trinks-quota-monitor.
 const { getRequestBudget, newlyCrossed } = require('./lib/trinks-usage');
 const { createTrinksApi } = require('./lib/trinks-api');
+const { buildCancelPayload, QUEM_CANCELOU } = require('./lib/trinks-mapping');
 const { createTrinksLocalStore } = require('./lib/trinks-local-store');
 const { createTrinksSnsHandler, SnsValidationError } = require('./lib/trinks-sns');
 const { createTrinksWebhookProcessor } = require('./lib/trinks-webhook-processor');
+const { handleMetaAccountUpdates } = require('./lib/whatsapp-account-events');
 
 const app = express();
 app.use(cors());
@@ -770,12 +772,10 @@ async function findClientBooking(clienteId, date, professionalId) {
 }
 
 // Cancela agendamento via PATCH /agendamentos/{id}/status/cancelado
-async function cancelBookingInTrinks(agendamentoId, clienteId, motivo) {
+// quemCancelou = enum (1=cliente), NÃO o Trinks client id — ver trinks-mapping.QUEM_CANCELOU.
+async function cancelBookingInTrinks(agendamentoId, motivo, quemCancelou = QUEM_CANCELOU.CLIENTE) {
   const current = await trinksLocalStore.getAppointment(agendamentoId);
-  const payload = {
-    quemCancelou: clienteId,
-    motivo: motivo || 'Cancelado pelo cliente via WhatsApp',
-  };
+  const payload = buildCancelPayload(motivo, quemCancelou);
   const result = await trinksApi.request(`/agendamentos/${agendamentoId}/status/cancelado`, {
     method: 'PATCH',
     body: payload,
@@ -1279,11 +1279,12 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
       if (!agendamentoId) throw new Error(`Agendamento nao encontrado para data ${bookingCancel.date}`);
 
-      bookingResult = await cancelBookingInTrinks(agendamentoId, clienteId, bookingCancel.motivo);
+      bookingResult = await cancelBookingInTrinks(agendamentoId, bookingCancel.motivo);
       console.log(`[${sessionId}] Booking cancelled in Trinks: agendamentoId ${agendamentoId}`);
       finalMessages.push(`Pronto, cancelei seu horário! Qualquer coisa, é só chamar pra reagendar. 😊`);
     } catch (err) {
-      console.error(`[${sessionId}] Booking cancel FAILED:`, err.message);
+      const payloadLog = err.payload ? JSON.stringify(err.payload).slice(0, 500) : '';
+      console.error(`[${sessionId}] Booking cancel FAILED:`, err.message, payloadLog);
       finalMessages.push(
         `Não consegui localizar/cancelar seu horário automaticamente 😕\n` +
         `Vou pedir pro Gabriel resolver com você. Um momento!`
@@ -1337,7 +1338,11 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
   console.log(`[${sessionId}] Response (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
   // Anexa mensagens finais (sucesso/falha 2-phase) como blocos extras apos o reply principal.
-  const allBlocks = [...formatted.responses, ...finalMessages];
+  // AC11: cancel falhou → não enviar texto prematuro ("Cancelando...") antes da msg de erro.
+  let allBlocks = [...formatted.responses, ...finalMessages];
+  if (bookingCancel && !bookingResult) {
+    allBlocks = finalMessages.length ? finalMessages : formatted.responses;
+  }
   const result = {
     response: allBlocks[0],
     responses: allBlocks,
@@ -1543,10 +1548,9 @@ async function sendKapsoMessage(to, text, phoneNumberId) {
   }
 }
 
-function validateKapsoSignature(req) {
-  const secret = process.env.KAPSO_WEBHOOK_SECRET;
+function validateKapsoWebhookSignature(req, { secret, label = 'kapso' } = {}) {
   if (!secret) {
-    console.warn('[kapso] KAPSO_WEBHOOK_SECRET not set — skipping HMAC validation (dev mode)');
+    console.warn(`[${label}] webhook secret not set — skipping HMAC validation (dev mode)`);
     return true;
   }
   // Doc Kapso (docs.kapso.ai): HMAC SHA256 hex sobre o body RAW (exatamente como recebido), header X-Webhook-Signature.
@@ -1562,17 +1566,31 @@ function validateKapsoSignature(req) {
   const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
 
   if (signature.length !== expected.length) {
-    console.warn(`[kapso] HMAC length mismatch — sig=${signature.length}ch expected=${expected.length}ch. header raw="${(req.headers['x-webhook-signature'] || '').slice(0,32)}…"`);
+    console.warn(`[${label}] HMAC length mismatch — sig=${signature.length}ch expected=${expected.length}ch. header raw="${(req.headers['x-webhook-signature'] || '').slice(0,32)}…"`);
     return false;
   }
   try {
     const ok = crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'));
-    if (!ok) console.warn(`[kapso] HMAC mismatch — sig=${signature.slice(0,16)}… expected=${expected.slice(0,16)}…`);
+    if (!ok) console.warn(`[${label}] HMAC mismatch — sig=${signature.slice(0,16)}… expected=${expected.slice(0,16)}…`);
     return ok;
   } catch (e) {
-    console.warn(`[kapso] HMAC error: ${e.message}`);
+    console.warn(`[${label}] HMAC error: ${e.message}`);
     return false;
   }
+}
+
+function validateKapsoSignature(req) {
+  return validateKapsoWebhookSignature(req, {
+    secret: process.env.KAPSO_WEBHOOK_SECRET,
+    label: 'kapso',
+  });
+}
+
+function validateKapsoMetaSignature(req) {
+  return validateKapsoWebhookSignature(req, {
+    secret: process.env.KAPSO_META_WEBHOOK_SECRET || process.env.KAPSO_WEBHOOK_SECRET,
+    label: 'kapso-meta',
+  });
 }
 
 app.post('/webhook/kapso', withTimeout(async (req, res) => {
@@ -1783,6 +1801,27 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   }
 }, 28000));
 
+// --- Kapso meta webhook (raw Meta payloads, incl. account_update / PARTNER_REMOVED) ---
+// Um webhook kind=meta por phone_number_id na Kapso. Meta recomenda monitorar account_update
+// quando a conta fica presa em coexistencia ou ao desconectar do Cloud API.
+app.post('/webhook/kapso-meta', withTimeout(async (req, res) => {
+  if (!validateKapsoMetaSignature(req)) {
+    console.warn('[kapso-meta] Invalid HMAC signature — rejected');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  res.json({ ok: true });
+
+  try {
+    const result = await handleMetaAccountUpdates(db, req.body, 'kapso-meta');
+    if (result.handled) {
+      console.log(`[kapso-meta] account_update processed count=${result.events.length} inserted=${result.inserted}`);
+    }
+  } catch (err) {
+    console.error('[kapso-meta] erro ao processar account_update:', err.message);
+  }
+}, 5000));
+
 // --- Meta Cloud API webhook (WhatsApp direto pela Meta, sem intermediario) ---
 // Diferenca-chave vs Kapso: a Meta NAO le o corpo da resposta HTTP. Exige 200 rapido
 // e a resposta ao cliente vai por uma chamada separada a Graph API.
@@ -1866,6 +1905,11 @@ app.post('/webhook/meta', async (req, res) => {
   res.sendStatus(200);
 
   try {
+    const accountResult = await handleMetaAccountUpdates(db, req.body, 'meta-direct');
+    if (accountResult.handled) {
+      console.log(`[meta] account_update processed count=${accountResult.events.length} inserted=${accountResult.inserted}`);
+    }
+
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
     const msg = value?.messages?.[0];
 
@@ -2108,6 +2152,30 @@ app.get('/health', async (req, res) => {
   } catch (_) {
     // Health continua disponivel antes da migration.
   }
+  let whatsapp_account_events = {
+    table_ready: false,
+    last_event: null,
+    last_partner_removed_at: null,
+    recent_count_24h: 0,
+  };
+  try {
+    const accountResult = await db.query(
+      `SELECT
+         (SELECT event FROM whatsapp_account_events ORDER BY received_at DESC LIMIT 1) AS last_event,
+         (SELECT MAX(received_at) FROM whatsapp_account_events
+           WHERE event = 'PARTNER_REMOVED') AS last_partner_removed_at,
+         (SELECT COUNT(*)::int FROM whatsapp_account_events
+           WHERE received_at >= NOW() - INTERVAL '24 hours') AS recent_count_24h`,
+    );
+    if (accountResult?.rows?.[0]) {
+      whatsapp_account_events = {
+        table_ready: true,
+        ...accountResult.rows[0],
+      };
+    }
+  } catch (_) {
+    // Health continua disponivel antes da migration 008.
+  }
 
   res.json({
     status: 'ok',
@@ -2141,6 +2209,13 @@ app.get('/health', async (req, res) => {
       phone_number_id: META_PHONE_NUMBER_ID ? 'set' : 'PENDENTE',
       verify_token: META_VERIFY_TOKEN ? 'set' : 'PENDENTE',
       app_secret: META_APP_SECRET ? 'set' : 'PENDENTE',
+    },
+    whatsapp_account_events,
+    kapso_meta_webhook: {
+      endpoint: '/webhook/kapso-meta',
+      secret_env: process.env.KAPSO_META_WEBHOOK_SECRET ? 'KAPSO_META_WEBHOOK_SECRET' : (
+        process.env.KAPSO_WEBHOOK_SECRET ? 'KAPSO_WEBHOOK_SECRET (fallback)' : 'PENDENTE'
+      ),
     },
     whatsapp_window: (() => {
       // Status da janela 24h pro telefone do Tiago (canal de notificacoes admin).

@@ -5,6 +5,18 @@ const {
   getRequestBudget,
 } = require('./trinks-usage');
 
+function formatPayloadSummary(payload) {
+  if (!payload || typeof payload !== 'object') return '';
+  if (Array.isArray(payload.Errors) && payload.Errors.length) {
+    return payload.Errors
+      .map((e) => `${e.PropertyName}: ${e.ErrorMessage}`)
+      .join('; ')
+      .slice(0, 200);
+  }
+  const detail = payload.detail || payload.Message || payload.title;
+  return detail ? String(detail).slice(0, 200) : '';
+}
+
 function createTrinksApi({
   db,
   baseUrl,
@@ -91,7 +103,8 @@ function createTrinksApi({
       let payload = {};
       try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text }; }
       if (!res.ok) {
-        const err = new Error(`Trinks ${res.status}: ${path}`);
+        const summary = formatPayloadSummary(payload);
+        const err = new Error(`Trinks ${res.status}: ${path}${summary ? ` — ${summary}` : ''}`);
         err.status = res.status;
         err.payload = payload;
         err.retryAfter = res.headers.get('retry-after');
@@ -127,4 +140,4 @@ function createTrinksApi({
   return { request, refreshConsumption, canRequest };
 }
 
-module.exports = { createTrinksApi };
+module.exports = { createTrinksApi, formatPayloadSummary };

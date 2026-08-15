@@ -20,6 +20,28 @@ const STATUS_BY_ID = {
   9: 'cancelled', // Cancelado
 };
 
+// PATCH /agendamentos/{id}/status/cancelado — quemCancelou é enum int32, NÃO id de cliente/profissional.
+// Doc Trinks: 1=cliente, 2=profissional, 3=estabelecimento, 4=outro.
+const QUEM_CANCELOU = {
+  CLIENTE: 1,
+  PROFISSIONAL: 2,
+  ESTABELECIMENTO: 3,
+  OUTRO: 4,
+};
+
+/** Monta body do PATCH cancelado com quemCancelou coerced para int32 válido. */
+function buildCancelPayload(motivo, quemCancelou = QUEM_CANCELOU.CLIENTE) {
+  const actor = Number(quemCancelou);
+  if (!Number.isInteger(actor) || actor < 1 || actor > 4) {
+    throw new Error(`quemCancelou invalido: ${quemCancelou}`);
+  }
+  const reason = String(motivo ?? '').trim();
+  return {
+    quemCancelou: actor,
+    motivo: reason || 'Cancelado pelo cliente via WhatsApp',
+  };
+}
+
 /** Mapeia status.id da Trinks → enum normalizado. Desconhecido → 'unknown'. */
 function mapStatus(statusId) {
   return STATUS_BY_ID[Number(statusId)] || 'unknown';
@@ -80,4 +102,12 @@ function mapAppointment(rec, phone = null) {
   };
 }
 
-module.exports = { mapStatus, normalizePhoneBR, valorToCents, mapAppointment, STATUS_BY_ID };
+module.exports = {
+  mapStatus,
+  normalizePhoneBR,
+  valorToCents,
+  mapAppointment,
+  buildCancelPayload,
+  STATUS_BY_ID,
+  QUEM_CANCELOU,
+};
