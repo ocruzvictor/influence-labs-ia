@@ -95,6 +95,8 @@ const {
   stripBookingTags,
   sanitizePrematureConfirm,
   resolveServiceName,
+  renderHabilitacaoMap,
+  formatIncompatibleProfServiceMessage,
   renderFutureBookings,
 } = require('./lib/booking-parser');
 
@@ -389,7 +391,7 @@ function buildPersistedSection(persistedMemory) {
   return section;
 }
 
-function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null, futureBookings = []) {
+function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null, futureBookings = [], habilitacaoText = '') {
   const persistedSection = buildPersistedSection(persistedMemory);
   const futureBookingsSection = renderFutureBookings(futureBookings, formatBookingDateTime); // item 3 Rota C
   const historyText = history.length
@@ -408,6 +410,7 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
     'HORARIO DE FUNCIONAMENTO: Ter-Sex 9h-19h | Sab 9h-18h | Dom-Seg FECHADO',
     `DATAS COM DADOS DISPONIVEIS: ${businessDays.map(formatDateLabel).join(', ')}`,
     '',
+    habilitacaoText,
     slotsText,
     professionalsText,
     servicesText,
@@ -1162,7 +1165,17 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   if (lastEntry?.role !== 'user' || lastEntry.content !== messageText) {
     state.history.push({ role: 'user', content: messageText });
   }
-  const dynamicContext = buildDynamicContext(businessDays, slotsAll, profsPayload.text, state.history, svcText, state.persistedMemory, futureBookings);
+  const habilitacaoText = renderHabilitacaoMap(svcPayload.data);
+  const dynamicContext = buildDynamicContext(
+    businessDays,
+    slotsAll,
+    profsPayload.text,
+    state.history,
+    svcText,
+    state.persistedMemory,
+    futureBookings,
+    habilitacaoText,
+  );
   const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${messageText}`;
   const tessRaw = await callTESS([
     { role: 'user', content: userMessageWithContext },
@@ -1258,12 +1271,28 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         `Qualquer coisa é só chamar! ✌🏻`
       );
     } catch (err) {
-      console.error(`[${sessionId}] Booking creation FAILED:`, err.message);
-      // 2-phase falha: mensagem honesta de erro + sugestao
-      finalMessages.push(
-        `Opa, tive um problema técnico ao confirmar esse horário 😕\n\n` +
-        `Deixa eu tentar outro horário próximo pra você. Me fala se prefere outro dia ou outro profissional?`
-      );
+      if (err.message && err.message.includes('incompativel')) {
+        const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
+        const svcEntry = svcPayload.data.find(s => String(s.id) === String(bookingData.serviceId));
+        console.error(
+          `[${sessionId}] Booking INCOMPATIBLE prof×servico:`,
+          err.message,
+          `prof=${bookingData.professionalId}`,
+          `svc=${bookingData.serviceId}`,
+          `habilitados=[${(svcEntry?.profissionais || []).join(', ')}]`,
+        );
+        finalMessages.push(formatIncompatibleProfServiceMessage({
+          professionalName: profObj?.apelido || profObj?.nome,
+          serviceName: servicoNome,
+          enabledProfessionals: svcEntry?.profissionais,
+        }));
+      } else {
+        console.error(`[${sessionId}] Booking creation FAILED:`, err.message);
+        finalMessages.push(
+          `Opa, tive um problema técnico ao confirmar esse horário 😕\n\n` +
+          `Deixa eu tentar outro horário próximo pra você. Me fala se prefere outro dia ou outro profissional?`
+        );
+      }
     }
   }
 
@@ -1321,10 +1350,30 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         : 'no horario combinado';
       finalMessages.push(`Pronto, reagendei pra ${dataFmt}! Te esperamos. 😊`);
     } catch (err) {
-      console.error(`[${sessionId}] Booking reschedule FAILED:`, err.message);
-      finalMessages.push(
-        `Tive um problema pra reagendar 😕 Vou pedir pro Gabriel resolver com você direto. Um momento!`
-      );
+      if (err.message && err.message.includes('incompativel')) {
+        const profObj = bookingReschedule.professional_id
+          ? profsPayload.data.find(p => p.id === bookingReschedule.professional_id)
+          : null;
+        const servicoNome = bookingReschedule.service_name || resolveServiceName(svcPayload.data, bookingReschedule.service_id);
+        const svcEntry = svcPayload.data.find(s => String(s.id) === String(bookingReschedule.service_id));
+        console.error(
+          `[${sessionId}] Reschedule INCOMPATIBLE prof×servico:`,
+          err.message,
+          `prof=${bookingReschedule.professional_id}`,
+          `svc=${bookingReschedule.service_id}`,
+          `habilitados=[${(svcEntry?.profissionais || []).join(', ')}]`,
+        );
+        finalMessages.push(formatIncompatibleProfServiceMessage({
+          professionalName: profObj?.apelido || profObj?.nome,
+          serviceName: servicoNome,
+          enabledProfessionals: svcEntry?.profissionais,
+        }));
+      } else {
+        console.error(`[${sessionId}] Booking reschedule FAILED:`, err.message);
+        finalMessages.push(
+          `Tive um problema pra reagendar 😕 Vou pedir pro Gabriel resolver com você direto. Um momento!`
+        );
+      }
     }
   }
 

@@ -11,7 +11,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { resolveServiceName, renderFutureBookings, sanitizePrematureConfirm } = require('../lib/booking-parser');
+const { resolveServiceName, renderFutureBookings, sanitizePrematureConfirm, renderHabilitacaoMap, formatIncompatibleProfServiceMessage, HABILITACAO_HEADER } = require('../lib/booking-parser');
 
 const SERVICES = [
   { id: 12, nome: 'Corte Masculino' },
@@ -99,4 +99,50 @@ test('cancel.1 — sanitize remove "Cancelando seu agendamento..." quando há ta
 test('cancel.2 — sanitize remove "Vou pedir o cancelamento pra você"', () => {
   const out = sanitizePrematureConfirm('Vou pedir o cancelamento pra você 👀');
   assert.ok(!/cancelamento/i.test(out));
+});
+
+// --- item 2: renderHabilitacaoMap ---
+test('item2.1 — lista vazia / null → string vazia', () => {
+  assert.equal(renderHabilitacaoMap([]), '');
+  assert.equal(renderHabilitacaoMap(null), '');
+  assert.equal(renderHabilitacaoMap(undefined), '');
+});
+
+test('item2.2 — serviços sem profissionais habilitados → string vazia', () => {
+  assert.equal(renderHabilitacaoMap([{ id: 1, nome: 'X', profissionais: [] }]), '');
+  assert.equal(renderHabilitacaoMap([{ id: 1, nome: 'X' }]), '');
+});
+
+test('item2.3 — um serviço com nomes presentes inclui header HABILITACAO e linha formatada', () => {
+  const out = renderHabilitacaoMap([
+    { id: 14129499, nome: 'Corte Masculino', profissionais: ['Erick', 'Tiago'] },
+  ]);
+  assert.match(out, new RegExp(HABILITACAO_HEADER.replace(/[()]/g, '\\$&')));
+  assert.match(out, /Corte Masculino \(ID 14129499\): Erick, Tiago/);
+  assert.match(out, /ignore HORARIOS VAGOS/);
+});
+
+test('item2.4 — múltiplos serviços listados; contexto dinâmico conteria HABILITACAO antes de slots', () => {
+  const habilitacao = renderHabilitacaoMap([
+    { id: 12, nome: 'Corte Masculino', profissionais: ['Erick', 'Tiago'] },
+    { id: 34, nome: 'Escova', profissionais: ['Ana'] },
+  ]);
+  const slotsStub = 'HORARIOS VAGOS sabado:\n- Dylan: 10:00';
+  const contextStub = ['DATAS COM DADOS DISPONIVEIS: sabado', '', habilitacao, slotsStub].join('\n');
+  const habIdx = contextStub.indexOf('HABILITACAO');
+  const slotsIdx = contextStub.indexOf('HORARIOS VAGOS');
+  assert.ok(habIdx >= 0, 'contexto deve conter HABILITACAO');
+  assert.ok(habIdx < slotsIdx, 'HABILITACAO deve vir antes de HORARIOS VAGOS');
+  assert.match(contextStub, /Escova \(ID 34\): Ana/);
+});
+
+test('item2.5 — formatIncompatibleProfServiceMessage cita habilitados', () => {
+  const msg = formatIncompatibleProfServiceMessage({
+    professionalName: 'Dylan',
+    serviceName: 'Corte Masculino',
+    enabledProfessionals: ['Erick', 'Tiago'],
+  });
+  assert.match(msg, /Dylan não realiza Corte Masculino/);
+  assert.match(msg, /Erick, Tiago/);
+  assert.ok(!/problema técnico/i.test(msg));
 });

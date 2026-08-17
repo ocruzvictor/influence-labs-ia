@@ -118,7 +118,7 @@ Esse descompasso é a raiz comum dos itens 2 e 3:
 ## Tasks (sugestão — @dev refina)
 1. [ ] Fase 0: probes AC1 + AC2 (read-only), registrar decisões. ⏳ **Bloqueado por rate-limit Trinks (429) — retomar quando esfriar.**
 2. [x] Item 1: incluir nome do serviço no card (AC3, AC4). ✅ código + testes.
-3. [ ] Item 2: backend injeta mapa de capacidade (AC5) + texto de prompt (AC6).
+3. [x] Item 2: backend injeta mapa de capacidade (AC5) + texto de prompt (AC6). ✅ código + testes; prompt Victor aplica.
 4. [ ] Item 3: implementar mecanismo de cancel (AC8) + desambiguação (AC10) + erro honesto (AC11) + teste e2e (AC15).
 5. [ ] Item 5-novo: texto da regra I.6 (AC12).
 6. [ ] Transversal: alinhar contrato CONTEXTO DINÂMICO (AC14); rodar testes (AC15); deploy branch + smoke (AC7, AC9, AC13, AC16).
@@ -135,9 +135,20 @@ Claude (Dex / @dev) — sessão 2026-06-02
   - Card de sucesso 2-phase: nova linha `💅 {serviço}` inserida entre data e profissional, **só quando o nome resolve** (AC4 — degrada graciosamente, nunca imprime `id:undefined`). Path legacy `service_name` continua funcionando.
   - Bônus: `updateClientAfterBooking` agora grava o **nome real** do serviço em `clients.last_service` (antes gravava `id:123` em v2).
   - Testes: `test/booking-parser.test.js` novo, 6 casos de `resolveServiceName` (match number/string, no-match, id ausente, data não-array, item sem nome). Suíte total **79/79** verde. `node --check` OK em server.js e booking-parser.js.
+- **Item 2 (AC5/AC6) — DONE (código + testes, prompt Victor aplica):**
+  - `renderHabilitacaoMap(servicesData)` em `lib/booking-parser.js` — seção compacta serviço→profissionais habilitados (snapshot local via `listCompatibility`, zero REST extra).
+  - `buildDynamicContext` injeta HABILITACAO **antes** de HORARIOS VAGOS.
+  - Catch em create/reschedule: erro `incompativel` → mensagem honesta citando habilitados (não "problema técnico").
+  - Testes item2.1–2.5 em `booking-parser.test.js`. Suíte **157/157** verde.
+  - Prompt deliverables em `docs/prompts/tess-conversa-v3-clean.md` + `docs/handoffs/46589-prompt-changes-2026-06-02.md` (I.1 habilitação).
 - **Fase 0 (AC1/AC2) — BLOQUEADA:** probes read-only à Trinks retornaram **429 persistente** (mesmo com backoff até 50s respeitando Retry-After). `/health` mostra `trinks_ping.status=down`. Hoje é ter 20:30 (salão fechado, sem tráfego real nos logs há 2h) → causa provável: meus ~10 probes seguidos dispararam bloqueio temporário de IP/key. **Nenhuma mudança feita na Trinks; só leitura.** Retomar com 1 chamada quando esfriar. ⚠️ Validar com Victor se o `trinks_ping=down` persiste (seria problema de prod independente desta story).
 
 ### File List
+- `backend/lib/booking-parser.js` (M) — `renderHabilitacaoMap`, `formatIncompatibleProfServiceMessage`.
+- `backend/server.js` (M) — injeta HABILITACAO em `buildDynamicContext`; catch incompatível create/reschedule.
+- `backend/test/booking-parser.test.js` (M) — testes item 2 (5 casos).
+- `docs/prompts/tess-conversa-v3-clean.md` (M) — REGRA ZERO, I.1 passo 3, CONTEXTO DINÂMICO.
+- `docs/handoffs/46589-prompt-changes-2026-06-02.md` (M) — bloco I.1 habilitação (Victor apply).
 - `backend/server.js` (M) — `getServicesText` retorna `{text,data}`; caller usa `svcPayload`; card inclui nome do serviço; import de `resolveServiceName`.
 - `backend/lib/booking-parser.js` (M) — novo `resolveServiceName` + export.
 - `backend/test/booking-parser.test.js` (A) — testes de `resolveServiceName`.
@@ -187,4 +198,30 @@ Claude (Dex / @dev) — sessão 2026-06-02
 - Self-healing CodeRabbit: máx 2 iterações em `uncommitted` antes do commit.
 
 ## File List (preencher na implementação)
-- _(a preencher pelo @dev)_
+- `docs/ops/pilot-readiness-2026-06-26.md` (A) — gate operacional datado para smoke/piloto supervisionado.
+- `docs/ops/trinks-webhook-first-pilot.md` (M) — link e veredito do gate 2026-06-26.
+- `docs/qa/salon-test-matrix.md` (M) — recorte P0 do smoke WhatsApp supervisionado.
+
+## QA Results
+
+### Review Date: 2026-06-26
+
+### Gate: CONCERNS — smoke whitelisted liberado, clientes reais bloqueados
+
+Evidencia automatizada coletada:
+
+- Root gates: `npm run lint && npm run typecheck && npm test` PASS, prompt tests 79/79.
+- Backend: `cd backend && npm test` PASS, 138/138.
+- Admin: `cd frontend/admin && npm run lint && npm run typecheck && npm test` PASS com 1 warning lint (`frontend/admin/lib/kb.ts`) e 25 testes de integracao skipped por `postgres-test` indisponivel.
+- Scripts: parser tags 11/11, HMAC Kapso 8/8, extracao de transcricao 13/13.
+- Producao `/health`: backend `ok`, Trinks ping `ok`, snapshots preenchidos, webhook configurado, `pending_notifications=0`, `BOT_ACCEPT_ALL=false`, whitelist count 3.
+
+Bloqueios para clientes reais:
+
+- `whatsapp_window.status=red`: nenhum inbound do Tiago registrado desde restart do backend.
+- Criacao/cancelamento pelo WhatsApp ainda nao foram validados ponta a ponta nesta bateria.
+- `trinks_webhook.last_error=Unsupported Trinks webhook event: null` precisa ser classificado.
+- Forecast local retornou `pass=false` por ausencia de baseline observado no ambiente local; rodar no ambiente com DB de producao antes de expandir.
+- AC7, AC9 e AC13 permanecem abertos ate evidencia real pelo WhatsApp.
+
+Decisao: manter `BOT_ACCEPT_ALL=false`, usar apenas numeros whitelisted e executar o smoke descrito em `docs/ops/pilot-readiness-2026-06-26.md` antes de atender 1-3 clientes reais.

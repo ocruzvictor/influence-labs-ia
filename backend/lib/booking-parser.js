@@ -167,6 +167,41 @@ function resolveServiceName(servicesData, serviceId) {
   return match?.nome || null;
 }
 
+// Story bot-46589 item 2: mapa compacto serviço→profissionais habilitados (snapshot local).
+// TESS deve ofertar SOMENTE quem aparece aqui (ou nos colchetes de SERVICOS), não quem só
+// aparece em HORARIOS VAGOS.
+const HABILITACAO_HEADER = 'HABILITACAO (só ofereça profissional listado no serviço pedido; ignore HORARIOS VAGOS de quem não faz o serviço):';
+const MAX_HABILITACAO_LINES = 120;
+
+function renderHabilitacaoMap(servicesData) {
+  if (!Array.isArray(servicesData) || servicesData.length === 0) return '';
+  const lines = [];
+  for (const s of servicesData) {
+    const names = Array.isArray(s.profissionais) ? s.profissionais.filter(Boolean) : [];
+    if (!names.length) continue;
+    const id = s.id != null ? s.id : '?';
+    const nome = s.nome || 'Serviço';
+    lines.push(`- ${nome} (ID ${id}): ${names.join(', ')}`);
+    if (lines.length >= MAX_HABILITACAO_LINES) break;
+  }
+  if (!lines.length) return '';
+  let out = `\n${HABILITACAO_HEADER}\n${lines.join('\n')}`;
+  if (lines.length >= MAX_HABILITACAO_LINES) {
+    out += '\n- ... (lista truncada; consulte SERVICOS DISPONIVEIS para demais)';
+  }
+  return out;
+}
+
+function formatIncompatibleProfServiceMessage({ professionalName, serviceName, enabledProfessionals = [] } = {}) {
+  const prof = professionalName || 'Esse profissional';
+  const svc = serviceName || 'esse serviço';
+  const habilitados = Array.isArray(enabledProfessionals) && enabledProfessionals.length
+    ? enabledProfessionals.join(', ')
+    : 'outros profissionais habilitados listados em HABILITACAO';
+  return `${prof} não realiza ${svc} aqui no salão.\n\n`
+    + `Posso te oferecer horário com ${habilitados}. Qual prefere?`;
+}
+
 // Story bot-46589 item 3 (Rota C): renderiza os agendamentos futuros do cliente (lidos do
 // trinks_appointments local) para o contexto dinâmico, EXPONDO o bookingId real (trinks_id).
 // Resolve a causa-raiz do cancelamento quebrado: o prompt pedia bookingId em DADOS_CLIENTE,
@@ -191,6 +226,9 @@ module.exports = {
   stripBookingTags,
   sanitizePrematureConfirm,
   resolveServiceName,
+  renderHabilitacaoMap,
+  formatIncompatibleProfServiceMessage,
   renderFutureBookings,
+  HABILITACAO_HEADER,
   PREMATURE_CONFIRM_PATTERNS,
 };
