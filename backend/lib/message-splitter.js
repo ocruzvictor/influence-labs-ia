@@ -95,7 +95,69 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function splitLongChunk(chunk, maxLen) {
+  if (chunk.length <= maxLen) return [chunk];
+  const sentences = chunk.match(/[^.!?]+[.!?]?/g)?.map(s => s.trim()).filter(Boolean) || [chunk];
+  const parts = [];
+  let current = '';
+  for (const sentence of sentences) {
+    if (!current) {
+      current = sentence;
+      continue;
+    }
+    if ((current + ' ' + sentence).length <= maxLen) {
+      current += ' ' + sentence;
+    } else {
+      parts.push(current);
+      current = sentence;
+    }
+  }
+  if (current) parts.push(current);
+  return parts;
+}
+
+/**
+ * Quebra texto longo em bolhas WhatsApp.
+ * Nunca descarta conteúdo: se passar de maxBubbles, junta o restante na última bolha.
+ * Se o texto já tem <break>, devolve 1 bloco para o sendKapsoMessage fazer o split único.
+ */
+function toWhatsappBlocks(text, { maxBubbles = 8 } = {}) {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+  if (/<break>/i.test(raw)) return [raw];
+
+  const paragraphs = raw.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  const roughBlocks = paragraphs.length ? paragraphs : [raw];
+  const expanded = [];
+  for (const block of roughBlocks) {
+    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    const hasList = lines.some(l => l.startsWith('- '));
+    if (hasList || block.length <= 340) {
+      expanded.push(block);
+      continue;
+    }
+    expanded.push(...splitLongChunk(block, 300));
+  }
+
+  const compact = [];
+  for (const block of expanded) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+    const prev = compact[compact.length - 1];
+    if (prev && !prev.includes('\n') && !trimmed.includes('\n') && (prev.length + trimmed.length + 1 <= 300)) {
+      compact[compact.length - 1] = `${prev} ${trimmed}`;
+    } else {
+      compact.push(trimmed);
+    }
+  }
+
+  const cap = Math.max(1, Number(maxBubbles) || 8);
+  if (compact.length <= cap) return compact;
+  return [...compact.slice(0, cap - 1), compact.slice(cap - 1).join('\n\n')];
+}
+
 module.exports = {
   splitMessage,
   sleep,
+  toWhatsappBlocks,
 };

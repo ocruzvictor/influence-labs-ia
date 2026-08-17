@@ -11,7 +11,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { splitMessage } = require('../lib/message-splitter');
+const { splitMessage, toWhatsappBlocks } = require('../lib/message-splitter');
 
 test('1. Texto sem <break> → array com 1 bolha', () => {
   const out = splitMessage('Oi! Tudo bem? 😊');
@@ -162,4 +162,18 @@ test('H1 fix: input com \\x00 é sanitizado, não vira "undefined"', () => {
   assert.equal(out4.length, 2);
   assert.equal(out4[0], 'Show!');
   assert.ok(out4[1].includes('[BOOKING_CREATE servicoId=1]'));
+});
+
+test('toWhatsappBlocks: texto com <break> não é pré-fatiado (split único no send)', () => {
+  const out = toWhatsappBlocks('Oi!\n<break>\nQuer agendar?');
+  assert.deepEqual(out, ['Oi!\n<break>\nQuer agendar?']);
+});
+
+test('toWhatsappBlocks: não descarta conteúdo além de 6 parágrafos', () => {
+  const text = Array.from({ length: 10 }, (_, i) => `Bloco ${i + 1} completo.`).join('\n\n');
+  const out = toWhatsappBlocks(text, { maxBubbles: 8 });
+  assert.ok(out.length <= 8);
+  const joined = out.join('\n');
+  assert.match(joined, /Bloco 1 completo/);
+  assert.match(joined, /Bloco 10 completo/);
 });

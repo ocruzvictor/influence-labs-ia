@@ -15,7 +15,8 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const db = require('./db');
-const { splitMessage, sleep } = require('./lib/message-splitter');
+const { splitMessage, sleep, toWhatsappBlocks } = require('./lib/message-splitter');
+const { getNextBusinessDays: nextBusinessDaysFrom, extractRequestedDate } = require('./lib/salon-dates');
 const { getBotState } = require('./lib/bot-state');
 
 // --- Load .env (zero deps) ---
@@ -98,6 +99,9 @@ const {
   renderHabilitacaoMap,
   formatIncompatibleProfServiceMessage,
   renderFutureBookings,
+  formatServiceCatalogLine,
+  servicesForProfessional,
+  sanitizeInventedClientTurns,
 } = require('./lib/booking-parser');
 
 // Monitor de cota Trinks (contador mensal compartilhado) — story trinks-quota-monitor.
@@ -216,34 +220,10 @@ function evictOldSessions() {
   sorted.slice(0, 100).forEach(([key]) => sessionState.delete(key));
 }
 
-function getNextBusinessDays(count) {
-  const dates = [];
-  let cursor = getTodayIsoInSalonTimeZone();
-  while (dates.length < count) {
-    const day = new Date(`${cursor}T12:00:00Z`).getUTCDay(); // 0=Dom, 1=Seg
-    if (day !== 0 && day !== 1) dates.push(cursor);
-    cursor = addDaysToIsoDate(cursor, 1);
-  }
-  return dates;
-}
+const SLOT_CONTEXT_DAYS = Math.max(1, Number(process.env.TRINKS_SLOT_CONTEXT_DAYS || 10));
 
-function extractRequestedDate(text, now = new Date()) {
-  const value = String(text || '');
-  const iso = value.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
-  if (iso && !Number.isNaN(new Date(`${iso[1]}T12:00:00-03:00`).getTime())) return iso[1];
-  const br = value.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(20\d{2}))?\b/);
-  if (!br) return null;
-  const year = Number(br[3] || new Intl.DateTimeFormat('en', {
-    timeZone: SALON_TIME_ZONE,
-    year: 'numeric',
-  }).format(now));
-  const candidate = `${year}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
-  const parsed = new Date(`${candidate}T12:00:00-03:00`);
-  if (Number.isNaN(parsed.getTime())) return null;
-  if (!br[3] && parsed.getTime() < now.getTime() - 86400000) {
-    return `${year + 1}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
-  }
-  return candidate;
+function getNextBusinessDays(count) {
+  return nextBusinessDaysFrom(count, getTodayIsoInSalonTimeZone());
 }
 
 function mapSlotPayload(date, payload) {
@@ -578,10 +558,9 @@ async function getServicesText() {
       profissionais: namesByService.get(String(s.trinks_id)) || [],
     }));
     if (!list.length) return { text: 'SERVICOS: Erro ao consultar.', data: [] };
-    let txt = 'SERVICOS DISPONIVEIS (use o nome EXATO na tag BOOKING_CONFIRM):\n';
+    let txt = 'SERVICOS DISPONIVEIS (use o nome EXATO; preço e duração vêm deste snapshot, não da FAQ):\n';
     for (const s of list) {
-      const prof = s.profissionais.length ? ` [${s.profissionais.join(', ')}]` : '';
-      txt += `- ${s.nome}${prof} (ID ${s.id})\n`;
+      txt += `${formatServiceCatalogLine(s)}\n`;
     }
     return { text: txt, data: list };
   } catch (err) {
@@ -1044,62 +1023,9 @@ function normalizeFormatting(text) {
   return out.trim();
 }
 
-function splitLongChunk(chunk, maxLen) {
-  if (chunk.length <= maxLen) return [chunk];
-  const sentences = chunk.match(/[^.!?]+[.!?]?/g)?.map(s => s.trim()).filter(Boolean) || [chunk];
-  const parts = [];
-  let current = '';
-  for (const sentence of sentences) {
-    if (!current) {
-      current = sentence;
-      continue;
-    }
-    if ((current + ' ' + sentence).length <= maxLen) {
-      current += ' ' + sentence;
-    } else {
-      parts.push(current);
-      current = sentence;
-    }
-  }
-  if (current) parts.push(current);
-  return parts;
-}
-
-function toWhatsappBlocks(text) {
-  const paragraphs = text
-    .split(/\n{2,}/)
-    .map(p => p.trim())
-    .filter(Boolean);
-
-  const roughBlocks = paragraphs.length ? paragraphs : [text.trim()];
-  const expanded = [];
-  for (const block of roughBlocks) {
-    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-    const hasList = lines.some(l => l.startsWith('- '));
-    if (hasList || block.length <= 340) {
-      expanded.push(block);
-      continue;
-    }
-    expanded.push(...splitLongChunk(block, 300));
-  }
-
-  const compact = [];
-  for (const block of expanded) {
-    const trimmed = block.trim();
-    if (!trimmed) continue;
-    const prev = compact[compact.length - 1];
-    if (prev && !prev.includes('\n') && !trimmed.includes('\n') && (prev.length + trimmed.length + 1 <= 300)) {
-      compact[compact.length - 1] = `${prev} ${trimmed}`;
-    } else {
-      compact.push(trimmed);
-    }
-  }
-
-  return compact.slice(0, 6);
-}
-
 function formatAssistantOutput(rawText, isFirstTurn) {
   let text = normalizeFormatting(rawText);
+  text = sanitizeInventedClientTurns(text);
   if (!isFirstTurn) text = removeRepeatedIntro(text);
   if (!text) text = 'Perfeito. Me diz o que voce prefere que eu te ajudo agora.';
   const responses = toWhatsappBlocks(text);
@@ -1128,8 +1054,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
   console.log(`[${sessionId}] ${contactName}: "${messageText}"`);
 
-  // 1. Fetch Trinks data in parallel (next 5 business days) + agendamentos futuros do cliente (DB local, item 3 Rota C)
-  const businessDays = getNextBusinessDays(5);
+  // 1. Fetch Trinks data in parallel (snapshot local, 10 dias úteis) + agendamentos futuros do cliente
+  const businessDays = getNextBusinessDays(SLOT_CONTEXT_DAYS);
   const requestedDate = extractRequestedDate(messageText);
   if (requestedDate && !businessDays.includes(requestedDate)) {
     try {
@@ -1193,11 +1119,19 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
 
   // 3. Strip booking tags from text (TESS emite tags que nao devem aparecer ao cliente)
-  const { clean: cleanText, bookingConfirm, bookingCancel, bookingReschedule, handoffHuman } = stripBookingTags(tessText);
+  const {
+    clean: cleanText,
+    bookingConfirm,
+    bookingCreates = [],
+    bookingCancel,
+    bookingReschedule,
+    handoffHuman,
+  } = stripBookingTags(tessText);
   // 2-phase: se ha tag de booking, sanitizar "Agendado!/Confirmado!/Pronto!" antes de exibir.
   // Razao: bot nao deve afirmar que agendou antes da Trinks responder (rota infeliz mente pro cliente).
   // Mensagem final de sucesso/falha eh construida pelo backend apos chamada a Trinks (bloco 4 abaixo).
-  const hasBookingTag = bookingConfirm || bookingCancel || bookingReschedule;
+  const createsToRun = bookingCreates.length ? bookingCreates : (bookingConfirm ? [bookingConfirm] : []);
+  const hasBookingTag = createsToRun.length || bookingCancel || bookingReschedule;
   const displayText = hasBookingTag ? sanitizePrematureConfirm(cleanText) : cleanText;
   const formatted = formatAssistantOutput(displayText, state.turn === 0);
   state.history.push({ role: 'assistant', content: cleanText });
@@ -1225,20 +1159,20 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   // enviadas como blocos extras apos o reply principal sanitizado.
   const finalMessages = [];
 
-  // 4a. Criar agendamento — suporta v2 (service_id direto) e v1 legacy (service_name)
-  if (bookingConfirm) {
-    const profObj = bookingConfirm.professional_id
-      ? profsPayload.data.find(p => p.id === bookingConfirm.professional_id)
+  // 4a. Criar agendamento(s) — combo: processa em sequência e para no primeiro erro
+  for (const createTag of createsToRun) {
+    const profObj = createTag.professional_id
+      ? profsPayload.data.find(p => p.id === createTag.professional_id)
       : null;
     const bookingData = {
-      service: bookingConfirm.service_name,            // legacy
-      serviceId: bookingConfirm.service_id,            // v2
-      valor: bookingConfirm.valor,                     // v2 (preço já decidido pelo TESS)
+      service: createTag.service_name,
+      serviceId: createTag.service_id,
+      valor: createTag.valor,
       professional: profObj?.apelido || null,
-      professionalId: bookingConfirm.professional_id,
-      date: bookingConfirm.date_time?.split('T')[0],
-      time: bookingConfirm.date_time?.split('T')[1]?.slice(0, 5),
-      durationMinutes: bookingConfirm.duration_minutes,
+      professionalId: createTag.professional_id,
+      date: createTag.date_time?.split('T')[0],
+      time: createTag.date_time?.split('T')[1]?.slice(0, 5),
+      durationMinutes: createTag.duration_minutes,
       clientPhone,
       clientName: contactName,
     };
@@ -1246,19 +1180,15 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     try {
       bookingResult = await createBookingInTrinks(bookingData, profsPayload.data);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
-      // Story bot-46589 item 1: resolve o nome do serviço (legacy traz service_name; v2 só service_id → resolve pelo ID).
       const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
       if (phone && (servicoNome || bookingData.serviceId)) {
-        // Persiste o nome real quando disponível (evita gravar "id:123" em last_service).
         updateClientAfterBooking(phone, servicoNome || `id:${bookingData.serviceId}`).catch(() => {});
       }
-      // 2-phase sucesso: mensagem final construida pelo backend, NAO pelo TESS.
       const valorFmt = (bookingData.valor ?? bookingResult?.valor ?? 0).toFixed(2).replace('.', ',');
       const dataFmt = bookingData.date && bookingData.time
         ? `${bookingData.date.split('-').reverse().join('/')} às ${bookingData.time}`
         : 'no horario combinado';
       const profNome = profObj?.apelido || profObj?.nome || 'a equipe';
-      // item 1: inclui a linha do serviço só quando resolvido (degrada graciosamente — AC4: nunca imprime "id:undefined").
       const servicoLinha = servicoNome ? `💅 ${servicoNome}\n` : '';
       finalMessages.push(
         `Prontinho! Te esperamos no Studio Tirra 😊\n\n` +
@@ -1274,6 +1204,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       if (err.message && err.message.includes('incompativel')) {
         const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
         const svcEntry = svcPayload.data.find(s => String(s.id) === String(bookingData.serviceId));
+        const professionalName = profObj?.apelido || profObj?.nome;
         console.error(
           `[${sessionId}] Booking INCOMPATIBLE prof×servico:`,
           err.message,
@@ -1282,9 +1213,10 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
           `habilitados=[${(svcEntry?.profissionais || []).join(', ')}]`,
         );
         finalMessages.push(formatIncompatibleProfServiceMessage({
-          professionalName: profObj?.apelido || profObj?.nome,
+          professionalName,
           serviceName: servicoNome,
           enabledProfessionals: svcEntry?.profissionais,
+          professionalServices: servicesForProfessional(svcPayload.data, professionalName),
         }));
       } else {
         console.error(`[${sessionId}] Booking creation FAILED:`, err.message);
@@ -1293,6 +1225,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
           `Deixa eu tentar outro horário próximo pra você. Me fala se prefere outro dia ou outro profissional?`
         );
       }
+      break;
     }
   }
 
@@ -1363,10 +1296,12 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
           `svc=${bookingReschedule.service_id}`,
           `habilitados=[${(svcEntry?.profissionais || []).join(', ')}]`,
         );
+        const professionalName = profObj?.apelido || profObj?.nome;
         finalMessages.push(formatIncompatibleProfServiceMessage({
-          professionalName: profObj?.apelido || profObj?.nome,
+          professionalName,
           serviceName: servicoNome,
           enabledProfessionals: svcEntry?.profissionais,
+          professionalServices: servicesForProfessional(svcPayload.data, professionalName),
         }));
       } else {
         console.error(`[${sessionId}] Booking reschedule FAILED:`, err.message);

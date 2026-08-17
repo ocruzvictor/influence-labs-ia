@@ -24,16 +24,13 @@
  *     {"agendamento_id":12345,"date_time":"..."}
  */
 
-// Normaliza aspas Unicode antes de JSON.parse — TESS as vezes emite com aspas curvas
-// (especialmente se o prompt foi editado em painel com auto-correct).
 function normalizeJsonQuotes(s) {
   return s
-    .replace(/[“”]/g, '"')   // " " → "
-    .replace(/[‘’]/g, "'")   // ' ' → '
-    .replace(/ /g, ' ');     // NBSP → espaco normal
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/ /g, ' ');
 }
 
-// Parse de key=value separados por espaço. Valores podem conter ISO8601 (com T, : e -).
 function parseInlineArgs(argsStr) {
   const args = {};
   const re = /(\w+)=([^\s\]]+)/g;
@@ -44,33 +41,39 @@ function parseInlineArgs(argsStr) {
   return args;
 }
 
+function parseCreateArgs(argsStr) {
+  const a = parseInlineArgs(argsStr);
+  if (!a.servicoId && !a.dataHoraInicio && !a.profissionalId) return null;
+  return {
+    service_id: a.servicoId ? parseInt(a.servicoId, 10) : undefined,
+    professional_id: a.profissionalId ? parseInt(a.profissionalId, 10) : undefined,
+    date_time: a.dataHoraInicio || undefined,
+    valor: a.valor ? parseFloat(a.valor) : undefined,
+    duration_minutes: a.duracaoMinutos ? parseInt(a.duracaoMinutos, 10) : undefined,
+  };
+}
+
 /**
  * Remove tags de booking do texto e retorna estrutura normalizada.
- *
- * @param {string} tessText texto bruto retornado pelo agente Conversa
- * @returns {{clean: string, bookingConfirm: object|null, bookingCancel: object|null, bookingReschedule: object|null, handoffHuman: object|null}}
  */
 function stripBookingTags(tessText) {
   let clean = tessText;
   let bookingConfirm = null;
+  const bookingCreates = [];
   let bookingCancel = null;
   let bookingReschedule = null;
   let handoffHuman = null;
 
-  // --- (a) Formato v2 inline ---
-  const createInline = clean.match(/\[BOOKING_CREATE\s+([^\]]+)\]/i);
-  if (createInline) {
-    const a = parseInlineArgs(createInline[1]);
-    if (a.servicoId || a.dataHoraInicio || a.profissionalId) {
-      bookingConfirm = {
-        service_id: a.servicoId ? parseInt(a.servicoId, 10) : undefined,
-        professional_id: a.profissionalId ? parseInt(a.profissionalId, 10) : undefined,
-        date_time: a.dataHoraInicio || undefined,
-        valor: a.valor ? parseFloat(a.valor) : undefined,
-        duration_minutes: a.duracaoMinutos ? parseInt(a.duracaoMinutos, 10) : undefined,
-      };
-    }
-    clean = clean.replace(createInline[0], '').trim();
+  const createRe = /\[BOOKING_CREATE\s+([^\]]+)\]/gi;
+  let createMatch = createRe.exec(clean || '');
+  while (createMatch) {
+    const parsed = parseCreateArgs(createMatch[1]);
+    if (parsed) bookingCreates.push(parsed);
+    createMatch = createRe.exec(clean || '');
+  }
+  if (bookingCreates.length) {
+    bookingConfirm = bookingCreates[0];
+    clean = clean.replace(/\[BOOKING_CREATE\s+[^\]]+\]/gi, '').trim();
   }
 
   const cancelInline = clean.match(/\[BOOKING_CANCEL\s+([^\]]+)\]/i);
@@ -106,13 +109,13 @@ function stripBookingTags(tessText) {
     clean = clean.replace(handoffInline[0], '').trim();
   }
 
-  // --- (b) Formato v1 legacy (BOOKING_CONFIRM + JSON) — preservado para retrocompatibilidade ---
   if (!bookingConfirm) {
     const confMatch = clean.match(/\[BOOKING_CONFIRM\]\s*\n?({[\s\S]*?})/i);
     if (confMatch) {
       try { bookingConfirm = JSON.parse(normalizeJsonQuotes(confMatch[1])); }
       catch (err) { console.warn('[stripBookingTags] BOOKING_CONFIRM JSON parse falhou:', err.message, '| raw:', confMatch[1].slice(0, 200)); }
       clean = clean.replace(confMatch[0], '').trim();
+      if (bookingConfirm) bookingCreates.push(bookingConfirm);
     }
   }
   if (!bookingCancel) {
@@ -132,16 +135,12 @@ function stripBookingTags(tessText) {
     }
   }
 
-  // BOOKING_REQUEST (intent legacy) — só limpa, não processa.
   clean = clean.replace(/\[BOOKING_REQUEST\]\s*\n?{[\s\S]*?}/gi, '').trim();
-  // Limpa qualquer ruído de colchetes sobrando ("[", "]" isolados em linha)
   clean = clean.replace(/^\s*[\[\]]\s*$/gm, '').trim();
 
-  return { clean, bookingConfirm, bookingCancel, bookingReschedule, handoffHuman };
+  return { clean, bookingConfirm, bookingCreates, bookingCancel, bookingReschedule, handoffHuman };
 }
 
-// Remove linguagem de confirmação prematura quando há tag de booking.
-// Razão: bot diz "Agendado!" antes da Trinks confirmar. 2-phase: backend constrói msg de sucesso.
 const PREMATURE_CONFIRM_PATTERNS = [
   /\b(agendado|confirmado|pronto)\s*!+/gi,
   /\b(agendamento )?(realizado|finalizado|fechado)\b/gi,
@@ -153,23 +152,16 @@ const PREMATURE_CONFIRM_PATTERNS = [
 function sanitizePrematureConfirm(text) {
   let s = text;
   for (const re of PREMATURE_CONFIRM_PATTERNS) s = s.replace(re, '');
-  // Limpa pontuação solta e linhas vazias duplas resultantes
   s = s.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   return s || 'Confirmo aqui então 👀';
 }
 
-// Story bot-46589 item 1: resolve o nome do serviço pelo ID para o card de confirmação 2-phase.
-// Em v2 a tag BOOKING_CREATE só traz `service_id`; o nome vem da lista de /servicos (campo `nome`).
-// Retorna null quando não resolúvel (caller degrada graciosamente — não imprime "id:undefined").
 function resolveServiceName(servicesData, serviceId) {
   if (!serviceId || !Array.isArray(servicesData)) return null;
   const match = servicesData.find(s => String(s.id) === String(serviceId));
   return match?.nome || null;
 }
 
-// Story bot-46589 item 2: mapa compacto serviço→profissionais habilitados (snapshot local).
-// TESS deve ofertar SOMENTE quem aparece aqui (ou nos colchetes de SERVICOS), não quem só
-// aparece em HORARIOS VAGOS.
 const HABILITACAO_HEADER = 'HABILITACAO (só ofereça profissional listado no serviço pedido; ignore HORARIOS VAGOS de quem não faz o serviço):';
 const MAX_HABILITACAO_LINES = 120;
 
@@ -192,21 +184,66 @@ function renderHabilitacaoMap(servicesData) {
   return out;
 }
 
-function formatIncompatibleProfServiceMessage({ professionalName, serviceName, enabledProfessionals = [] } = {}) {
+function formatBrl(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  if (Number.isInteger(n)) return `R$ ${n}`;
+  return `R$ ${n.toFixed(2).replace('.', ',')}`;
+}
+
+function formatServiceCatalogLine(service) {
+  const s = service || {};
+  const names = Array.isArray(s.profissionais) ? s.profissionais.filter(Boolean) : [];
+  const prof = names.length ? ` [${names.join(', ')}]` : '';
+  const price = formatBrl(s.preco);
+  const dur = s.duracaoEmMinutos ? ` · ${s.duracaoEmMinutos}min` : '';
+  const pricePart = price ? ` — ${price}${dur}` : '';
+  const id = s.id != null ? s.id : '?';
+  const nome = s.nome || 'Serviço';
+  return `- ${nome}${prof} (ID ${id})${pricePart}`;
+}
+
+function servicesForProfessional(servicesData, professionalName) {
+  const target = String(professionalName || '').trim().toLowerCase();
+  if (!target || !Array.isArray(servicesData)) return [];
+  const names = [];
+  for (const s of servicesData) {
+    const team = Array.isArray(s.profissionais) ? s.profissionais : [];
+    const hit = team.some((n) => String(n).toLowerCase() === target);
+    if (hit && s.nome) names.push(s.nome);
+  }
+  return names;
+}
+
+function formatIncompatibleProfServiceMessage({
+  professionalName,
+  serviceName,
+  enabledProfessionals = [],
+  professionalServices = [],
+} = {}) {
   const prof = professionalName || 'Esse profissional';
   const svc = serviceName || 'esse serviço';
   const habilitados = Array.isArray(enabledProfessionals) && enabledProfessionals.length
     ? enabledProfessionals.join(', ')
     : 'outros profissionais habilitados listados em HABILITACAO';
-  return `${prof} não realiza ${svc} aqui no salão.\n\n`
-    + `Posso te oferecer horário com ${habilitados}. Qual prefere?`;
+  let msg = `${prof} não realiza ${svc} aqui no salão.\n\n`;
+  const own = Array.isArray(professionalServices) ? professionalServices.filter(Boolean) : [];
+  if (own.length) {
+    const shown = own.slice(0, 8);
+    const extra = own.length > 8 ? '…' : '';
+    msg += `${prof} atende: ${shown.join(', ')}${extra}\n\n`;
+  }
+  msg += `Posso te oferecer horário com ${habilitados}. Qual prefere?`;
+  return msg;
 }
 
-// Story bot-46589 item 3 (Rota C): renderiza os agendamentos futuros do cliente (lidos do
-// trinks_appointments local) para o contexto dinâmico, EXPONDO o bookingId real (trinks_id).
-// Resolve a causa-raiz do cancelamento quebrado: o prompt pedia bookingId em DADOS_CLIENTE,
-// mas o backend nunca injetava nenhum. Agora injeta — e habilita desambiguação (múltiplos → bot pergunta).
-// `fmtDateTime` é injetado (formatação no fuso do salão vive no server.js). Pura/testável.
+function sanitizeInventedClientTurns(text) {
+  let s = String(text || '');
+  s = s.replace(/^\s*Cliente:\s*.+$/gim, '');
+  s = s.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  return s;
+}
+
 function renderFutureBookings(bookings, fmtDateTime) {
   if (!Array.isArray(bookings) || bookings.length === 0) return '';
   const fmt = typeof fmtDateTime === 'function' ? fmtDateTime : (v) => String(v);
@@ -223,10 +260,15 @@ function renderFutureBookings(bookings, fmtDateTime) {
 module.exports = {
   normalizeJsonQuotes,
   parseInlineArgs,
+  parseCreateArgs,
   stripBookingTags,
   sanitizePrematureConfirm,
+  sanitizeInventedClientTurns,
   resolveServiceName,
   renderHabilitacaoMap,
+  formatBrl,
+  formatServiceCatalogLine,
+  servicesForProfessional,
   formatIncompatibleProfServiceMessage,
   renderFutureBookings,
   HABILITACAO_HEADER,

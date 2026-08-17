@@ -3,8 +3,9 @@
 Fonte principal: `docs/raw-materials/Studio Tirrá/Base de Conhecimento/Serviços.pdf` (123 servicos extraidos).
 
 ## Regras de pricing e venda consultiva
-- Tabela Premium masculina: Tiago e Andre com valor premium (ex.: Corte Masc R$ 100 vs R$ 85 da equipe).
-- Terca e quarta: ha precos promocionais em servicos selecionados; validar no Trinks antes de confirmar o valor final.
+- Tabela Premium **masculina**: SKU "TA - Corte Masculino" (Tiago e André) vs "Corte Masculino" (equipe). Números vêm do snapshot Trinks, não desta ficha.
+- Corte feminino genérico: SKU "Corte Feminino". Não contrastar Tiago vs equipe na resposta, salvo pergunta explícita pelo Tiago (SKU "Tiago - Corte Feminino").
+- Terca e quarta: ha precos promocionais em servicos selecionados; so cite valor promo se o snapshot trouxer; validar no Trinks antes de confirmar o valor final.
 - Servicos gratuitos identificados: Corte de franja, Teste de Mechas, Avaliacao, Futura mamae, Tratamento de retorno de mechas.
 - Visagismo (R$ 750): usar fluxo consultivo primeiro; revelar valor apenas apos explicar beneficios + parcelamento 3x sem juros.
 - Mechas (R$ 835+) e variantes premium: iniciar por Teste de Mechas gratuito e sem compromisso antes de fechar valor final.
@@ -16,10 +17,10 @@ Fonte principal: `docs/raw-materials/Studio Tirrá/Base de Conhecimento/Servic�
 | Nome | Preco (R$) | Duracao (min) | Profissionais habilitados |
 |---|---:|---:|---|
 | Corte de franja | 0,00 | 30 | Tiago Rocha; Eli (Eliane Santana); Fernanda de Sousa (Fefe); Giovanna Ferraz |
-| Corte Feminino | 180,00 | 120 | Tiago Rocha; Eli (Eliane Santana); Fernanda de Sousa (Fefe); Giovanna Ferraz |
+| Corte Feminino | 190,00 | 120 | snapshot Trinks (não improvisar Tiago vs equipe) |
 | Corte Infantil Feminino | 180,00 | 60 | Tiago Rocha; Eli (Eliane Santana); Fernanda de Sousa (Fefe); Giovanna Ferraz |
 | Corte Infantil Masculino | 85,00 | 60 | Tiago Rocha; Eli (Eliane Santana); Fernanda de Sousa (Fefe); Giovanna Ferraz |
-| Corte Masculino | 85,00 | 60 | Tiago Rocha; Eli (Eliane Santana); Fernanda de Sousa (Fefe); Giovanna Ferraz |
+| Corte Masculino | 90,00 | 60 | snapshot: Erick |
 
 ### 2. Cabelo - Tiago Premium
 
@@ -28,10 +29,10 @@ Fonte principal: `docs/raw-materials/Studio Tirrá/Base de Conhecimento/Servic�
 | Tiago - Barba com Máquina | 65,00 | 30 | Tiago Rocha (premium); Andre de Oliveira (premium masculino) |
 | Tiago - Cabelo e Barba | 155,00 | 60 | Tiago Rocha (premium); Andre de Oliveira (premium masculino) |
 | Tiago - Coloração Global | 280,00 | 120 | Tiago Rocha (premium) |
-| Tiago - Corte Feminino | 190,00 | 90 | Tiago Rocha (premium) |
+| Tiago - Corte Feminino | 250,00 | 90 | Tiago Rocha — só citar se a cliente perguntar o preço com o Tiago |
 | Tiago - Corte Infantil Feminino | 190,00 | 60 | Tiago Rocha (premium) |
 | Tiago - Corte Infantil Masculino | 100,00 | 60 | Tiago Rocha (premium); Andre de Oliveira (premium masculino) |
-| Tiago - Corte Masculino | 100,00 | 60 | Tiago Rocha (premium); Andre de Oliveira (premium masculino) |
+| Tiago - Corte Masculino | 105,00 | 60 | snapshot: SKU "TA - Corte Masculino" (Tiago, André) |
 | Tiago - Mechas | 925,00 | 300 | Tiago Rocha (premium) |
 | Tiago - Morena Iluminada | 810,00 | 300 | Tiago Rocha (premium) |
 | Tiago - Progressiva Feminina | 315,00 | 120 | Tiago Rocha (premium) |

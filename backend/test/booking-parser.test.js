@@ -146,3 +146,55 @@ test('item2.5 — formatIncompatibleProfServiceMessage cita habilitados', () => 
   assert.match(msg, /Erick, Tiago/);
   assert.ok(!/problema técnico/i.test(msg));
 });
+
+test('item2.6 — recusa Dylan lista só os serviços reais do profissional (sem cabelo inventado)', () => {
+  const msg = formatIncompatibleProfServiceMessage({
+    professionalName: 'Dylan',
+    serviceName: 'Corte Masculino',
+    enabledProfessionals: ['Erick'],
+    professionalServices: ['Manicure', 'Pedicure', 'Alongamento em gel'],
+  });
+  assert.match(msg, /Dylan atende: Manicure, Pedicure, Alongamento em gel/);
+  assert.ok(!/capilar/i.test(msg));
+  assert.ok(!/cabelo/i.test(msg));
+});
+
+test('catalog.1 — linha de serviço inclui preço e duração do snapshot', () => {
+  const { formatServiceCatalogLine, formatBrl } = require('../lib/booking-parser');
+  assert.equal(formatBrl(190), 'R$ 190');
+  const line = formatServiceCatalogLine({
+    id: 14129512,
+    nome: 'Corte Feminino',
+    preco: 190,
+    duracaoEmMinutos: 120,
+    profissionais: ['Giovanna', 'Jackie'],
+  });
+  assert.match(line, /Corte Feminino \[Giovanna, Jackie\] \(ID 14129512\) — R\$ 190 · 120min/);
+});
+
+test('catalog.2 — servicesForProfessional filtra pelo apelido exato', () => {
+  const { servicesForProfessional } = require('../lib/booking-parser');
+  const list = [
+    { nome: 'Manicure', profissionais: ['Dylan'] },
+    { nome: 'Corte Masculino', profissionais: ['Erick'] },
+    { nome: 'Pedicure', profissionais: ['Dylan'] },
+  ];
+  assert.deepEqual(servicesForProfessional(list, 'Dylan'), ['Manicure', 'Pedicure']);
+});
+
+test('sanitize.cliente — remove turno inventado Cliente:', () => {
+  const { sanitizeInventedClientTurns } = require('../lib/booking-parser');
+  const out = sanitizeInventedClientTurns('Posso marcar 14:30.\nCliente: 14:30\nFechado então.');
+  assert.ok(!/Cliente:/i.test(out));
+  assert.match(out, /Posso marcar 14:30/);
+});
+
+test('parser.combo — duas tags BOOKING_CREATE viram bookingCreates', () => {
+  const { stripBookingTags } = require('../lib/booking-parser');
+  const text = 'Confirmo aqui então 👀\n[BOOKING_CREATE servicoId=1 profissionalId=3 dataHoraInicio=2026-08-18T14:00:00-03:00 valor=90 duracaoMinutos=60]\n[BOOKING_CREATE servicoId=2 profissionalId=3 dataHoraInicio=2026-08-18T15:00:00-03:00 valor=60 duracaoMinutos=30]';
+  const parsed = stripBookingTags(text);
+  assert.equal(parsed.bookingCreates.length, 2);
+  assert.equal(parsed.bookingConfirm.service_id, 1);
+  assert.equal(parsed.bookingCreates[1].service_id, 2);
+  assert.ok(!/BOOKING_CREATE/.test(parsed.clean));
+});

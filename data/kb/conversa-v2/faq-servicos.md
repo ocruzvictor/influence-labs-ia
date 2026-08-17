@@ -3,13 +3,13 @@
 ## Perguntas Frequentes
 
 ### 1. Quanto custa o corte masculino?
-O corte masculino com a equipe é R$ 85. Com Tiago ou André (tabela premium) é R$ 100. Terça e quarta podem ter condição promocional válida no Trinks.
+Consulte SERVICOS DISPONIVEIS. Snapshot Trinks (ago/2026): Corte Masculino (Erick) R$ 90; TA - Corte Masculino (Tiago e André) R$ 105. Terça e quarta podem ter condição promocional — só cite valor promo se estiver no snapshot.
 
 ### 2. Quanto custa o corte feminino?
-Com a equipe é R$ 180. Com Tiago (premium) é R$ 190.
+Consulte SERVICOS DISPONIVEIS. Snapshot: Corte Feminino R$ 190. NÃO contraste Tiago vs equipe a menos que a cliente pergunte o preço com o Tiago — aí use o SKU "Tiago - Corte Feminino". Terça e quarta podem ter promoção; não invente o valor promo.
 
 ### 3. Quanto custa cabelo e barba?
-Combo cabelo + barba: R$ 130 (equipe) e R$ 155 (Tiago premium).
+Consulte o SKU correspondente em SERVICOS DISPONIVEIS (não invente combo).
 
 ### 4. Tem horário para [dia]?
 Vou verificar os horários disponíveis! Com qual profissional você prefere agendar?

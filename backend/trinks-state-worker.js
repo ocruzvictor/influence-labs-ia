@@ -5,7 +5,7 @@ const { mapAppointment, valorToCents } = require('./lib/trinks-mapping');
 
 const INTERVAL_MIN = Number(process.env.TRINKS_RECONCILE_INTERVAL_MIN || 1440);
 const PAGE_DELAY_MS = Number(process.env.TRINKS_PAGE_DELAY_MS || 1500);
-const SNAPSHOT_DAYS = Number(process.env.TRINKS_SLOT_SNAPSHOT_DAYS || 7);
+const SNAPSHOT_DAYS = Number(process.env.TRINKS_SLOT_SNAPSHOT_DAYS || 10);
 const CATALOG_MAX_AGE_DAYS = Number(process.env.TRINKS_CATALOG_MAX_AGE_DAYS || 7);
 const TZ_OFFSET = '-03:00';
 
