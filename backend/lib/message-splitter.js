@@ -156,8 +156,34 @@ function toWhatsappBlocks(text, { maxBubbles = 8 } = {}) {
   return [...compact.slice(0, cap - 1), compact.slice(cap - 1).join('\n\n')];
 }
 
+const WHATSAPP_TEXT_SAFE_LEN = 3900;
+
+/**
+ * Meta Cloud API cobra por mensagem entregue. Junta <break>/parágrafos num único
+ * envio. Só parte se estourar o limite de texto do WhatsApp (~4096).
+ */
+function collapseToKapsoSends(text, { maxLen = WHATSAPP_TEXT_SAFE_LEN } = {}) {
+  const raw = String(text || '').replace(/<break>/gi, '\n\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (!raw) return [];
+  const cap = Math.max(200, Number(maxLen) || WHATSAPP_TEXT_SAFE_LEN);
+  if (raw.length <= cap) return [raw];
+  const parts = [];
+  let rest = raw;
+  while (rest.length > cap) {
+    let cut = rest.lastIndexOf('\n', cap);
+    if (cut < cap * 0.5) cut = rest.lastIndexOf(' ', cap);
+    if (cut < cap * 0.5) cut = cap;
+    parts.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) parts.push(rest);
+  return parts;
+}
+
 module.exports = {
   splitMessage,
   sleep,
   toWhatsappBlocks,
+  collapseToKapsoSends,
+  WHATSAPP_TEXT_SAFE_LEN,
 };

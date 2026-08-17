@@ -15,7 +15,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const db = require('./db');
-const { splitMessage, sleep, toWhatsappBlocks } = require('./lib/message-splitter');
+const { sleep, collapseToKapsoSends } = require('./lib/message-splitter');
 const { getNextBusinessDays: nextBusinessDaysFrom, extractRequestedDate } = require('./lib/salon-dates');
 const { getBotState } = require('./lib/bot-state');
 
@@ -1028,7 +1028,7 @@ function formatAssistantOutput(rawText, isFirstTurn) {
   text = sanitizeInventedClientTurns(text);
   if (!isFirstTurn) text = removeRepeatedIntro(text);
   if (!text) text = 'Perfeito. Me diz o que voce prefere que eu te ajudo agora.';
-  const responses = toWhatsappBlocks(text);
+  const responses = collapseToKapsoSends(text);
   return {
     response: responses[0] || text,
     responses: responses.length ? responses : [text],
@@ -1521,7 +1521,7 @@ async function sendKapsoMessage(to, text, phoneNumberId) {
     console.error('[kapso] phone_number_id ausente — nao envio mensagem');
     return;
   }
-  const bubbles = splitMessage(text);
+  const bubbles = collapseToKapsoSends(text);
   if (bubbles.length === 0) {
     console.warn('[kapso] sendKapsoMessage chamado com texto vazio — skip');
     return;

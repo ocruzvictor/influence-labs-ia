@@ -177,3 +177,20 @@ test('toWhatsappBlocks: não descarta conteúdo além de 6 parágrafos', () => {
   assert.match(joined, /Bloco 1 completo/);
   assert.match(joined, /Bloco 10 completo/);
 });
+
+test('collapseToKapsoSends: <break> vira um único envio', () => {
+  const { collapseToKapsoSends } = require('../lib/message-splitter');
+  const out = collapseToKapsoSends('Oi Victor!\n<break>\nCorte Feminino sai por R$ 190.');
+  assert.equal(out.length, 1);
+  assert.ok(!/<break>/i.test(out[0]));
+  assert.match(out[0], /Oi Victor/);
+  assert.match(out[0], /R\$ 190/);
+});
+
+test('collapseToKapsoSends: só parte se estourar o limite', () => {
+  const { collapseToKapsoSends } = require('../lib/message-splitter');
+  const long = 'x'.repeat(5000);
+  const out = collapseToKapsoSends(long, { maxLen: 3900 });
+  assert.ok(out.length >= 2);
+  assert.ok(out.join('').includes('x'));
+});
