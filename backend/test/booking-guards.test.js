@@ -4,6 +4,7 @@ const {
   createIdempotencyKey,
   findDuplicateAppointment,
   buildCreateSuccessMessage,
+  pickCreateGuard,
 } = require('../lib/booking-guards');
 
 const booking = {
@@ -69,4 +70,29 @@ test('buildCreateSuccessMessage — I.8: "Te esperamos" só dentro do horário',
   assert.match(open, /Te esperamos no Studio Tirra/);
   assert.doesNotMatch(closed, /Te esperamos/);
   assert.match(closed, /Gabriel confere logo cedo/);
+});
+
+test('pickCreateGuard — incompatível ganha de expediente (Dylan+Corte 19h)', () => {
+  const guard = pickCreateGuard({
+    compatible: false,
+    expedienteFit: { ok: false, reason: 'depois das 19h' },
+  });
+  assert.equal(guard.kind, 'incompatible');
+});
+
+test('pickCreateGuard — compatível fora do expediente', () => {
+  const guard = pickCreateGuard({
+    compatible: true,
+    expedienteFit: { ok: false, reason: 'depois das 19h' },
+  });
+  assert.equal(guard.kind, 'expediente');
+  assert.equal(guard.reason, 'depois das 19h');
+});
+
+test('pickCreateGuard — ambos ok → null', () => {
+  const guard = pickCreateGuard({
+    compatible: true,
+    expedienteFit: { ok: true, reason: '' },
+  });
+  assert.equal(guard.kind, null);
 });

@@ -215,6 +215,37 @@ function servicesForProfessional(servicesData, professionalName) {
   return names;
 }
 
+function formatVisitDate(value) {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString('pt-BR');
+}
+
+/**
+ * Cadastro injetado no TESS. Header DADOS_CLIENTE (o prompt NUNCA lê PERFIL).
+ * Telefone do canal WhatsApp sempre que existir — mesmo cliente novo sem row em clients.
+ */
+function buildPersistedSection(persistedMemory, channelPhone) {
+  const client = persistedMemory?.client || null;
+  const history = persistedMemory?.history;
+  const phone = String(channelPhone || client?.phone || '').replace(/\D/g, '');
+  const lines = [];
+  if (client?.name) lines.push(`Nome: ${client.name}`);
+  if (phone) lines.push(`Telefone: ${phone} (WhatsApp — NAO peca de novo)`);
+  if (client?.last_service) lines.push(`Ultimo servico: ${client.last_service}`);
+  if (client?.last_visit) lines.push(`Ultima visita: ${formatVisitDate(client.last_visit)}`);
+  if (client?.visit_count) lines.push(`Total de visitas: ${client.visit_count}`);
+
+  let section = '';
+  if (lines.length) section += '\nDADOS_CLIENTE:\n' + lines.map((l) => `- ${l}`).join('\n');
+  if (history?.length) {
+    section += '\n\nHISTORICO ANTERIOR (sessoes anteriores):\n'
+      + history.map((m) => `${m.role === 'user' ? 'Cliente' : 'Assistente'}: ${m.content}`).join('\n');
+  }
+  return section;
+}
+
 function formatIncompatibleProfServiceMessage({
   professionalName,
   serviceName,
@@ -270,6 +301,7 @@ module.exports = {
   formatServiceCatalogLine,
   servicesForProfessional,
   formatIncompatibleProfServiceMessage,
+  buildPersistedSection,
   renderFutureBookings,
   HABILITACAO_HEADER,
   PREMATURE_CONFIRM_PATTERNS,

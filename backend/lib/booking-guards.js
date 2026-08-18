@@ -36,6 +36,17 @@ function findDuplicateAppointment(rows, booking) {
   return (Array.isArray(rows) ? rows : []).find((row) => isDuplicateAppointment(row, booking)) || null;
 }
 
+/**
+ * Incompatível ganha de expediente: Dylan+Corte fora do horário ainda recebe copy de habilitação.
+ */
+function pickCreateGuard({ compatible, expedienteFit }) {
+  if (compatible === false) return { kind: 'incompatible' };
+  if (expedienteFit && expedienteFit.ok === false) {
+    return { kind: 'expediente', reason: expedienteFit.reason || '' };
+  }
+  return { kind: null };
+}
+
 function buildCreateSuccessMessage({
   afterHours = false,
   dataFmt,
@@ -63,5 +74,6 @@ module.exports = {
   findDuplicateAppointment,
   isDuplicateAppointment,
   buildCreateSuccessMessage,
+  pickCreateGuard,
   ACTIVE_STATUSES,
 };

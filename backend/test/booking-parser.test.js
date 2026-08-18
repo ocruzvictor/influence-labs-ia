@@ -182,6 +182,37 @@ test('catalog.2 — servicesForProfessional filtra pelo apelido exato', () => {
   assert.deepEqual(servicesForProfessional(list, 'Dylan'), ['Manicure', 'Pedicure']);
 });
 
+test('dados-cliente.1 — cliente recorrente + phone → DADOS_CLIENTE (nunca PERFIL)', () => {
+  const { buildPersistedSection } = require('../lib/booking-parser');
+  const out = buildPersistedSection({
+    client: {
+      name: 'Victor Cruz',
+      last_service: 'Corte Masculino',
+      last_visit: new Date('2026-08-17T19:24:14Z'),
+      visit_count: 5,
+    },
+  }, '5511964540007');
+  assert.match(out, /DADOS_CLIENTE:/);
+  assert.match(out, /Nome: Victor Cruz/);
+  assert.match(out, /Telefone: 5511964540007/);
+  assert.match(out, /Ultimo servico: Corte Masculino/);
+  assert.doesNotMatch(out, /PERFIL DO CLIENTE/);
+});
+
+test('dados-cliente.2 — só phone, sem clients → Telefone, sem Nome', () => {
+  const { buildPersistedSection } = require('../lib/booking-parser');
+  const out = buildPersistedSection(null, '+55 11 96454-0007');
+  assert.match(out, /DADOS_CLIENTE:/);
+  assert.match(out, /Telefone: 5511964540007 \(WhatsApp — NAO peca de novo\)/);
+  assert.doesNotMatch(out, /Nome:/);
+});
+
+test('dados-cliente.3 — sem memory e sem phone → vazio', () => {
+  const { buildPersistedSection } = require('../lib/booking-parser');
+  assert.equal(buildPersistedSection(null, null), '');
+  assert.equal(buildPersistedSection({}, ''), '');
+});
+
 test('sanitize.cliente — remove turno inventado Cliente:', () => {
   const { sanitizeInventedClientTurns } = require('../lib/booking-parser');
   const out = sanitizeInventedClientTurns('Posso marcar 14:30.\nCliente: 14:30\nFechado então.');

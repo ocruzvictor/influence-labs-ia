@@ -5,14 +5,15 @@ O prompt do agente **não vive só no dashboard TESS**. Cada versão colada prec
 | Arquivo | Papel |
 |---|---|
 | `tess-conversa-v3-clean.md` | **Vivo.** É o bloco que se cola no TESS. Primeira linha = versão. |
-| `archive/tess-conversa-46589-v3.1.0-2026-08-18.md` | Snapshot congelado desta versão. |
+| `archive/tess-conversa-46589-v3.1.1-2026-08-18.md` | Snapshot congelado desta versão. |
+| `archive/tess-conversa-46589-v3.1.0-2026-08-18.md` | Snapshot anterior (expediente / I.12 original). |
 | `archive/tess-conversa-46589-v3.0-2026-08-17.md` | Snapshot da versão anterior (commit `88dce88`). |
 | `CHANGELOG-46589.md` | O que mudou entre versões. |
 | `tess-conversa-v3.md` | Histórico v3.0.2 (PACER + `<break>`). **Não colar.** |
 
 ## Como colar
 1. Abrir `tess-conversa-v3-clean.md`.
-2. Copiar o arquivo **inteiro** (incluindo a linha `v3.1.0`).
+2. Copiar o arquivo **inteiro** (incluindo a linha `v3.1.1`).
 3. Substituir o campo de instrução do agente 46589. Salvar.
 
 ## Como reverter

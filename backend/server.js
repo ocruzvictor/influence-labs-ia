@@ -26,6 +26,7 @@ const {
   createIdempotencyKey,
   findDuplicateAppointment,
   buildCreateSuccessMessage,
+  pickCreateGuard,
 } = require('./lib/booking-guards');
 const { getBotState } = require('./lib/bot-state');
 
@@ -108,6 +109,7 @@ const {
   resolveServiceName,
   renderHabilitacaoMap,
   formatIncompatibleProfServiceMessage,
+  buildPersistedSection,
   renderFutureBookings,
   formatServiceCatalogLine,
   servicesForProfessional,
@@ -321,29 +323,8 @@ async function updateClientAfterBooking(phone, serviceName) {
   );
 }
 
-function buildPersistedSection(persistedMemory) {
-  if (!persistedMemory) return '';
-  const { client, history } = persistedMemory;
-  const lines = [];
-
-  if (client) {
-    if (client.name) lines.push(`Nome: ${client.name}`);
-    if (client.last_service) lines.push(`Ultimo servico: ${client.last_service}`);
-    if (client.last_visit) lines.push(`Ultima visita: ${new Date(client.last_visit).toLocaleDateString('pt-BR')}`);
-    if (client.visit_count) lines.push(`Total de visitas: ${client.visit_count}`);
-  }
-
-  let section = '';
-  if (lines.length) section += '\nPERFIL DO CLIENTE:\n' + lines.map(l => `- ${l}`).join('\n');
-  if (history?.length) {
-    section += '\n\nHISTORICO ANTERIOR (sessoes anteriores):\n' +
-      history.map(m => `${m.role === 'user' ? 'Cliente' : 'Assistente'}: ${m.content}`).join('\n');
-  }
-  return section;
-}
-
-function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null, futureBookings = [], habilitacaoText = '') {
-  const persistedSection = buildPersistedSection(persistedMemory);
+function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null, futureBookings = [], habilitacaoText = '', channelPhone = null) {
+  const persistedSection = buildPersistedSection(persistedMemory, channelPhone);
   const futureBookingsSection = renderFutureBookings(futureBookings, formatBookingDateTime); // item 3 Rota C
   const historyText = history.length
     ? '\n\nHISTORICO DA CONVERSA:\n' + history
@@ -1079,6 +1060,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     persistedForModel,
     futureBookings,
     habilitacaoText,
+    phone,
   );
   const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${messageText}`;
   const tessRaw = await callTESS([
@@ -1115,8 +1097,10 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   state.history.push({ role: 'assistant', content: cleanText });
   state.turn += 1;
   state.lastAccess = Date.now();
-  // Clear persisted memory after first turn — session history is now authoritative
-  if (state.turn === 1) state.persistedMemory = null;
+  // After first turn, session history is authoritative — keep cadastro, drop HISTORICO ANTERIOR.
+  if (state.turn === 1 && state.persistedMemory) {
+    state.persistedMemory = { client: state.persistedMemory.client || null, history: [] };
+  }
   sessionState.set(sessionId, state);
   evictOldSessions();
 
@@ -1165,10 +1149,35 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       bookingData.time,
       bookingData.durationMinutes,
     );
-    if (!fit.ok) {
-      console.warn(`[${sessionId}] Booking BLOCKED expediente: ${fit.reason}`);
+    let compatible = true;
+    if (bookingData.serviceId && bookingData.professionalId) {
+      compatible = await trinksLocalStore.isCompatible(
+        bookingData.serviceId,
+        bookingData.professionalId,
+      );
+    }
+    const guard = pickCreateGuard({ compatible, expedienteFit: fit });
+    if (guard.kind === 'incompatible') {
+      const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
+      const svcEntry = svcPayload.data.find(s => String(s.id) === String(bookingData.serviceId));
+      const professionalName = profObj?.apelido || profObj?.nome;
+      console.warn(
+        `[${sessionId}] Booking BLOCKED incompatible:`,
+        `prof=${bookingData.professionalId}`,
+        `svc=${bookingData.serviceId}`,
+      );
+      finalMessages.push(formatIncompatibleProfServiceMessage({
+        professionalName,
+        serviceName: servicoNome,
+        enabledProfessionals: svcEntry?.profissionais,
+        professionalServices: servicesForProfessional(svcPayload.data, professionalName),
+      }));
+      break;
+    }
+    if (guard.kind === 'expediente') {
+      console.warn(`[${sessionId}] Booking BLOCKED expediente: ${guard.reason}`);
       finalMessages.push(
-        `Esse horário não fecha dentro do expediente (Ter-Sex 9h-19h, Sáb 9h-18h). ${fit.reason}. Me passa outro horário que caiba no dia que eu te ajudo.`,
+        `Esse horário não fecha dentro do expediente (Ter-Sex 9h-19h, Sáb 9h-18h). ${guard.reason}. Me passa outro horário que caiba no dia que eu te ajudo.`,
       );
       break;
     }
