@@ -56,6 +56,78 @@ function stripAccents(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+const SALON_TIME_ZONE = 'America/Sao_Paulo';
+
+function getTimePartsInSalonTimeZone(date = new Date()) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SALON_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    weekday: 'short',
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(date);
+  const pick = (t) => parts.find((p) => p.type === t)?.value;
+  const weekdayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    hour: parseInt(pick('hour'), 10),
+    minute: parseInt(pick('minute'), 10),
+    weekday: weekdayMap[pick('weekday')] ?? 0,
+  };
+}
+
+/**
+ * Politica: Ter-Sex 9h-19h · Sab 9h-18h · Dom/Seg fechado.
+ * hour < close → ainda aberto (19:00 sexta já é fechado).
+ */
+function isSalonOpen(date = new Date()) {
+  const { hour, minute, weekday } = getTimePartsInSalonTimeZone(date);
+  const hhmm = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  let open = false;
+  let reason = '';
+  if (weekday === 0) reason = 'DOMINGO — salao fechado';
+  else if (weekday === 1) reason = 'SEGUNDA — salao fechado';
+  else if (weekday === 6) {
+    if (hour >= 9 && hour < 18) open = true;
+    else reason = hour < 9 ? 'SABADO antes das 9h' : 'SABADO depois das 18h';
+  } else if (hour >= 9 && hour < 19) open = true;
+  else reason = hour < 9 ? 'antes das 9h' : 'depois das 19h';
+  return { open, hhmm, reason, weekday, minute };
+}
+
+function closingHourForWeekday(weekday) {
+  if (weekday === 0 || weekday === 1) return null;
+  if (weekday === 6) return 18;
+  return 19;
+}
+
+/**
+ * Inicio precisa estar aberto e inicio+duracao nao pode passar do fechamento do mesmo dia.
+ */
+function bookingFitsExpediente(dateStr, timeStr, durationMinutes = 0) {
+  const date = String(dateStr || '');
+  const time = String(timeStr || '').slice(0, 5);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    return { ok: false, reason: 'data/hora invalida' };
+  }
+  const start = new Date(`${date}T${time}:00-03:00`);
+  if (Number.isNaN(start.getTime())) return { ok: false, reason: 'data/hora invalida' };
+  const openState = isSalonOpen(start);
+  if (!openState.open) return { ok: false, reason: openState.reason };
+  const dur = Math.max(0, Number(durationMinutes) || 0);
+  const end = new Date(start.getTime() + dur * 60000);
+  const startParts = getTimePartsInSalonTimeZone(start);
+  const endParts = getTimePartsInSalonTimeZone(end);
+  const closeH = closingHourForWeekday(startParts.weekday);
+  if (closeH == null) return { ok: false, reason: openState.reason };
+  const crossedDay = endParts.weekday !== startParts.weekday
+    && (endParts.hour > 0 || endParts.minute > 0);
+  if (crossedDay) return { ok: false, reason: 'ultrapassa o fechamento' };
+  const endMinutes = endParts.hour * 60 + endParts.minute;
+  if (endMinutes > closeH * 60) return { ok: false, reason: 'ultrapassa o fechamento' };
+  return { ok: true, reason: '' };
+}
+
 /**
  * Extrai uma data ISO da mensagem do cliente.
  * Aceita: 2026-08-25, 25/08/2026, 25/08, "25 de agosto", "25 de agosto de 2026".
@@ -111,5 +183,8 @@ module.exports = {
   getNextBusinessDays,
   extractRequestedDate,
   isValidIsoDate,
+  isSalonOpen,
+  bookingFitsExpediente,
+  getTimePartsInSalonTimeZone,
   MONTHS_PT,
 };

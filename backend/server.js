@@ -16,7 +16,17 @@ const cors = require('cors');
 const crypto = require('crypto');
 const db = require('./db');
 const { sleep, collapseToKapsoSends } = require('./lib/message-splitter');
-const { getNextBusinessDays: nextBusinessDaysFrom, extractRequestedDate } = require('./lib/salon-dates');
+const {
+  getNextBusinessDays: nextBusinessDaysFrom,
+  extractRequestedDate,
+  isSalonOpen,
+  bookingFitsExpediente,
+} = require('./lib/salon-dates');
+const {
+  createIdempotencyKey,
+  findDuplicateAppointment,
+  buildCreateSuccessMessage,
+} = require('./lib/booking-guards');
 const { getBotState } = require('./lib/bot-state');
 
 // --- Load .env (zero deps) ---
@@ -145,45 +155,6 @@ function getDatePartsInSalonTimeZone(date = new Date()) {
 function getTodayIsoInSalonTimeZone() {
   const { year, month, day } = getDatePartsInSalonTimeZone();
   return `${year}-${month}-${day}`;
-}
-
-// Retorna { hour, minute, weekday (0=Dom..6=Sab) } no fuso do salao.
-function getTimePartsInSalonTimeZone(date = new Date()) {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: SALON_TIME_ZONE,
-    hour: '2-digit', minute: '2-digit', weekday: 'short', hour12: false,
-  });
-  const parts = fmt.formatToParts(date);
-  const pick = t => parts.find(p => p.type === t)?.value;
-  const weekdayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  return {
-    hour: parseInt(pick('hour'), 10),
-    minute: parseInt(pick('minute'), 10),
-    weekday: weekdayMap[pick('weekday')] ?? 0,
-  };
-}
-
-// Politica de horario do salao:
-//   Ter-Sex (2-5): 9h-19h
-//   Sab (6):       9h-18h
-//   Dom (0) e Seg (1): FECHADO
-// Retorna { open: bool, hhmm: 'HH:MM', reason: string }
-function isSalonOpen(date = new Date()) {
-  const { hour, minute, weekday } = getTimePartsInSalonTimeZone(date);
-  const hhmm = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-  let open = false;
-  let reason = '';
-  if (weekday === 0) reason = 'DOMINGO — salao fechado';
-  else if (weekday === 1) reason = 'SEGUNDA — salao fechado';
-  else if (weekday === 6) {
-    if (hour >= 9 && hour < 18) open = true;
-    else reason = hour < 9 ? 'SABADO antes das 9h' : 'SABADO depois das 18h';
-  } else {
-    // Ter-Sex
-    if (hour >= 9 && hour < 19) open = true;
-    else reason = hour < 9 ? 'antes das 9h' : 'depois das 19h';
-  }
-  return { open, hhmm, reason, weekday };
 }
 
 function addDaysToIsoDate(dateStr, days) {
@@ -1092,13 +1063,20 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     state.history.push({ role: 'user', content: messageText });
   }
   const habilitacaoText = renderHabilitacaoMap(svcPayload.data);
+  const historyForModel = state.history.slice(-8);
+  const persistedForModel = state.persistedMemory
+    ? {
+      ...state.persistedMemory,
+      history: (state.persistedMemory.history || []).slice(-8),
+    }
+    : null;
   const dynamicContext = buildDynamicContext(
     businessDays,
     slotsAll,
     profsPayload.text,
-    state.history,
+    historyForModel,
     svcText,
-    state.persistedMemory,
+    persistedForModel,
     futureBookings,
     habilitacaoText,
   );
@@ -1160,6 +1138,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   const finalMessages = [];
 
   // 4a. Criar agendamento(s) — combo: processa em sequência e para no primeiro erro
+  if (!state.createKeys) state.createKeys = new Set();
   for (const createTag of createsToRun) {
     const profObj = createTag.professional_id
       ? profsPayload.data.find(p => p.id === createTag.professional_id)
@@ -1177,8 +1156,43 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       clientName: contactName,
     };
     console.log(`[${sessionId}] Booking from tag:`, JSON.stringify(bookingData));
+    if (!bookingData.durationMinutes && bookingData.serviceId) {
+      const svcEntry = svcPayload.data.find(s => String(s.id) === String(bookingData.serviceId));
+      bookingData.durationMinutes = svcEntry?.duracaoEmMinutos || svcEntry?.duration_min || 0;
+    }
+    const fit = bookingFitsExpediente(
+      bookingData.date,
+      bookingData.time,
+      bookingData.durationMinutes,
+    );
+    if (!fit.ok) {
+      console.warn(`[${sessionId}] Booking BLOCKED expediente: ${fit.reason}`);
+      finalMessages.push(
+        `Esse horário não fecha dentro do expediente (Ter-Sex 9h-19h, Sáb 9h-18h). ${fit.reason}. Me passa outro horário que caiba no dia que eu te ajudo.`,
+      );
+      break;
+    }
+    const idemKey = createIdempotencyKey(bookingData);
+    if (state.createKeys.has(idemKey)) {
+      console.log(`[idempotency] create duplicado ignorado ${idemKey}`);
+      continue;
+    }
+    if (clientPhone && bookingData.date) {
+      const dayStart = new Date(`${bookingData.date}T00:00:00-03:00`);
+      const dayEnd = new Date(`${bookingData.date}T23:59:59-03:00`);
+      const existing = await trinksLocalStore.listAppointmentsByClient(clientPhone, {
+        from: dayStart,
+        to: dayEnd,
+      });
+      if (findDuplicateAppointment(existing, bookingData)) {
+        state.createKeys.add(idemKey);
+        console.log(`[idempotency] create duplicado ignorado ${idemKey}`);
+        continue;
+      }
+    }
     try {
       bookingResult = await createBookingInTrinks(bookingData, profsPayload.data);
+      state.createKeys.add(idemKey);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
       const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
       if (phone && (servicoNome || bookingData.serviceId)) {
@@ -1190,16 +1204,13 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         : 'no horario combinado';
       const profNome = profObj?.apelido || profObj?.nome || 'a equipe';
       const servicoLinha = servicoNome ? `💅 ${servicoNome}\n` : '';
-      finalMessages.push(
-        `Prontinho! Te esperamos no Studio Tirra 😊\n\n` +
-        `📅 ${dataFmt}\n` +
-        servicoLinha +
-        `💇 com ${profNome}\n` +
-        `💰 R$ ${valorFmt}\n\n` +
-        `📍 R. Espírito Santo, 385 - Santo Antônio, São Caetano do Sul\n` +
-        `🅿️ Estacionamento: subir rampa lateral\n\n` +
-        `Qualquer coisa é só chamar! ✌🏻`
-      );
+      finalMessages.push(buildCreateSuccessMessage({
+        afterHours: !isSalonOpen().open,
+        dataFmt,
+        servicoLinha,
+        profNome,
+        valorFmt,
+      }));
     } catch (err) {
       if (err.message && err.message.includes('incompativel')) {
         const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
@@ -1335,19 +1346,20 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   if (bookingResult) result.booking = bookingResult;
   if (handoffHuman) result.handoff = handoffHuman;
   // Sinaliza booking criado fora-de-horario para o handler notificar o Tiago.
-  if (bookingConfirm && bookingResult && !isSalonOpen().open) {
-    const profObj = bookingConfirm.professional_id
-      ? profsPayload.data.find(p => p.id === bookingConfirm.professional_id)
+  const afterHoursSource = createsToRun[0] || bookingConfirm;
+  if (afterHoursSource && bookingResult && !isSalonOpen().open) {
+    const profObj = afterHoursSource.professional_id
+      ? profsPayload.data.find(p => p.id === afterHoursSource.professional_id)
       : null;
     result.afterHoursBooking = {
       booking: {
-        service: bookingConfirm.service_name,
-        serviceId: bookingConfirm.service_id,
-        valor: bookingConfirm.valor,
+        service: afterHoursSource.service_name,
+        serviceId: afterHoursSource.service_id,
+        valor: afterHoursSource.valor,
         professional: profObj?.apelido || null,
-        professionalId: bookingConfirm.professional_id,
-        date: bookingConfirm.date_time?.split('T')[0],
-        time: bookingConfirm.date_time?.split('T')[1]?.slice(0, 5),
+        professionalId: afterHoursSource.professional_id,
+        date: afterHoursSource.date_time?.split('T')[0],
+        time: afterHoursSource.date_time?.split('T')[1]?.slice(0, 5),
       },
       bookingResult,
       clientPhone,
