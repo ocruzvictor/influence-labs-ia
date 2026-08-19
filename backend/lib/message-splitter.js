@@ -159,6 +159,31 @@ function toWhatsappBlocks(text, { maxBubbles = 8 } = {}) {
 const WHATSAPP_TEXT_SAFE_LEN = 3900;
 
 /**
+ * Remove markdown de negrito/itálico que o LLM ocasionalmente emite apesar do prompt.
+ * Protege tags [BOOKING_*] / [HANDOFF_*] durante a sanitização.
+ */
+function sanitizeWhatsappMarkdown(text) {
+  if (!text || typeof text !== 'string') return text ?? '';
+
+  const tags = [];
+  const protectedText = text.replace(TAG_REGEX, (match) => {
+    tags.push(match);
+    return `\x00TAG${tags.length - 1}\x00`;
+  });
+
+  let cleaned = protectedText
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1');
+
+  cleaned = cleaned.split('\n').map((line) => {
+    if (/^\*\s/.test(line)) return line;
+    return line.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '$1');
+  }).join('\n');
+
+  return cleaned.replace(/\x00TAG(\d+)\x00/g, (_, i) => tags[Number(i)]);
+}
+
+/**
  * Meta Cloud API cobra por mensagem entregue. Junta <break>/parágrafos num único
  * envio. Só parte se estourar o limite de texto do WhatsApp (~4096).
  */
@@ -166,7 +191,7 @@ function collapseToKapsoSends(text, { maxLen = WHATSAPP_TEXT_SAFE_LEN } = {}) {
   const raw = String(text || '').replace(/<break>/gi, '\n\n').replace(/\n{3,}/g, '\n\n').trim();
   if (!raw) return [];
   const cap = Math.max(200, Number(maxLen) || WHATSAPP_TEXT_SAFE_LEN);
-  if (raw.length <= cap) return [raw];
+  if (raw.length <= cap) return [sanitizeWhatsappMarkdown(raw)];
   const parts = [];
   let rest = raw;
   while (rest.length > cap) {
@@ -177,7 +202,7 @@ function collapseToKapsoSends(text, { maxLen = WHATSAPP_TEXT_SAFE_LEN } = {}) {
     rest = rest.slice(cut).trim();
   }
   if (rest) parts.push(rest);
-  return parts;
+  return parts.map((part) => sanitizeWhatsappMarkdown(part));
 }
 
 module.exports = {
@@ -185,5 +210,6 @@ module.exports = {
   sleep,
   toWhatsappBlocks,
   collapseToKapsoSends,
+  sanitizeWhatsappMarkdown,
   WHATSAPP_TEXT_SAFE_LEN,
 };

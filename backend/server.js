@@ -15,7 +15,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const db = require('./db');
-const { sleep, collapseToKapsoSends } = require('./lib/message-splitter');
+const { sleep, collapseToKapsoSends, sanitizeWhatsappMarkdown } = require('./lib/message-splitter');
 const {
   getNextBusinessDays: nextBusinessDaysFrom,
   extractRequestedDate,
@@ -1087,14 +1087,15 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     bookingReschedule,
     handoffHuman,
   } = stripBookingTags(tessText);
+  const sanitizedCleanText = sanitizeWhatsappMarkdown(cleanText);
   // 2-phase: se ha tag de booking, sanitizar "Agendado!/Confirmado!/Pronto!" antes de exibir.
   // Razao: bot nao deve afirmar que agendou antes da Trinks responder (rota infeliz mente pro cliente).
   // Mensagem final de sucesso/falha eh construida pelo backend apos chamada a Trinks (bloco 4 abaixo).
   const createsToRun = bookingCreates.length ? bookingCreates : (bookingConfirm ? [bookingConfirm] : []);
   const hasBookingTag = createsToRun.length || bookingCancel || bookingReschedule;
-  const displayText = hasBookingTag ? sanitizePrematureConfirm(cleanText) : cleanText;
+  const displayText = hasBookingTag ? sanitizePrematureConfirm(sanitizedCleanText) : sanitizedCleanText;
   const formatted = formatAssistantOutput(displayText, state.turn === 0);
-  state.history.push({ role: 'assistant', content: cleanText });
+  state.history.push({ role: 'assistant', content: sanitizedCleanText });
   state.turn += 1;
   state.lastAccess = Date.now();
   // After first turn, session history is authoritative — keep cadastro, drop HISTORICO ANTERIOR.
@@ -1108,7 +1109,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   if (phone) {
     saveConversationTurns(phone, [
       { role: 'user', content: messageText },
-      { role: 'assistant', content: cleanText },
+      { role: 'assistant', content: sanitizedCleanText },
     ]).catch(err => console.error('[DB] Save turns error:', err.message));
   }
 

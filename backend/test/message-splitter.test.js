@@ -11,7 +11,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { splitMessage, toWhatsappBlocks } = require('../lib/message-splitter');
+const { splitMessage, toWhatsappBlocks, sanitizeWhatsappMarkdown } = require('../lib/message-splitter');
 
 test('1. Texto sem <break> → array com 1 bolha', () => {
   const out = splitMessage('Oi! Tudo bem? 😊');
@@ -193,4 +193,42 @@ test('collapseToKapsoSends: só parte se estourar o limite', () => {
   const out = collapseToKapsoSends(long, { maxLen: 3900 });
   assert.ok(out.length >= 2);
   assert.ok(out.join('').includes('x'));
+});
+
+test('sanitizeWhatsappMarkdown: remove **negrito**', () => {
+  assert.equal(
+    sanitizeWhatsappMarkdown('**Depilação em corpo todo** com cera quente'),
+    'Depilação em corpo todo com cera quente',
+  );
+});
+
+test('sanitizeWhatsappMarkdown: remove __negrito__', () => {
+  assert.equal(sanitizeWhatsappMarkdown('__Corte feminino__'), 'Corte feminino');
+});
+
+test('sanitizeWhatsappMarkdown: remove *itálico* na mesma linha', () => {
+  assert.equal(
+    sanitizeWhatsappMarkdown('Valor de *R$ 190* para o serviço'),
+    'Valor de R$ 190 para o serviço',
+  );
+});
+
+test('sanitizeWhatsappMarkdown: preserva marcador de lista * item', () => {
+  const text = '* Corte feminino\n* Escova';
+  assert.equal(sanitizeWhatsappMarkdown(text), text);
+});
+
+test('sanitizeWhatsappMarkdown: preserva tags [BOOKING_*]', () => {
+  const tag = '[BOOKING_CREATE servicoId=12 profissionalId=3]';
+  assert.equal(
+    sanitizeWhatsappMarkdown(`**Confirmo** ${tag}`),
+    `Confirmo ${tag}`,
+  );
+});
+
+test('collapseToKapsoSends: sanitiza markdown antes do envio', () => {
+  const { collapseToKapsoSends } = require('../lib/message-splitter');
+  const out = collapseToKapsoSends('**Oi!** Tudo bem?');
+  assert.equal(out.length, 1);
+  assert.equal(out[0], 'Oi! Tudo bem?');
 });

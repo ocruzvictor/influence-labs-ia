@@ -135,6 +135,7 @@ test('processNotification com envelope SNS PT upsert agendamento', async () => {
   assert.equal(saved[0].status, 'confirmed');
   assert.equal(saved[0].priceCents, 1000);
   assert.equal(saved[0].durationMin, 40);
+  assert.equal(saved[0].scheduledAt, '2026-08-15T14:30:00-03:00');
   assert.equal(updates.at(-1)[2], 'processed');
 });
 

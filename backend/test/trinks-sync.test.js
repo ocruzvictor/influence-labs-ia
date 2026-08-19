@@ -77,7 +77,7 @@ test('mapAppointment mapeia campos + injeta phone resolvido', () => {
   assert.equal(row.client_trinks_id, '80035210');
   assert.equal(row.client_phone, '5511964540007');
   assert.equal(row.status, 'completed');
-  assert.equal(row.scheduled_at, '2026-05-28T19:30:00');
+  assert.equal(row.scheduled_at, '2026-05-28T19:30:00-03:00');
   assert.equal(row.duration_min, 30);
   assert.equal(row.price_cents, 10500);
   assert.equal(row.created_at_trinks, null); // gap Fase 0
@@ -101,6 +101,10 @@ test('toTimestamptz aplica offset BR a naive, preserva tz-aware', () => {
   assert.equal(worker.toTimestamptz('2026-05-28T19:30:00'), '2026-05-28T19:30:00-03:00');
   assert.equal(worker.toTimestamptz('2026-05-28T19:30:00-03:00'), '2026-05-28T19:30:00-03:00');
   assert.equal(worker.toTimestamptz('2026-05-28T22:30:00Z'), '2026-05-28T22:30:00Z');
+  assert.equal(worker.toTimestamptz('2026-08-15 14:30:00'), '2026-08-15T14:30:00-03:00');
+  assert.equal(worker.toTimestamptz('2026-05-28T19:30:00.500'), '2026-05-28T19:30:00.500-03:00');
+  assert.equal(worker.toTimestamptz(null), null);
+  assert.equal(worker.toTimestamptz(''), '');
 });
 
 test('syncWindow: backfill no 1º run, janela móvel depois', () => {
