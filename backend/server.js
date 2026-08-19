@@ -21,6 +21,7 @@ const {
   extractRequestedDate,
   isSalonOpen,
   bookingFitsExpediente,
+  filterSlotsWithinExpediente,
 } = require('./lib/salon-dates');
 const {
   createIdempotencyKey,
@@ -436,13 +437,16 @@ async function getSlots(date) {
       trinksLocalStore.listSlots({ from, to }),
       trinksLocalStore.listProfessionals(),
     ]);
-    if (!slots.length) return `HORARIOS VAGOS ${formatDateLabel(date)}:\n- Nenhum horario disponivel no snapshot local.`;
+    const openSlots = filterSlotsWithinExpediente(slots);
+    if (!openSlots.length) {
+      return `HORARIOS VAGOS ${formatDateLabel(date)}:\n- Nenhum horario disponivel no snapshot local.`;
+    }
     const professionalNames = new Map(professionals.map(p => [
       String(p.trinks_id),
       p.nickname || p.name || `Profissional ${p.trinks_id}`,
     ]));
     const grouped = new Map();
-    for (const slot of slots) {
+    for (const slot of openSlots) {
       const key = String(slot.professional_id);
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key).push(new Date(slot.starts_at).toLocaleTimeString('pt-BR', {
@@ -452,8 +456,9 @@ async function getSlots(date) {
         hour12: false,
       }));
     }
-    let txt = `HORARIOS VAGOS ${formatDateLabel(date)}:\n`;
+    let txt = `HORARIOS VAGOS ${formatDateLabel(date)} (dentro do expediente Ter-Sex 9h-19h / Sáb 9h-18h; o serviço precisa terminar antes do fechamento):\n`;
     for (const [professionalId, times] of grouped) {
+      if (!times.length) continue;
       txt += `- ${professionalNames.get(professionalId) || `Profissional ${professionalId}`}: ${times.join(', ')}\n`;
     }
     return txt;
@@ -1296,13 +1301,28 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         durationMinutes: bookingReschedule.duration_minutes,
         clientPhone,
       };
-
-      bookingResult = await rescheduleBookingInTrinks(agendamentoId, newBooking, profsPayload.data);
-      console.log(`[${sessionId}] Booking rescheduled in Trinks: agendamentoId ${agendamentoId}`);
-      const dataFmt = newBooking.date && newBooking.time
-        ? `${newBooking.date.split('-').reverse().join('/')} às ${newBooking.time}`
-        : 'no horario combinado';
-      finalMessages.push(`Pronto, reagendei pra ${dataFmt}! Te esperamos. 😊`);
+      if (!newBooking.durationMinutes && newBooking.serviceId) {
+        const svcEntry = svcPayload.data.find(s => String(s.id) === String(newBooking.serviceId));
+        newBooking.durationMinutes = svcEntry?.duracaoEmMinutos || svcEntry?.duration_min || 0;
+      }
+      const rescheduleFit = bookingFitsExpediente(
+        newBooking.date,
+        newBooking.time,
+        newBooking.durationMinutes || 0,
+      );
+      if (!rescheduleFit.ok) {
+        console.warn(`[${sessionId}] Reschedule BLOCKED expediente: ${rescheduleFit.reason}`);
+        finalMessages.push(
+          `Esse horário não fecha dentro do expediente (Ter-Sex 9h-19h, Sáb 9h-18h). ${rescheduleFit.reason}. Me passa outro horário que caiba no dia que eu te ajudo.`,
+        );
+      } else {
+        bookingResult = await rescheduleBookingInTrinks(agendamentoId, newBooking, profsPayload.data);
+        console.log(`[${sessionId}] Booking rescheduled in Trinks: agendamentoId ${agendamentoId}`);
+        const dataFmt = newBooking.date && newBooking.time
+          ? `${newBooking.date.split('-').reverse().join('/')} às ${newBooking.time}`
+          : 'no horario combinado';
+        finalMessages.push(`Pronto, reagendei pra ${dataFmt}! Te esperamos. 😊`);
+      }
     } catch (err) {
       if (err.message && err.message.includes('incompativel')) {
         const profObj = bookingReschedule.professional_id

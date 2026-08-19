@@ -128,6 +128,18 @@ function bookingFitsExpediente(dateStr, timeStr, durationMinutes = 0) {
   return { ok: true, reason: '' };
 }
 
+function slotStartsWithinExpediente(startsAt) {
+  const start = startsAt instanceof Date ? startsAt : new Date(startsAt);
+  if (Number.isNaN(start.getTime())) return false;
+  return isSalonOpen(start).open === true;
+}
+
+function filterSlotsWithinExpediente(slots) {
+  return (Array.isArray(slots) ? slots : []).filter((slot) =>
+    slotStartsWithinExpediente(slot?.starts_at)
+  );
+}
+
 /**
  * Extrai uma data ISO da mensagem do cliente.
  * Aceita: 2026-08-25, 25/08/2026, 25/08, "25 de agosto", "25 de agosto de 2026".
@@ -185,6 +197,8 @@ module.exports = {
   isValidIsoDate,
   isSalonOpen,
   bookingFitsExpediente,
+  slotStartsWithinExpediente,
+  filterSlotsWithinExpediente,
   getTimePartsInSalonTimeZone,
   MONTHS_PT,
 };

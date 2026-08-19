@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { getNextBusinessDays, extractRequestedDate, addDaysToIsoDate, isSalonOpen, bookingFitsExpediente } = require('../lib/salon-dates');
+const { getNextBusinessDays, extractRequestedDate, addDaysToIsoDate, isSalonOpen, bookingFitsExpediente, slotStartsWithinExpediente, filterSlotsWithinExpediente } = require('../lib/salon-dates');
 
 test('getNextBusinessDays ignora domingo e segunda a partir de uma segunda', () => {
   assert.deepEqual(
@@ -80,4 +80,43 @@ test('bookingFitsExpediente — sexta 19:00/19:30 e 23:40+90 (smoke Gabriel) rej
 test('bookingFitsExpediente — sábado 17:00+60 ok; 17:30+60 estoura', () => {
   assert.equal(bookingFitsExpediente('2026-08-22', '17:00', 60).ok, true);
   assert.equal(bookingFitsExpediente('2026-08-22', '17:30', 60).ok, false);
+});
+
+test('slotStartsWithinExpediente — sexta 2026-08-21: 18:30 KEEP, 19:00/19:30 DROP', () => {
+  assert.equal(slotStartsWithinExpediente('2026-08-21T18:30:00-03:00'), true);
+  assert.equal(slotStartsWithinExpediente('2026-08-21T19:00:00-03:00'), false);
+  assert.equal(slotStartsWithinExpediente('2026-08-21T19:30:00-03:00'), false);
+});
+
+test('slotStartsWithinExpediente — sábado 18:00 DROP, 17:30 KEEP', () => {
+  assert.equal(slotStartsWithinExpediente('2026-08-22T18:00:00-03:00'), false);
+  assert.equal(slotStartsWithinExpediente('2026-08-22T17:30:00-03:00'), true);
+});
+
+test('slotStartsWithinExpediente — domingo DROP', () => {
+  assert.equal(slotStartsWithinExpediente('2026-08-16T12:00:00-03:00'), false);
+});
+
+test('slotStartsWithinExpediente — terça 09:00 KEEP, 08:30 DROP', () => {
+  assert.equal(slotStartsWithinExpediente('2026-08-18T09:00:00-03:00'), true);
+  assert.equal(slotStartsWithinExpediente('2026-08-18T08:30:00-03:00'), false);
+});
+
+test('filterSlotsWithinExpediente drops closed starts and keeps open ones', () => {
+  const slots = [
+    { starts_at: '2026-08-21T18:30:00-03:00', professional_id: 1 },
+    { starts_at: '2026-08-21T19:00:00-03:00', professional_id: 1 },
+    { starts_at: '2026-08-21T19:30:00-03:00', professional_id: 1 },
+    { starts_at: '2026-08-18T09:00:00-03:00', professional_id: 2 },
+  ];
+  const filtered = filterSlotsWithinExpediente(slots);
+  assert.equal(filtered.length, 2);
+  assert.equal(filtered[0].starts_at, '2026-08-21T18:30:00-03:00');
+  assert.equal(filtered[1].starts_at, '2026-08-18T09:00:00-03:00');
+});
+
+test('filterSlotsWithinExpediente — empty/null → []', () => {
+  assert.deepEqual(filterSlotsWithinExpediente([]), []);
+  assert.deepEqual(filterSlotsWithinExpediente(null), []);
+  assert.deepEqual(filterSlotsWithinExpediente(undefined), []);
 });
