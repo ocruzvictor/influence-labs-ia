@@ -1,6 +1,6 @@
 # Sinônimos de Serviços — Studio Tirra
 
-**Versão:** v1.0 (criado 2026-05-26 — feedback F2 Tiago: cliente disse "pé" e agente não entendeu como pedicure)
+**Versão:** v1.1 (2026-08-20 — feedback Bruuna laser)
 **Como o LLM usa:** quando o cliente menciona um termo coloquial ou abreviado, use este dicionário para mapear ao serviço oficial em `fichas-tecnicas-servicos.md` antes de oferecer slot ou preço. Em caso de ambiguidade (ex: "pé" pode ser pedicure ou depilação), pergunte ao cliente qual ele quer.
 
 ---
@@ -49,6 +49,8 @@
 
 | Termo do cliente | Serviço oficial |
 |------------------|-----------------|
+| laser / depilação a laser / luz / definitivo / pacote / sessão | Depilação em 1 área (perguntar 1, 3 ou corpo todo) |
+| avulsa (no contexto laser) | Depilação em 1 área |
 | depilar o nariz | Depilação de Nariz |
 | depilar a orelha | Depilação de Orelha |
 | depilar nariz e orelha / fazer o rosto | Depilação Orelha + Nariz |

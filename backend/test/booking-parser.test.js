@@ -172,6 +172,18 @@ test('catalog.1 — linha de serviço inclui preço e duração do snapshot', ()
   assert.match(line, /Corte Feminino \[Giovanna, Jackie\] \(ID 14129512\) — R\$ 190 · 120min/);
 });
 
+test('catalog.1b — SKU laser recebe alias (laser) antes dos colchetes', () => {
+  const { formatServiceCatalogLine } = require('../lib/booking-parser');
+  const line = formatServiceCatalogLine({
+    id: 15137040,
+    nome: 'Depilação em 1 área',
+    preco: 499,
+    duracaoEmMinutos: 30,
+    profissionais: ['Claudia'],
+  });
+  assert.match(line, /Depilação em 1 área \(laser\) \[Claudia\] \(ID 15137040\) — R\$ 499 · 30min/);
+});
+
 test('catalog.2 — servicesForProfessional filtra pelo apelido exato', () => {
   const { servicesForProfessional } = require('../lib/booking-parser');
   const list = [

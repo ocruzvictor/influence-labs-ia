@@ -22,6 +22,9 @@ const {
   isSalonOpen,
   bookingFitsExpediente,
   filterSlotsWithinExpediente,
+  nextSaturdayDates,
+  mergeSlotContextDates,
+  isClaudiaFridaySlot,
 } = require('./lib/salon-dates');
 const {
   createIdempotencyKey,
@@ -448,6 +451,8 @@ async function getSlots(date) {
     const grouped = new Map();
     for (const slot of openSlots) {
       const key = String(slot.professional_id);
+      const profName = professionalNames.get(key) || '';
+      if (isClaudiaFridaySlot(profName, slot.starts_at)) continue;
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key).push(new Date(slot.starts_at).toLocaleTimeString('pt-BR', {
         timeZone: SALON_TIME_ZONE,
@@ -456,11 +461,16 @@ async function getSlots(date) {
         hour12: false,
       }));
     }
-    let txt = `HORARIOS VAGOS ${formatDateLabel(date)} (dentro do expediente Ter-Sex 9h-19h / Sáb 9h-18h; o serviço precisa terminar antes do fechamento):\n`;
+    const lines = [];
     for (const [professionalId, times] of grouped) {
       if (!times.length) continue;
-      txt += `- ${professionalNames.get(professionalId) || `Profissional ${professionalId}`}: ${times.join(', ')}\n`;
+      lines.push(`- ${professionalNames.get(professionalId) || `Profissional ${professionalId}`}: ${times.join(', ')}`);
     }
+    if (!lines.length) {
+      return `HORARIOS VAGOS ${formatDateLabel(date)}:\n- Nenhum horario disponivel no snapshot local.`;
+    }
+    let txt = `HORARIOS VAGOS ${formatDateLabel(date)} (dentro do expediente Ter-Sex 9h-19h / Sáb 9h-18h; o serviço precisa terminar antes do fechamento):\n`;
+    txt += `${lines.join('\n')}\n`;
     return txt;
   } catch (err) {
     console.error('Local slots error:', err.message);
@@ -1011,20 +1021,23 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
   console.log(`[${sessionId}] ${contactName}: "${messageText}"`);
 
-  // 1. Fetch Trinks data in parallel (snapshot local, 10 dias úteis) + agendamentos futuros do cliente
-  const businessDays = getNextBusinessDays(SLOT_CONTEXT_DAYS);
+  // 1. Fetch Trinks data in parallel (snapshot local, dias úteis + sábados Claudia) + agendamentos futuros do cliente
+  let slotDates = mergeSlotContextDates(
+    getNextBusinessDays(SLOT_CONTEXT_DAYS),
+    nextSaturdayDates(5, 35),
+  );
   const requestedDate = extractRequestedDate(messageText);
-  if (requestedDate && !businessDays.includes(requestedDate)) {
+  if (requestedDate && !slotDates.includes(requestedDate)) {
     try {
       await ensureSlotSnapshot(requestedDate);
-      businessDays.push(requestedDate);
-      businessDays.sort();
+      slotDates.push(requestedDate);
+      slotDates.sort();
     } catch (err) {
       console.warn(`[${sessionId}] snapshot adicional ${requestedDate} falhou:`, err.message);
     }
   }
   const [slotsResults, profsResult, svcTextResult, futureBookingsResult] = await Promise.allSettled([
-    Promise.all(businessDays.map(date => getSlots(date))),
+    Promise.all(slotDates.map(date => getSlots(date))),
     getProfessionals(),
     getServicesText(),
     phone ? loadClientFutureBookings(phone) : Promise.resolve([]),
@@ -1057,7 +1070,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     }
     : null;
   const dynamicContext = buildDynamicContext(
-    businessDays,
+    slotDates,
     slotsAll,
     profsPayload.text,
     historyForModel,

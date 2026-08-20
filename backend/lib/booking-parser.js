@@ -191,6 +191,12 @@ function formatBrl(value) {
   return `R$ ${n.toFixed(2).replace('.', ',')}`;
 }
 
+const LASER_SKU_NAMES = new Set([
+  'Depilação em 1 área',
+  'Depilação em 3 áreas',
+  'Depilação em corpo todo',
+]);
+
 function formatServiceCatalogLine(service) {
   const s = service || {};
   const names = Array.isArray(s.profissionais) ? s.profissionais.filter(Boolean) : [];
@@ -200,7 +206,8 @@ function formatServiceCatalogLine(service) {
   const pricePart = price ? ` — ${price}${dur}` : '';
   const id = s.id != null ? s.id : '?';
   const nome = s.nome || 'Serviço';
-  return `- ${nome}${prof} (ID ${id})${pricePart}`;
+  const laserAlias = LASER_SKU_NAMES.has(nome) ? ' (laser)' : '';
+  return `- ${nome}${laserAlias}${prof} (ID ${id})${pricePart}`;
 }
 
 function servicesForProfessional(servicesData, professionalName) {

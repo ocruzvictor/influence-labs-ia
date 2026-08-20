@@ -1,5 +1,19 @@
 # Changelog — prompt TESS 46589
 
+## v3.1.3 — 2026-08-20
+
+**Motivo:** feedback Bruuna laser — negar laser, Claudia na sexta, grade só dias úteis.
+
+**Prompt:** I.4 laser = SKUs Depilação 1/3 áreas e corpo todo (Claudia, só sábado em HORARIOS VAGOS); avulsa = 1 área; cera ≠ laser. KB `depilacao-laser-claudia.md`. NUNCA negar laser / oferecer Claudia sexta. VALIDE trip-wire laser. CONTEXTO exemplo com `(laser)`.
+
+**Backend:** alias `(laser)` no catálogo; snapshot inclui próximos 5 sábados; filtro Claudia sexta na injeção.
+
+**Rollback prompt:** `archive/tess-conversa-46589-v3.1.2-2026-08-18.md`
+
+## v3.1.2 — 2026-08-18
+
+Higiene de espaçamento e quebras de linha. **Sem mudança de regra.** Rollback: `archive/tess-conversa-46589-v3.1.1-2026-08-18.md`
+
 ## v3.1.1 — 2026-08-18
 
 **Motivo:** smoke Victor 18/08 — pediu nome/telefone/e-mail/nascimento de cliente já cadastrado; Dylan ofertado para Corte Masculino; expediente mascarou a recusa de habilitação.

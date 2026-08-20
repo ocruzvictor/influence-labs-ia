@@ -40,16 +40,67 @@ function toIso(year, month, day) {
   return isValidIsoDate(iso) ? iso : null;
 }
 
+function getTodayIsoInSalonTimeZone(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SALON_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const pick = (t) => parts.find((p) => p.type === t)?.value;
+  return `${pick('year')}-${pick('month')}-${pick('day')}`;
+}
+
+function getWeekdayInSalonTimeZone(isoDate) {
+  const d = new Date(`${isoDate}T12:00:00-03:00`);
+  if (Number.isNaN(d.getTime())) return -1;
+  return getTimePartsInSalonTimeZone(d).weekday;
+}
+
 function getNextBusinessDays(count, startIso) {
   const n = Math.max(0, Number(count) || 0);
   const dates = [];
   let cursor = startIso;
   while (dates.length < n) {
-    const day = new Date(`${cursor}T12:00:00Z`).getUTCDay();
+    const day = getWeekdayInSalonTimeZone(cursor);
     if (day !== 0 && day !== 1) dates.push(cursor);
     cursor = addDaysToIsoDate(cursor, 1);
   }
   return dates;
+}
+
+/**
+ * Próximos sábados (weekday 6 em America/Sao_Paulo), a partir de hoje no fuso do salão.
+ */
+function nextSaturdayDates(count = 5, horizonDays = 35, now = new Date()) {
+  const max = Math.max(0, Number(count) || 0);
+  const horizon = Math.max(0, Number(horizonDays) || 0);
+  const saturdays = [];
+  let cursor = getTodayIsoInSalonTimeZone(now);
+  for (let walked = 0; walked < horizon && saturdays.length < max; walked++) {
+    if (getWeekdayInSalonTimeZone(cursor) === 6) saturdays.push(cursor);
+    cursor = addDaysToIsoDate(cursor, 1);
+  }
+  return saturdays;
+}
+
+function mergeSlotContextDates(businessDays, saturdayDates) {
+  const set = new Set([
+    ...(Array.isArray(businessDays) ? businessDays : []),
+    ...(Array.isArray(saturdayDates) ? saturdayDates : []),
+  ]);
+  return [...set].sort();
+}
+
+function isClaudiaProfessional(name) {
+  return /claudia/i.test(String(name || ''));
+}
+
+function isClaudiaFridaySlot(professionalName, startsAt) {
+  if (!isClaudiaProfessional(professionalName)) return false;
+  const start = startsAt instanceof Date ? startsAt : new Date(startsAt);
+  if (Number.isNaN(start.getTime())) return false;
+  return getTimePartsInSalonTimeZone(start).weekday === 5;
 }
 
 function stripAccents(value) {
@@ -192,7 +243,12 @@ function extractRequestedDate(text, now = new Date()) {
 
 module.exports = {
   addDaysToIsoDate,
+  getTodayIsoInSalonTimeZone,
   getNextBusinessDays,
+  nextSaturdayDates,
+  mergeSlotContextDates,
+  isClaudiaProfessional,
+  isClaudiaFridaySlot,
   extractRequestedDate,
   isValidIsoDate,
   isSalonOpen,

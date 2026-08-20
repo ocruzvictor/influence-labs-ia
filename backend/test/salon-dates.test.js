@@ -1,6 +1,18 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { getNextBusinessDays, extractRequestedDate, addDaysToIsoDate, isSalonOpen, bookingFitsExpediente, slotStartsWithinExpediente, filterSlotsWithinExpediente } = require('../lib/salon-dates');
+const {
+  getNextBusinessDays,
+  extractRequestedDate,
+  addDaysToIsoDate,
+  isSalonOpen,
+  bookingFitsExpediente,
+  slotStartsWithinExpediente,
+  filterSlotsWithinExpediente,
+  nextSaturdayDates,
+  mergeSlotContextDates,
+  isClaudiaProfessional,
+  isClaudiaFridaySlot,
+} = require('../lib/salon-dates');
 
 test('getNextBusinessDays ignora domingo e segunda a partir de uma segunda', () => {
   assert.deepEqual(
@@ -119,4 +131,31 @@ test('filterSlotsWithinExpediente — empty/null → []', () => {
   assert.deepEqual(filterSlotsWithinExpediente([]), []);
   assert.deepEqual(filterSlotsWithinExpediente(null), []);
   assert.deepEqual(filterSlotsWithinExpediente(undefined), []);
+});
+
+test('nextSaturdayDates — quinta 2026-08-20 BRT retorna 5 sábados em 35 dias', () => {
+  const now = new Date('2026-08-20T12:00:00-03:00');
+  assert.deepEqual(
+    nextSaturdayDates(5, 35, now),
+    ['2026-08-22', '2026-08-29', '2026-09-05', '2026-09-12', '2026-09-19'],
+  );
+});
+
+test('mergeSlotContextDates — união única ordenada', () => {
+  assert.deepEqual(
+    mergeSlotContextDates(['2026-08-22', '2026-08-25'], ['2026-08-22', '2026-09-05']),
+    ['2026-08-22', '2026-08-25', '2026-09-05'],
+  );
+});
+
+test('isClaudiaProfessional — nickname/name case-insensitive', () => {
+  assert.equal(isClaudiaProfessional('Claudia'), true);
+  assert.equal(isClaudiaProfessional('CLAUDIA'), true);
+  assert.equal(isClaudiaProfessional('Erick'), false);
+});
+
+test('isClaudiaFridaySlot — Claudia sexta true; Erick sexta e Claudia sábado false', () => {
+  assert.equal(isClaudiaFridaySlot('Claudia', '2026-08-21T10:00:00-03:00'), true);
+  assert.equal(isClaudiaFridaySlot('Erick', '2026-08-21T10:00:00-03:00'), false);
+  assert.equal(isClaudiaFridaySlot('Claudia', '2026-08-22T10:00:00-03:00'), false);
 });

@@ -2,6 +2,12 @@ const db = require('./db');
 const { createTrinksApi } = require('./lib/trinks-api');
 const { createTrinksLocalStore } = require('./lib/trinks-local-store');
 const { mapAppointment, valorToCents } = require('./lib/trinks-mapping');
+const {
+  getNextBusinessDays,
+  getTodayIsoInSalonTimeZone,
+  nextSaturdayDates,
+  mergeSlotContextDates,
+} = require('./lib/salon-dates');
 
 const INTERVAL_MIN = Number(process.env.TRINKS_RECONCILE_INTERVAL_MIN || 1440);
 const PAGE_DELAY_MS = Number(process.env.TRINKS_PAGE_DELAY_MS || 1500);
@@ -43,14 +49,7 @@ function addDays(date, days) {
 }
 
 function nextBusinessDates(count, now = new Date()) {
-  const dates = [];
-  let cursor = new Date(`${isoDate(now)}T12:00:00Z`);
-  while (dates.length < count) {
-    const day = cursor.getUTCDay();
-    if (day !== 0 && day !== 1) dates.push(isoDate(cursor));
-    cursor = addDays(cursor, 1);
-  }
-  return dates;
+  return getNextBusinessDays(count, getTodayIsoInSalonTimeZone(now));
 }
 
 function mapSlots(date, payload) {
@@ -126,7 +125,11 @@ async function syncCatalog() {
 
 async function syncSlots() {
   let count = 0;
-  for (const date of nextBusinessDates(SNAPSHOT_DAYS)) {
+  const dates = mergeSlotContextDates(
+    nextBusinessDates(SNAPSHOT_DAYS),
+    nextSaturdayDates(5, 35),
+  );
+  for (const date of dates) {
     const payload = await getApi().request(`/agendamentos/profissionais/${date}`, {
       origin: 'slot_snapshot',
     });
@@ -135,7 +138,7 @@ async function syncSlots() {
     count += rows.length;
     await sleep(PAGE_DELAY_MS);
   }
-  return { dates: SNAPSHOT_DAYS, slots: count };
+  return { dates: dates.length, slots: count };
 }
 
 async function reconcileAppointments() {
