@@ -201,6 +201,8 @@ Claude (Dex / @dev) — sessão 2026-06-02
 - `docs/ops/pilot-readiness-2026-06-26.md` (A) — gate operacional datado para smoke/piloto supervisionado.
 - `docs/ops/trinks-webhook-first-pilot.md` (M) — link e veredito do gate 2026-06-26.
 - `docs/qa/salon-test-matrix.md` (M) — recorte P0 do smoke WhatsApp supervisionado.
+- `infra/migrations/009_whitelist_teste_5511963014905.sql` (A) — libera tester `5511963014905` (`+55 11 96301-4905`).
+- `infra/migrations/009_whitelist_teste_5511963014905.rollback.sql` (A) — rollback do tester.
 
 ## QA Results
 
