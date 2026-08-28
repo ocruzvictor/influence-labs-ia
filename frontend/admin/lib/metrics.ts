@@ -50,6 +50,8 @@ export interface MetricsResult {
     noShows: Kpi;
     cancelamentos: Kpi;
     msgsDia: Kpi; // média por dia
+    handoffsHuman: Kpi;
+    bookingFailed: Kpi;
   };
   noShowRatePct: number | null;
   serieAgendamentos: Array<{ day: string; created: number; cancelled: number; no_shows: number }>;
@@ -127,6 +129,35 @@ async function convAgg(days: number, offsetDays = 0): Promise<ConvAgg> {
   return { conversas: toInt(r.conversas), mensagens: toInt(r.mensagens), takeovers: toInt(r.takeovers) };
 }
 
+interface OperationalAgg {
+  handoffs: number | null;
+  bookingFailed: number | null;
+}
+
+function isUndefinedTableError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string };
+  return e?.code === "42P01" || /relation .* does not exist/i.test(String(e?.message ?? ""));
+}
+
+/** Contagens de bot_operational_events na janela rolante (mesma base que convAgg). */
+async function operationalAgg(days: number, offsetDays = 0): Promise<OperationalAgg> {
+  try {
+    const rows = await query<{ handoffs: string; booking_failed: string }>(
+      `SELECT COUNT(*) FILTER (WHERE event = 'handoff.human') handoffs,
+              COUNT(*) FILTER (WHERE event = 'booking.failed') booking_failed
+         FROM bot_operational_events
+        WHERE received_at >= now() - (($1::int + $2::int) || ' days')::interval
+          AND received_at <  now() - ($2::int || ' days')::interval`,
+      [days, offsetDays],
+    );
+    const r = rows[0] ?? { handoffs: "0", booking_failed: "0" };
+    return { handoffs: toInt(r.handoffs), bookingFailed: toInt(r.booking_failed) };
+  } catch (err) {
+    if (isUndefinedTableError(err)) return { handoffs: null, bookingFailed: null };
+    throw err;
+  }
+}
+
 // ─── Sync status + disponibilidade Trinks ─────────────────────────────────
 
 async function syncStatusAndAvail(): Promise<{ status: SyncStatus; available: boolean }> {
@@ -196,7 +227,12 @@ export async function getMetrics(period: Period, fresh = false): Promise<Metrics
   const { status: syncStatus, available } = await syncStatusAndAvail();
 
   // Conversa: atual + anterior (sempre disponível)
-  const [convNow, convPrev] = await Promise.all([convAgg(days, 0), convAgg(days, days)]);
+  const [convNow, convPrev, opNow, opPrev] = await Promise.all([
+    convAgg(days, 0),
+    convAgg(days, days),
+    operationalAgg(days, 0),
+    operationalAgg(days, days),
+  ]);
 
   // Agendamento: atual + anterior (só se Trinks disponível)
   let apptNow: ApptAgg = { created: 0, cancelled: 0, no_shows: 0, completed: 0 };
@@ -244,6 +280,7 @@ export async function getMetrics(period: Period, fresh = false): Promise<Metrics
   const result = assembleMetrics({
     period, days, available, syncStatus,
     convNow, convPrev, apptNow, apptPrev, taxa, taxaPrev, serie, topProf,
+    opNow, opPrev,
   });
   cache.set(key, result);
   return result;
@@ -263,8 +300,14 @@ function assembleMetrics(a: {
   taxaPrev: number | null;
   serie: MetricsResult["serieAgendamentos"];
   topProf: MetricsResult["topProfissionais"];
+  opNow: OperationalAgg;
+  opPrev: OperationalAgg;
 }): MetricsResult {
   const nullKpi: Kpi = { value: null, trend: null };
+  const operationalKpi = (current: number | null, previous: number | null): Kpi =>
+    current === null
+      ? nullKpi
+      : { value: current, trend: trend(current, previous ?? 0) };
   const msgsNow = Math.round(a.convNow.mensagens / a.days);
   const msgsPrev = Math.round(a.convPrev.mensagens / a.days);
   const noShowRate =
@@ -286,6 +329,8 @@ function assembleMetrics(a: {
       noShows: a.available ? { value: a.apptNow.no_shows, trend: trend(a.apptNow.no_shows, a.apptPrev.no_shows) } : nullKpi,
       cancelamentos: a.available ? { value: a.apptNow.cancelled, trend: trend(a.apptNow.cancelled, a.apptPrev.cancelled) } : nullKpi,
       msgsDia: { value: msgsNow, trend: trend(msgsNow, msgsPrev) },
+      handoffsHuman: operationalKpi(a.opNow.handoffs, a.opPrev.handoffs),
+      bookingFailed: operationalKpi(a.opNow.bookingFailed, a.opPrev.bookingFailed),
     },
     noShowRatePct: noShowRate,
     serieAgendamentos: a.serie,
@@ -294,7 +339,8 @@ function assembleMetrics(a: {
 }
 
 /** Exposto só para testes (node:test). */
-export const __test = { trend, assembleMetrics };
+export const __test = { trend, assembleMetrics, operationalKpi: (current: number | null, previous: number | null) =>
+  current === null ? { value: null, trend: null } : { value: current, trend: trend(current, previous ?? 0) } };
 
 // ─── getOverview (home / Tela 2) ───────────────────────────────────────────
 

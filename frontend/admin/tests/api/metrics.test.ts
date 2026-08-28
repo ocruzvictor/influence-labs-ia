@@ -90,6 +90,9 @@ dbTest("getMetrics 7d — empty-state: KPIs Trinks null, conversa preserva dados
   assert.equal(m.topProfissionais, null);
   // conversa segue com dados reais
   assert.equal(m.kpis.takeovers.value, 1);
+  // telemetria operacional: null se tabela ausente (migration 010 não aplicada no test DB)
+  assert.ok(m.kpis.handoffsHuman.value === null || typeof m.kpis.handoffsHuman.value === "number");
+  assert.ok(m.kpis.bookingFailed.value === null || typeof m.kpis.bookingFailed.value === "number");
 });
 
 // ─── getOverview executa ──────────────────────────────────────────────────

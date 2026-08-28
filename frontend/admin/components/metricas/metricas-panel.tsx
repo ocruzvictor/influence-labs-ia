@@ -120,11 +120,12 @@ export function MetricasPanel({ initialPeriod }: { initialPeriod: Period }): Rea
         </div>
       )}
 
-      {/* KPI cards (AC23) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* KPI cards (AC23) — grid 2×4 com telemetria operacional */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Agendamentos" kpi={data?.kpis.agendamentos} loading={loading} unavailable={unavailable} goodDirection="up" />
         <KpiCard label="Taxa de sucesso bot" kpi={data?.kpis.taxaSucesso} suffix="%" loading={loading} unavailable={unavailable} goodDirection="up" />
         <KpiCard label="Takeovers humanos" kpi={data?.kpis.takeovers} loading={loading} goodDirection="down" />
+        <KpiCard label="Handoffs (bot)" kpi={data?.kpis.handoffsHuman} loading={loading} goodDirection="down" />
         <KpiCard
           label="No-shows"
           kpi={data?.kpis.noShows}
@@ -134,6 +135,7 @@ export function MetricasPanel({ initialPeriod }: { initialPeriod: Period }): Rea
           sub={data?.noShowRatePct != null ? `${data.noShowRatePct}% (meta < 8%)` : null}
         />
         <KpiCard label="Cancelamentos" kpi={data?.kpis.cancelamentos} loading={loading} unavailable={unavailable} goodDirection="down" />
+        <KpiCard label="Booking falhou" kpi={data?.kpis.bookingFailed} loading={loading} goodDirection="down" />
         <KpiCard label="Msgs / dia (média)" kpi={data?.kpis.msgsDia} loading={loading} goodDirection="up" />
       </div>
 

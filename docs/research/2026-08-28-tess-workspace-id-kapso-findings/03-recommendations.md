@@ -20,15 +20,15 @@ Story sugerida: `salon-whatsapp-tess-workspace-id` (draft `@sm` / `@po`). Execut
 
 ### P1 Kapso — painel, zero deploy
 
-1. Kapso → Findings → setup (confirmar project events no plano).
-2. Ensinar Gabriel/Tiago: busca da inbox por texto; 3–5 quick replies (`/preco`, `/endereco`, `/horario`).
-3. Victor: Logs → Problems / free text no próximo incidente (HMAC, send, transcript).
+1. ~~Kapso → Findings → setup~~ **Adiado 28/08** (Victor): sobrepõe Tess supervisor 46590; crédito de AI Kapso extra. Reavaliar depois do go-live se a UI deles valer.
+2. Ensinar Gabriel/Tiago: busca da inbox por texto; 3–5 quick replies (`/preco`, `/endereco`, `/horario`). Story: `docs/stories/salon-whatsapp-kapso-inbox-quick-replies.md`.
+3. Victor: Logs → Problems / free text. Story: `docs/stories/salon-whatsapp-kapso-log-search-runbook.md`.
 
 ### P2 — depois do P0
 
 1. GitHub App Kapso neste repo → Investigator lê prompt/backend.
-2. Webhook projeto v2: `whatsapp.account.disabled|restricted|reinstated|violation` (além do `account_update` que já gravamos).
-3. Custom events do backend: `handoff.human`, `booking.failed` (com `conversation_id` Kapso se o payload inbound trouxer).
+2. Webhook projeto v2: `whatsapp.account.disabled|restricted|reinstated|violation` (além do `account_update` que já gravamos). Story: `docs/stories/salon-whatsapp-kapso-account-events-v2.md`.
+3. Custom events **nossos** (Postgres + `/metricas`), não Kapso Agent: `handoff.human`, `booking.failed`. Story: `docs/stories/salon-whatsapp-telemetry-handoff-booking.md`. POST Kapso project events adiado com o Findings.
 4. Sync das skills `gokapso/agent-skills` se `observe-whatsapp` local estiver atrás do log search novo.
 
 ### P3 / não agora

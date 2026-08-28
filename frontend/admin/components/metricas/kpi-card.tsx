@@ -43,9 +43,13 @@ export function KpiCard({
       <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">{label}</p>
       {loading ? (
         <Skeleton className="mt-3 h-9 w-20" />
-      ) : unavailable || kpi == null || kpi.value == null ? (
+      ) : unavailable || kpi == null ? (
         <p className="mt-3 text-sm text-zinc-400" role="status">
           Aguardando sync Trinks
+        </p>
+      ) : kpi.value == null ? (
+        <p className="mt-3 text-3xl font-semibold tabular-nums text-zinc-400" role="status">
+          —
         </p>
       ) : (
         <>

@@ -11,6 +11,8 @@ const { trend, assembleMetrics } = __test;
 
 const SYNC_OK: SyncStatus = { lastSuccessAt: "2026-05-28T12:00:00.000Z", consecutiveFailures: 0, lastError: null };
 
+const OP_NULL = { handoffs: null as number | null, bookingFailed: null as number | null };
+
 // ─── trend ───
 test("trend calcula delta e pct", () => {
   assert.deepEqual(trend(10, 8), { delta: 2, pct: 25 });
@@ -38,6 +40,8 @@ test("assembleMetrics sem Trinks → KPIs de agendamento null, conversa com dado
     taxaPrev: null,
     serie: [],
     topProf: null,
+    opNow: OP_NULL,
+    opPrev: OP_NULL,
   });
   assert.equal(r.trinksAvailable, false);
   // Trinks KPIs → null (não 0)
@@ -51,6 +55,8 @@ test("assembleMetrics sem Trinks → KPIs de agendamento null, conversa com dado
   assert.equal(r.kpis.takeovers.value, 3);
   assert.equal(r.kpis.msgsDia.value, 20); // 140/7
   assert.deepEqual(r.kpis.takeovers.trend, { delta: -2, pct: -40 });
+  assert.equal(r.kpis.handoffsHuman.value, null);
+  assert.equal(r.kpis.bookingFailed.value, null);
 });
 
 // ─── assembleMetrics: Trinks disponível → KPIs + noShowRate ───
@@ -68,6 +74,8 @@ test("assembleMetrics com Trinks → valores e taxa de no-show", () => {
     taxaPrev: 64,
     serie: [{ day: "2026-05-01", created: 5, cancelled: 1, no_shows: 0 }],
     topProf: [{ professional_name: "Tiago", count: 18 }],
+    opNow: { handoffs: 5, bookingFailed: 2 },
+    opPrev: { handoffs: 3, bookingFailed: 4 },
   });
   assert.equal(r.kpis.agendamentos.value, 47);
   assert.deepEqual(r.kpis.agendamentos.trend, { delta: 9, pct: (9 / 38) * 100 });
@@ -77,6 +85,10 @@ test("assembleMetrics com Trinks → valores e taxa de no-show", () => {
   assert.equal(r.noShowRatePct, 6.4);
   assert.equal(r.kpis.msgsDia.value, 20); // 600/30
   assert.deepEqual(r.kpis.msgsDia.trend, { delta: 0, pct: 0 });
+  assert.equal(r.kpis.handoffsHuman.value, 5);
+  assert.deepEqual(r.kpis.handoffsHuman.trend, { delta: 2, pct: (2 / 3) * 100 });
+  assert.equal(r.kpis.bookingFailed.value, 2);
+  assert.deepEqual(r.kpis.bookingFailed.trend, { delta: -2, pct: -50 });
   assert.equal(r.topProfissionais?.[0]?.count, 18);
 });
 
@@ -89,6 +101,8 @@ test("assembleMetrics: taxa null vira KPI null mesmo com Trinks disponível", ()
     apptNow: { created: 1, cancelled: 0, no_shows: 0, completed: 1 },
     apptPrev: { created: 0, cancelled: 0, no_shows: 0, completed: 0 },
     taxa: null, taxaPrev: null, serie: [], topProf: [],
+    opNow: OP_NULL,
+    opPrev: OP_NULL,
   });
   assert.equal(r.kpis.taxaSucesso.value, null);
   assert.equal(r.kpis.agendamentos.value, 1);

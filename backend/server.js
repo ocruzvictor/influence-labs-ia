@@ -129,8 +129,9 @@ const { buildCancelPayload, QUEM_CANCELOU } = require('./lib/trinks-mapping');
 const { createTrinksLocalStore } = require('./lib/trinks-local-store');
 const { createTrinksSnsHandler, SnsValidationError } = require('./lib/trinks-sns');
 const { createTrinksWebhookProcessor } = require('./lib/trinks-webhook-processor');
-const { handleMetaAccountUpdates } = require('./lib/whatsapp-account-events');
+const { handleMetaAccountUpdates, handleKapsoAccountV2Events } = require('./lib/whatsapp-account-events');
 const { isOwnerPhone, renderOwnerContext } = require('./lib/owner-access');
+const { shouldEmitHandoff, emitOperationalEvent } = require('./lib/operational-events');
 
 const app = express();
 app.use(cors());
@@ -1007,7 +1008,7 @@ function formatAssistantOutput(rawText, isFirstTurn) {
 
 
 // --- Core message orchestration ---
-async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw, phone = null) {
+async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw, phone = null, kapsoConversationId = null) {
   const startTime = Date.now();
   const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [], persistedMemory: null };
 
@@ -1246,6 +1247,13 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         valorFmt,
       }));
     } catch (err) {
+      emitOperationalEvent(db, {
+        event: 'booking.failed',
+        clientPhone,
+        motivo: err.message,
+        kapsoConversationId,
+        payload: {},
+      }).catch(() => {});
       if (err.message && err.message.includes('incompativel')) {
         const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
         const svcEntry = svcPayload.data.find(s => String(s.id) === String(bookingData.serviceId));
@@ -1379,6 +1387,15 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     // Marcar conversa como human-handled para silenciar bot ate Tiago responder.
     // Dono: nunca silenciar o próprio thread nem notificar o Tiago sobre ele mesmo.
     if (clientPhone && !isOwnerPhone(clientPhone)) markHumanHandled(clientPhone);
+    if (shouldEmitHandoff(clientPhone)) {
+      emitOperationalEvent(db, {
+        event: 'handoff.human',
+        clientPhone,
+        motivo: handoffHuman.motivo,
+        kapsoConversationId,
+        payload: {},
+      }).catch(() => {});
+    }
   }
 
   console.log(`[${sessionId}] Response (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
@@ -1466,7 +1483,7 @@ app.post('/webhook/demo-chat', withTimeout(async (req, res) => {
   if (!message || !message.trim()) {
     return res.status(400).json({ response: 'Mensagem vazia', timestamp: new Date().toISOString() });
   }
-  const result = await processMessage(sessionId, message.trim(), contact_name, incomingHistoryRaw, null);
+  const result = await processMessage(sessionId, message.trim(), contact_name, incomingHistoryRaw, null, null);
   return res.json(result);
 }, 28000));
 
@@ -1637,6 +1654,66 @@ function validateKapsoMetaSignature(req) {
     secret: process.env.KAPSO_META_WEBHOOK_SECRET || process.env.KAPSO_WEBHOOK_SECRET,
     label: 'kapso-meta',
   });
+}
+
+function validateKapsoProjectSignature(req) {
+  return validateKapsoWebhookSignature(req, {
+    secret: process.env.KAPSO_PROJECT_WEBHOOK_SECRET || process.env.KAPSO_WEBHOOK_SECRET,
+    label: 'kapso-project',
+  });
+}
+
+const KAPSO_ACCOUNT_V2_NOTIFY_EVENTS = new Set([
+  'whatsapp.account.disabled',
+  'whatsapp.account.restricted',
+  'whatsapp.account.violation',
+]);
+
+async function notifyTiagoKapsoAccountV2(evt) {
+  if (!KAPSO_ACCOUNT_V2_NOTIFY_EVENTS.has(evt.event)) return;
+  if (!TIAGO_NOTIFICATION_PHONE) {
+    console.warn('[kapso-project] TIAGO_NOTIFICATION_PHONE nao configurado — notificacao pulada');
+    return;
+  }
+  const phoneNumberId = lastKnownKapsoPhoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID;
+  if (!phoneNumberId) {
+    console.warn('[kapso-project] phone_number_id ausente — notificacao pulada');
+    return;
+  }
+  if (!lastTiagoInboundAt) {
+    console.warn('[kapso-project] janela 24h: nenhum inbound de Tiago registrado — notificacao pulada');
+    return;
+  }
+  const hoursSince = (Date.now() - new Date(lastTiagoInboundAt).getTime()) / 3600000;
+  if (hoursSince >= 24) {
+    console.warn(`[kapso-project] janela 24h expirada (${hoursSince.toFixed(1)}h) — notificacao pulada`);
+    return;
+  }
+
+  const shortEvent = evt.event.replace('whatsapp.account.', '');
+  const phone = evt.phone_number || '?';
+  const waba = evt.waba_id || '?';
+  let detail = '';
+  if (evt.event === 'whatsapp.account.disabled') {
+    detail = evt.payload?.ban?.state ? `\nEstado: ${evt.payload.ban.state}` : '';
+  } else if (evt.event === 'whatsapp.account.restricted') {
+    const r = evt.payload?.restrictions?.[0];
+    detail = r?.type ? `\nRestricao: ${r.type}` : '';
+  } else if (evt.event === 'whatsapp.account.violation') {
+    detail = evt.payload?.violation?.type ? `\nViolacao: ${evt.payload.violation.type}` : '';
+  }
+
+  const text =
+    `⚠️ Alerta conta WhatsApp (${shortEvent})\n\n` +
+    `WABA: ${waba}\nNumero: ${phone}${detail}\n\n` +
+    `Verifique o painel Meta/Kapso e o Inbox do salao.`;
+
+  try {
+    await sendKapsoMessage(TIAGO_NOTIFICATION_PHONE, text, phoneNumberId);
+    console.log(`[kapso-project] notificacao enviada ao Tiago — ${evt.event}`);
+  } catch (err) {
+    console.error(`[kapso-project] falha ao notificar Tiago: ${err.message}`);
+  }
 }
 
 app.post('/webhook/kapso', withTimeout(async (req, res) => {
@@ -1820,7 +1897,8 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
       }
     }
 
-    const result = await processMessage(sessionId, messageText, contactName, null, sessionId);
+    const kapsoConversationId = firstConv?.id || events[0]?.conversation_id || null;
+    const result = await processMessage(sessionId, messageText, contactName, null, sessionId, kapsoConversationId);
     const blocks = result.responses?.length ? result.responses : [result.response];
     for (const block of blocks) {
       if (block && block.trim()) await sendKapsoMessage(sessionId, block, phoneNumberId);
@@ -1866,6 +1944,37 @@ app.post('/webhook/kapso-meta', withTimeout(async (req, res) => {
     }
   } catch (err) {
     console.error('[kapso-meta] erro ao processar account_update:', err.message);
+  }
+}, 5000));
+
+// --- Kapso project webhook (platform events v2: whatsapp.account.*) ---
+// Integrations → Webhooks → Platform webhooks no projeto Kapso. Separado de /webhook/kapso (mensagens).
+app.post('/webhook/kapso-project', withTimeout(async (req, res) => {
+  if (!validateKapsoProjectSignature(req)) {
+    console.warn('[kapso-project] Invalid HMAC signature — rejected');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const previewEvent = req.body?.event
+    || (Array.isArray(req.body?.data) ? req.body.data[0]?.event : null)
+    || 'unknown';
+
+  res.json({ ok: true });
+
+  try {
+    const result = await handleKapsoAccountV2Events(db, req.body);
+    if (!result.handled) {
+      console.log(`[kapso-project] non-account event ignored: ${previewEvent}`);
+      return;
+    }
+    console.log(`[kapso-project] account v2 processed count=${result.events.length} inserted=${result.inserted}`);
+    for (const evt of result.events) {
+      notifyTiagoKapsoAccountV2(evt).catch(err => {
+        console.error(`[kapso-project] erro ao notificar Tiago: ${err.message}`);
+      });
+    }
+  } catch (err) {
+    console.error('[kapso-project] erro ao processar account v2:', err.message);
   }
 }, 5000));
 
@@ -1983,7 +2092,7 @@ app.post('/webhook/meta', async (req, res) => {
     console.log(`[meta][${from}] message recebida: "${messageText.slice(0, 80)}"`);
     if (!messageText) return;
 
-    const result = await processMessage(from, messageText, contactName, null, from);
+    const result = await processMessage(from, messageText, contactName, null, from, null);
 
     // Envia cada bloco do WhatsApp como mensagem separada
     const blocks = result.responses?.length ? result.responses : [result.response];
@@ -2203,6 +2312,8 @@ app.get('/health', async (req, res) => {
     table_ready: false,
     last_event: null,
     last_partner_removed_at: null,
+    last_v2_event: null,
+    last_v2_event_at: null,
     recent_count_24h: 0,
   };
   try {
@@ -2211,6 +2322,10 @@ app.get('/health', async (req, res) => {
          (SELECT event FROM whatsapp_account_events ORDER BY received_at DESC LIMIT 1) AS last_event,
          (SELECT MAX(received_at) FROM whatsapp_account_events
            WHERE event = 'PARTNER_REMOVED') AS last_partner_removed_at,
+         (SELECT event FROM whatsapp_account_events
+           WHERE source = 'kapso-v2' ORDER BY received_at DESC LIMIT 1) AS last_v2_event,
+         (SELECT MAX(received_at) FROM whatsapp_account_events
+           WHERE source = 'kapso-v2') AS last_v2_event_at,
          (SELECT COUNT(*)::int FROM whatsapp_account_events
            WHERE received_at >= NOW() - INTERVAL '24 hours') AS recent_count_24h`,
     );
@@ -2266,6 +2381,12 @@ app.get('/health', async (req, res) => {
     kapso_meta_webhook: {
       endpoint: '/webhook/kapso-meta',
       secret_env: process.env.KAPSO_META_WEBHOOK_SECRET ? 'KAPSO_META_WEBHOOK_SECRET' : (
+        process.env.KAPSO_WEBHOOK_SECRET ? 'KAPSO_WEBHOOK_SECRET (fallback)' : 'PENDENTE'
+      ),
+    },
+    kapso_project_webhook: {
+      endpoint: '/webhook/kapso-project',
+      secret_env: process.env.KAPSO_PROJECT_WEBHOOK_SECRET ? 'KAPSO_PROJECT_WEBHOOK_SECRET' : (
         process.env.KAPSO_WEBHOOK_SECRET ? 'KAPSO_WEBHOOK_SECRET (fallback)' : 'PENDENTE'
       ),
     },
