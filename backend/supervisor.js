@@ -11,11 +11,11 @@
 
 const db = require('./db');
 const { normalizePhoneBR } = require('./lib/trinks-mapping');
+const { tessAuthHeaders } = require('./lib/tess-auth');
 
 const SUPERVISOR_AGENT_ID = process.env.SUPERVISOR_AGENT_ID || '46590';
 const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
 const SUPERVISOR_URL = `${TESS_API_BASE}/agents/${SUPERVISOR_AGENT_ID}/execute`;
-const TESS_TOKEN = process.env.TESS_API_TOKEN;
 const TIAGO_PHONE = (process.env.TIAGO_NOTIFICATION_PHONE || '').replace(/\D/g, '');
 // Destinatários EXTRAS do resumo matinal (além do Tiago). CSV de números (só dígitos).
 // Separado de TIAGO_NOTIFICATION_PHONE de propósito: só afeta o resumo — NÃO mexe no
@@ -37,8 +37,9 @@ function getKapsoApiBaseUrl() {
   return (process.env.KAPSO_API_BASE_URL || process.env.KAPSO_API_BASE || '').replace(/\/+$/, '');
 }
 // PIN do phone_number_id (evita reincidência do no-op por cache em memória frio pós-restart):
-// lastKnownKapsoPhoneNumberId (server.js:1110) || env || hardcode confirmado em prod.
-const KAPSO_PHONE_NUMBER_ID_FALLBACK = '1016003164939443';
+// lastKnownKapsoPhoneNumberId (inbound) || process.env.KAPSO_PHONE_NUMBER_ID.
+// Sem hardcode: IDs de número morto (101600…) ou do Salvy (119779…) não podem
+// sobreviver a um cutover. Sem PIN → fetchKapsoLastSpeaker fail-OPEN (logado).
 // Quantas msgs por página e teto de páginas — evita loop infinito; loga page_cap_hit se truncar.
 // ⚠️ Máximo aceito pela API Kapso = 100 (limit=200 → 400 "Invalid limit parameter"; probado em prod).
 const KAPSO_PAGE_LIMIT = parseInt(process.env.KAPSO_PAGE_LIMIT || '100', 10);
@@ -169,7 +170,7 @@ async function classifyConversation({
   };
   const res = await fetch(SUPERVISOR_URL, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TESS_TOKEN}`, 'Content-Type': 'application/json' },
+    headers: tessAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(60_000),
   });
@@ -468,9 +469,9 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
   // AC2 (fonte Kapso): "quem falou por último" vem da API Kapso (kapso.direction), NÃO do
   // conversation_history (bot-only → no-op em prod). 1 pull paginado account-level por run.
   // PIN do phone_number_id (evita reincidência do no-op por cache em memória frio pós-restart):
-  //   webhook cache → env → hardcode confirmado em prod.
+  //   webhook cache (inbound) → env. Sem fallback hardcoded (cutover de número).
   const pinnedPhoneNumberId =
-    kapsoPhoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || KAPSO_PHONE_NUMBER_ID_FALLBACK;
+    kapsoPhoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || null;
   const lastSpeaker = await fetchKapsoLastSpeaker({ phoneNumberId: pinnedPhoneNumberId, lookbackHours });
 
   // FAIL-OPEN: Kapso indisponível → não filtra (classifica TODAS). Logado DISTINTAMENTE do

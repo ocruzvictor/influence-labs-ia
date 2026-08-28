@@ -2,6 +2,7 @@
 // Roda o teste 2 (cancelamento) 3x para detectar flake vs regressão.
 
 import fs from 'node:fs';
+import { tessScriptHeaders } from './tess-auth.mjs';
 try {
   const envText = fs.readFileSync(new URL('../backend/.env', import.meta.url), 'utf8');
   for (const line of envText.split('\n')) {
@@ -28,7 +29,7 @@ HISTORICO_CONVERSA: []
 async function call() {
   const res = await fetch(URL, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    headers: tessScriptHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       messages: [{ role: 'user', content: `${context}\n\nMENSAGEM DO CLIENTE: preciso cancelar meu horário de amanhã` }],
       wait_execution: true

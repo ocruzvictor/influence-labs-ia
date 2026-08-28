@@ -28,6 +28,11 @@ const envSchema = z.object({
   // TIRRA_KB_COLLECTION_ID é opcional — quando ausente, mutations no /api/kb retornam 503
   TESS_API_TOKEN: z.string().min(8).optional().or(z.literal("")),
   TESS_API_BASE: z.string().url().optional().or(z.literal("")),
+  TESS_WORKSPACE_ID: z
+    .string()
+    .regex(/^\d+$/, "TESS_WORKSPACE_ID must be digits only")
+    .optional()
+    .or(z.literal("")),
   TIRRA_KB_COLLECTION_ID: z
     .string()
     .regex(/^\d+$/, "TIRRA_KB_COLLECTION_ID must be a positive integer")

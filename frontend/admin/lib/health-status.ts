@@ -16,6 +16,7 @@ export interface HealthPayload {
   tess?: {
     agent_id?: string | number;
     url?: string;
+    workspace_configured?: boolean;
   };
   postgres?: {
     pool?: { total: number; idle: number; waiting: number } | null;
@@ -190,7 +191,9 @@ export function deriveCardStatus(h: HealthPayload): CardData[] {
   })();
 
   const tess: CardData = (() => {
-    const status: CardStatus = h.tess?.agent_id ? "ok" : "down";
+    const hasAgent = Boolean(h.tess?.agent_id);
+    const workspaceMissing = h.tess?.workspace_configured === false;
+    const status: CardStatus = !hasAgent ? "down" : workspaceMissing ? "warn" : "ok";
     return {
       title: "TESS",
       status,
@@ -198,6 +201,10 @@ export function deriveCardStatus(h: HealthPayload): CardData[] {
       metrics: [
         { label: "Agent ID", value: String(h.tess?.agent_id ?? "—") },
         { label: "URL", value: safeHostname(h.tess?.url) },
+        {
+          label: "Workspace",
+          value: h.tess?.workspace_configured === false ? "header ausente" : "ok",
+        },
       ],
     };
   })();

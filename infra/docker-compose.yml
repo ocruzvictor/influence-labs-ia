@@ -40,6 +40,7 @@ services:
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL}
       TESS_API_TOKEN: ${TESS_API_TOKEN}
       TESS_AGENT_ID: ${TESS_AGENT_ID:-46589}
+      TESS_WORKSPACE_ID: ${TESS_WORKSPACE_ID:-}
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
     volumes:
       - n8n_data:/home/node/.n8n
@@ -100,6 +101,7 @@ services:
       TESS_API_TOKEN: ${TESS_API_TOKEN}
       TESS_AGENT_ID: ${TESS_AGENT_ID:-46589}
       TESS_API_URL: ${TESS_API_URL:-}
+      TESS_WORKSPACE_ID: ${TESS_WORKSPACE_ID:-}
       TIAGO_NOTIFICATION_PHONE: ${TIAGO_NOTIFICATION_PHONE:-}
       SUPERVISOR_AGENT_ID: ${SUPERVISOR_AGENT_ID:-46590}
       SUPERVISOR_TOP_N: ${SUPERVISOR_TOP_N:-10}
@@ -120,10 +122,11 @@ services:
       KAPSO_API_KEY: ${KAPSO_API_KEY}
       KAPSO_API_BASE: ${KAPSO_API_BASE:-https://api.kapso.ai}
       KAPSO_API_VERSION: ${KAPSO_API_VERSION:-v24.0}
-      # Supervisor v2: base da REST nativa Kapso (/platform/v1) + PIN do phone_number_id
-      # (evita no-op por cache em memória frio pós-restart). Defaults = valores de prod confirmados.
+      # Supervisor v2: REST nativa Kapso (/platform/v1) + PIN do phone_number_id.
+      # Sem default de ID: o valor morto 101600… apontava para o 94831 (API morta),
+      # não para o número vivo. Cutover: setar KAPSO_PHONE_NUMBER_ID no .env do VPS.
       KAPSO_API_BASE_URL: ${KAPSO_API_BASE_URL:-https://api.kapso.ai}
-      KAPSO_PHONE_NUMBER_ID: ${KAPSO_PHONE_NUMBER_ID:-1016003164939443}
+      KAPSO_PHONE_NUMBER_ID: ${KAPSO_PHONE_NUMBER_ID:-}
       BOT_ALLOWED_PHONES: ${BOT_ALLOWED_PHONES}
       BOT_ACCEPT_ALL: ${BOT_ACCEPT_ALL:-false}
       HUMAN_HANDLED_TTL_HOURS: ${HUMAN_HANDLED_TTL_HOURS:-6}
@@ -189,6 +192,7 @@ services:
       # env.ts pra UI saber se está configurada (sem ID → banner + botão disabled).
       TESS_API_TOKEN: ${TESS_API_TOKEN}
       TESS_API_BASE: ${TESS_API_BASE:-https://tess.pareto.io}
+      TESS_WORKSPACE_ID: ${TESS_WORKSPACE_ID:-}
       TIRRA_KB_COLLECTION_ID: ${TIRRA_KB_COLLECTION_ID:-}
     depends_on:
       postgres:

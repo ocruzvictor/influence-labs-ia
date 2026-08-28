@@ -43,6 +43,22 @@ test("deriveCardStatus — backend_unreachable retorna 4 cards down", () => {
   );
 });
 
+test("deriveCardStatus — TESS workspace_configured false vira warn", () => {
+  const cards = deriveCardStatus({
+    tess: {
+      agent_id: "46589",
+      url: "https://api.tess.im/agents/46589/execute",
+      workspace_configured: false,
+    },
+    postgres: { pool: { total: 5, idle: 5, waiting: 0 }, uptime_seconds: 1 },
+    trinks_ping: { status: "ok", latency_ms: 100, cached: false },
+    whatsapp_window: { configured: true, status: "green", hours_since: 1 },
+  });
+  const tess = cards.find((c) => c.title === "TESS");
+  assert.equal(tess?.status, "warn");
+  assert.match(tess?.metrics[2]?.value ?? "", /header ausente/);
+});
+
 test("deriveCardStatus — payload OK total → todos ok", () => {
   const payload: HealthPayload = {
     tess: { agent_id: "33200", url: "https://api.tess.im/agents/33200/execute" },

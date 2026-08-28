@@ -22,9 +22,9 @@
  */
 
 import { readFileSync, readdirSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
+import { tessScriptHeaders } from "./tess-auth.mjs";
 import pg from "pg";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -68,9 +68,10 @@ async function tessFetch(path, init = {}) {
   const res = await fetch(url, {
     ...init,
     headers: {
-      Authorization: `Bearer ${TESS_API_TOKEN}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
+      ...tessScriptHeaders({
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      }),
       ...(init.headers || {}),
     },
   });

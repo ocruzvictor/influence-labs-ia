@@ -6,8 +6,8 @@
  * Idempotente: se já existir collection com mesmo nome, retorna ID existente.
  *
  * Uso:
- *   TESS_API_TOKEN=... node scripts/bootstrap-tess-kb.mjs
- *   TESS_API_TOKEN=... TESS_API_BASE=https://api.tess.im node scripts/bootstrap-tess-kb.mjs
+ *   TESS_API_TOKEN=... TESS_WORKSPACE_ID=... node scripts/bootstrap-tess-kb.mjs
+ *   TESS_API_TOKEN=... TESS_WORKSPACE_ID=... TESS_API_BASE=https://api.tess.im node scripts/bootstrap-tess-kb.mjs
  *
  * Saída:
  *   ✅ Collection "Tirra KB Production" disponível (id=39430)
@@ -16,6 +16,8 @@
  *
  * Story: docs/stories/admin-dashboard-story-1.5-kb-editor.md (Fase 1)
  */
+
+import { tessScriptHeaders } from "./tess-auth.mjs";
 
 const COLLECTION_NAME = "Tirra KB Production";
 const TESS_API_TOKEN = process.env.TESS_API_TOKEN;
@@ -35,9 +37,10 @@ async function tessFetch(path, init = {}) {
   const res = await fetch(url, {
     ...init,
     headers: {
-      Authorization: `Bearer ${TESS_API_TOKEN}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
+      ...tessScriptHeaders({
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      }),
       ...(init.headers || {}),
     },
   });

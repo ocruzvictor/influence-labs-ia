@@ -3,6 +3,7 @@
 // Warnings (não FAIL crítico) para sinais de queima de cliente.
 
 import fs from 'node:fs';
+import { tessScriptHeaders } from './tess-auth.mjs';
 try {
   const envText = fs.readFileSync(new URL('../backend/.env', import.meta.url), 'utf8');
   for (const line of envText.split('\n')) {
@@ -169,7 +170,7 @@ async function callTess(context, userMsg) {
   };
   const res = await fetch(URL, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: tessScriptHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(120_000)
   });

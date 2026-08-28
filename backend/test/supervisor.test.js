@@ -1,6 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 
+process.env.TESS_WORKSPACE_ID ||= '1458234';
+
 const {
   extractContactPhone,
   extractDirection,
@@ -17,6 +19,9 @@ const {
   renderDigest,
 } = require('../supervisor');
 const db = require('../db');
+
+// Fixture só de teste — NÃO é ID de produção (94831 morto / Salvy / número novo).
+const TEST_PNID = 'pnid-test-fixture';
 
 // ============================================================================
 // Supervisor v2 — Camada 1 (RE-DEV, fonte Kapso `kapso.direction`)
@@ -178,7 +183,7 @@ test('fetchKapsoLastSpeaker: monta o Map a partir de 1 página (shape REAL: data
     ],
     paging: { next: null }, // 1 página só
   });
-  const res = await fetchKapsoLastSpeaker({ phoneNumberId: '1016003164939443', lookbackHours: 24, fetchImpl });
+  const res = await fetchKapsoLastSpeaker({ phoneNumberId: TEST_PNID, lookbackHours: 24, fetchImpl });
   assert.equal(res.ok, true);
   assert.equal(res.map.get('5511964540007'), 'outbound'); // resposta manual do salão (business_app)
   assert.equal(res.map.get('5518998240447'), 'inbound');
@@ -211,7 +216,7 @@ test('fetchKapsoLastSpeaker: SEGUE paging.next (keyset DESC) por 2 páginas e pa
       paging: { next: null },
     });
   };
-  const res = await fetchKapsoLastSpeaker({ phoneNumberId: '1016003164939443', lookbackHours: 24, fetchImpl });
+  const res = await fetchKapsoLastSpeaker({ phoneNumberId: TEST_PNID, lookbackHours: 24, fetchImpl });
   assert.equal(res.ok, true);
   assert.deepEqual(calls, [null, 'CURSOR_P2']); // seguiu o cursor da p1 → p2
   assert.equal(res.map.get('5511964540007'), 'inbound');
@@ -224,7 +229,7 @@ test('fetchKapsoLastSpeaker: FAIL-OPEN — fetch 5xx → ok=false, map=null (nã
   process.env.KAPSO_API_BASE_URL = 'https://api.kapso.ai';
   process.env.KAPSO_API_KEY = 'test-key';
   const fetchImpl = async () => fakeResponse({ error: 'boom' }, { ok: false, status: 503 });
-  const res = await fetchKapsoLastSpeaker({ phoneNumberId: '1016003164939443', lookbackHours: 24, fetchImpl });
+  const res = await fetchKapsoLastSpeaker({ phoneNumberId: TEST_PNID, lookbackHours: 24, fetchImpl });
   assert.equal(res.ok, false);
   assert.equal(res.map, null);
   assert.match(res.error, /503/);
@@ -249,7 +254,7 @@ test('fetchKapsoLastSpeaker: FAIL-OPEN — msgs sem timestamp parseável → ok=
     ],
     paging: { next: null },
   });
-  const res = await fetchKapsoLastSpeaker({ phoneNumberId: '1016003164939443', lookbackHours: 24, fetchImpl });
+  const res = await fetchKapsoLastSpeaker({ phoneNumberId: TEST_PNID, lookbackHours: 24, fetchImpl });
   assert.equal(res.ok, false);
   assert.equal(res.map, null);
   assert.match(res.error, /timestamps_unparseable/);

@@ -24,6 +24,8 @@
  * resolvidos pelo caminho Kapso-primary — o 404 é silencioso e inofensivo.
  */
 
+const { tessAuthHeaders } = require('./lib/tess-auth');
+
 const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
 const TESS_TOKEN = process.env.TESS_API_TOKEN;
 const TRANSCRIPTION_AGENT_ID = process.env.TESS_TRANSCRIPTION_AGENT_ID || '';
@@ -90,7 +92,7 @@ async function uploadFileToTess({ buffer, filename, mimeType }) {
   form.append('process', 'true');
   const res = await fetch(`${TESS_API_BASE}/files`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TESS_TOKEN}` },
+    headers: tessAuthHeaders(),
     body: form,
     signal: AbortSignal.timeout(60_000),
   });
@@ -113,7 +115,7 @@ async function executeTranscriptionAgent({ fileId }) {
   };
   const res = await fetch(`${TESS_API_BASE}/agents/${TRANSCRIPTION_AGENT_ID}/execute`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TESS_TOKEN}`, 'Content-Type': 'application/json' },
+    headers: tessAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(90_000),
   });

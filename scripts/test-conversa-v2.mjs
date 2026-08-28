@@ -3,6 +3,7 @@
 // Uso: node scripts/test-conversa-v2.mjs
 
 import fs from 'node:fs';
+import { tessScriptHeaders } from './tess-auth.mjs';
 // carrega backend/.env sem dependência externa
 try {
   const envText = fs.readFileSync(new URL('../backend/.env', import.meta.url), 'utf8');
@@ -125,11 +126,10 @@ async function callTess(context, userMsg) {
   };
   const res = await fetch(URL, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
+    headers: tessScriptHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json'
-    },
+    }),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(120_000)
   });

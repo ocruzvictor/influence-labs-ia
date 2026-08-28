@@ -33,6 +33,7 @@ const {
   pickCreateGuard,
 } = require('./lib/booking-guards');
 const { getBotState } = require('./lib/bot-state');
+const { tessAuthHeaders, tessWorkspaceConfigured } = require('./lib/tess-auth');
 
 // --- Load .env (zero deps) ---
 try {
@@ -49,7 +50,8 @@ const TESS_TOKEN = process.env.TESS_API_TOKEN;
 const TESS_AGENT_ID = String(process.env.TESS_AGENT_ID || '46589');
 const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
 const TESS_URL = process.env.TESS_API_URL || `${TESS_API_BASE}/agents/${TESS_AGENT_ID}/execute`;
-// TESS workspace header removido — causa 403 na API TESS (testado 2026-03-09)
+// x-workspace-id obrigatório 01/09/2026. 403 em 2026-03-09 foi workspace de demo (1269475),
+// não a key do 46589. Prod: TESS_WORKSPACE_ID (Victor 2026-08-28: 1458234).
 
 // Story 1.5: KB dinâmica via TESS memory_collection.
 // Quando setado, callTESS() envia memory_collections=[<id>] em cada chamada, fazendo
@@ -128,6 +130,7 @@ const { createTrinksLocalStore } = require('./lib/trinks-local-store');
 const { createTrinksSnsHandler, SnsValidationError } = require('./lib/trinks-sns');
 const { createTrinksWebhookProcessor } = require('./lib/trinks-webhook-processor');
 const { handleMetaAccountUpdates } = require('./lib/whatsapp-account-events');
+const { isOwnerPhone, renderOwnerContext } = require('./lib/owner-access');
 
 const app = express();
 app.use(cors());
@@ -330,9 +333,11 @@ async function updateClientAfterBooking(phone, serviceName) {
 function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null, futureBookings = [], habilitacaoText = '', channelPhone = null) {
   const persistedSection = buildPersistedSection(persistedMemory, channelPhone);
   const futureBookingsSection = renderFutureBookings(futureBookings, formatBookingDateTime); // item 3 Rota C
+  const ownerSection = renderOwnerContext(channelPhone);
+  const speakerLabel = isOwnerPhone(channelPhone) ? 'Tiago (dono)' : 'Cliente';
   const historyText = history.length
     ? '\n\nHISTORICO DA CONVERSA:\n' + history
-        .map(m => `${m.role === 'user' ? 'Cliente' : 'Assistente'}: ${m.content}`)
+        .map(m => `${m.role === 'user' ? speakerLabel : 'Assistente'}: ${m.content}`)
         .join('\n')
     : '';
   const salonNow = isSalonOpen();
@@ -341,6 +346,7 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
     : `HORARIO_AGORA: ${salonNow.hhmm} (FORA do horario — ${salonNow.reason}). Agende normalmente mas avise o cliente que o Gabriel confere de manha.`;
   return [
     DYNAMIC_CONTEXT_PREFIX,
+    ...(ownerSection ? [ownerSection, ''] : []),
     `HOJE: ${formatFullDateLabel(getTodayIsoInSalonTimeZone())}`,
     horarioAgora,
     'HORARIO DE FUNCIONAMENTO: Ter-Sex 9h-19h | Sab 9h-18h | Dom-Seg FECHADO',
@@ -926,10 +932,7 @@ async function callTESS(messages, rootId) {
   // Story 1.5: anexa memory_collections quando configurado — TESS faz RAG semantic
   // injetando memories relevantes no contexto da próxima resposta do agente.
   if (KB_ACTIVE) body.memory_collections = [TIRRA_KB_COLLECTION_ID];
-  const headers = {
-    'Authorization': `Bearer ${TESS_TOKEN}`,
-    'Content-Type': 'application/json',
-  };
+  const headers = tessAuthHeaders({ 'Content-Type': 'application/json' });
 
   const res = await fetch(TESS_URL, {
     method: 'POST',
@@ -1018,6 +1021,9 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     } else if (Array.isArray(incomingHistoryRaw) && incomingHistoryRaw.length > 0) {
       state.history = incomingHistoryRaw.filter(m => m.role && m.content).slice(-20);
     }
+  }
+  if (isOwnerPhone(phone)) {
+    console.log(`[${sessionId}] INTERLOCUTOR=TIAGO (dono) contact="${contactName}"`);
   }
   console.log(`[${sessionId}] ${contactName}: "${messageText}"`);
 
@@ -1371,7 +1377,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   if (handoffHuman) {
     console.log(`[${sessionId}] HANDOFF_HUMAN motivo:${handoffHuman.motivo}`);
     // Marcar conversa como human-handled para silenciar bot ate Tiago responder.
-    if (clientPhone) markHumanHandled(clientPhone);
+    // Dono: nunca silenciar o próprio thread nem notificar o Tiago sobre ele mesmo.
+    if (clientPhone && !isOwnerPhone(clientPhone)) markHumanHandled(clientPhone);
   }
 
   console.log(`[${sessionId}] Response (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
@@ -1387,7 +1394,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     timestamp: new Date().toISOString(),
   };
   if (bookingResult) result.booking = bookingResult;
-  if (handoffHuman) result.handoff = handoffHuman;
+  if (handoffHuman && !isOwnerPhone(clientPhone)) result.handoff = handoffHuman;
   // Sinaliza booking criado fora-de-horario para o handler notificar o Tiago.
   const afterHoursSource = createsToRun[0] || bookingConfirm;
   if (afterHoursSource && bookingResult && !isSalonOpen().open) {
@@ -1662,7 +1669,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     const origin = m?.kapso?.origin;
     if (dir === 'outbound' && origin && origin !== 'cloud_api') {
       const targetPhone = e?.conversation?.phone_number || m?.to || m?.from;
-      markHumanHandled(targetPhone);
+      if (!isOwnerPhone(targetPhone)) markHumanHandled(targetPhone);
     }
   }
 
@@ -1699,7 +1706,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   // contact_name pode vir em conversation.contact_name (novo) ou conversation.kapso.contact_name (legado da doc)
   const contactName = firstConv?.contact_name || firstConv?.kapso?.contact_name || 'Cliente';
   const sessionPhone = String(sessionId).replace(/\D/g, '');
-  // phone_number_id da conexao (numero da recepcao) — precisamos pra chamar a API do Kapso
+  // phone_number_id da conexão Kapso deste inbound (número do BOT, não o da recepção 94831)
   const phoneNumberId = events[0]?.phone_number_id || firstConv?.phone_number_id || req.body?.phone_number_id;
   if (phoneNumberId) lastKnownKapsoPhoneNumberId = phoneNumberId;
 
@@ -1763,7 +1770,8 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   }
 
   // 4b. Human takeover: se a conversa foi marcada como human-handled, bot fica calado ate o TTL.
-  if (isHumanHandled(sessionPhone)) {
+  // Dono (Tiago): nunca silenciar — ele comanda a IA neste número.
+  if (isHumanHandled(sessionPhone) && !isOwnerPhone(sessionPhone)) {
     console.log(`[kapso][${sessionId}] conversa human-handled — bot silencioso (TTL ${HUMAN_HANDLED_TTL_MS / 3600000}h)`);
     return res.json({ ok: true });
   }
@@ -2223,6 +2231,7 @@ app.get('/health', async (req, res) => {
     tess: {
       agent_id: TESS_AGENT_ID,
       url: TESS_URL,
+      workspace_configured: tessWorkspaceConfigured(),
     },
     postgres: {
       pool: db.getPoolStats(),
@@ -2250,6 +2259,10 @@ app.get('/health', async (req, res) => {
       app_secret: META_APP_SECRET ? 'set' : 'PENDENTE',
     },
     whatsapp_account_events,
+    kapso: {
+      phone_number_id: process.env.KAPSO_PHONE_NUMBER_ID ? 'set' : 'PENDENTE',
+      inbound_cache_warm: Boolean(lastKnownKapsoPhoneNumberId),
+    },
     kapso_meta_webhook: {
       endpoint: '/webhook/kapso-meta',
       secret_env: process.env.KAPSO_META_WEBHOOK_SECRET ? 'KAPSO_META_WEBHOOK_SECRET' : (
@@ -2299,6 +2312,7 @@ if (require.main === module) {
     const botMode = BOT_ACCEPT_ALL ? 'OPEN (responde todos)' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT (whitelist vazia)' : `WHITELIST (${BOT_ALLOWED_PHONES.length} telefone(s))`);
     console.log(`   Bot mode: ${botMode}`);
     if (!TESS_TOKEN) console.warn('⚠️  TESS_API_TOKEN not set!');
+    if (!tessWorkspaceConfigured()) console.warn('⚠️  TESS_WORKSPACE_ID not set! Tess API exigirá x-workspace-id em 01/09/2026.');
     if (!TRINKS_KEY) console.warn('⚠️  TRINKS_API_KEY not set!');
     if (!TRINKS_SNS_TOPIC_ARN && !TRINKS_SNS_BOOTSTRAP) {
       console.warn('⚠️  TRINKS_SNS_TOPIC_ARN not set!');

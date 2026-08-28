@@ -2,6 +2,7 @@
 // Re-testa C1 (alucinação temporal) e C2 (tag inventada) após reforço de prompt.
 
 import fs from 'node:fs';
+import { tessScriptHeaders } from './tess-auth.mjs';
 try {
   const envText = fs.readFileSync(new URL('../backend/.env', import.meta.url), 'utf8');
   for (const line of envText.split('\n')) {
@@ -61,7 +62,7 @@ HISTORICO_CONVERSA: []`,
 async function call(ctx, msg) {
   const r = await fetch(URL, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    headers: tessScriptHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ messages: [{ role: 'user', content: `${ctx}\n\nMENSAGEM DO CLIENTE: ${msg}` }], wait_execution: true }),
     signal: AbortSignal.timeout(120_000)
   });

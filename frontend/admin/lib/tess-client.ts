@@ -48,6 +48,16 @@ function tessToken(): string {
   return env.TESS_API_TOKEN;
 }
 
+function tessWorkspaceId(): string {
+  const raw = (env.TESS_WORKSPACE_ID || "").trim();
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(
+      "TESS_WORKSPACE_ID não configurado — adicione em infra/.env (header x-workspace-id)",
+    );
+  }
+  return raw;
+}
+
 async function tessFetch(path: string, init: RequestInit & { retryOn5xx?: boolean } = {}): Promise<unknown> {
   const url = `${tessBase()}${path}`;
   const retryOn5xx = init.retryOn5xx !== false;
@@ -57,6 +67,7 @@ async function tessFetch(path: string, init: RequestInit & { retryOn5xx?: boolea
       ...init,
       headers: {
         Authorization: `Bearer ${tessToken()}`,
+        "x-workspace-id": tessWorkspaceId(),
         "Content-Type": "application/json",
         Accept: "application/json",
         ...(init.headers || {}),
