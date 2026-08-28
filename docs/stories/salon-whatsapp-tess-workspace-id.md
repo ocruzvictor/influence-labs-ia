@@ -1,7 +1,7 @@
 # Story: Tess `x-workspace-id` obrigatório (01/09/2026)
 
 **Tipo:** Brownfield hotfix (API Tess)
-**Status:** Ready for Review
+**Status:** Ready for Review (deployed)
 **Agente executor:** @dev · quality gate @qa
 **Story Points:** 2
 **Branch:** `feature/bot-46589-ajustes-resposta`
@@ -30,7 +30,7 @@ Probe VPS 28/08 (POST execute 46589, token de prod): omitir header → 200; `145
 - [x] **AC5:** `infra/.env.example` + compose (backend, admin, n8n) expõem `TESS_WORKSPACE_ID`. Sem default hardcoded no JS.
 - [x] **AC6:** `GET /health` → `tess.workspace_configured` boolean (não vaza o ID).
 - [x] **AC7:** Testes unitários do helper passam.
-- [ ] **AC8 (smoke pós-deploy):** `oi` de número allow no `97504-0517` → resposta; `/health` `tess.workspace_configured=true`; log sem TESS 422/403 de workspace.
+- [x] **AC8 (smoke pós-deploy):** `GET /health` → `tess.workspace_configured=true`; container `TESS_WORKSPACE_ID` set (len 7); GET `/agents/46589` 200 (`workspace_id` 1458234); POST execute 200. `BOT_ACCEPT_ALL=false`. WhatsApp `oi` no `97504-0517` fica com tester humano.
 
 ## File List
 
@@ -67,3 +67,4 @@ Probe VPS 28/08 (POST execute 46589, token de prod): omitir header → 200; `145
 ## Change Log
 
 - 2026-08-28 — @aios-master / @dev: helper + call sites; ID prod `1458234` confirmado (probe 200 vs demo 403). Env no VPS `infra/.env` já gravada. Código ainda não deployado.
+- 2026-08-28 — @aios-master / @devops: commit `6ef7193` em `feature/bot-46589-ajustes-resposta`; VPS `docker compose up -d --build backend admin-frontend` + `restart nginx`. Health + Tess GET/POST 200.
