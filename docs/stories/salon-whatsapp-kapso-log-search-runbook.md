@@ -38,6 +38,7 @@ A skill local `observe-whatsapp` ainda aponta scripts legados (`api-logs.js`, `w
 
 - Draft @aios-master 28/08/2026. Sem implementação.
 - @dev 28/08/2026: runbook criado; skill `observe-whatsapp` atualizada (log_search/painel preferido, scripts fallback, sem Findings). Ensaio happy-path documentado (Victor 5511964540007 → 97504-0517, `[kapso] send → 200`). **Pendência Victor:** pass no painel Logs → Problems (checkbox) — filtros HMAC/Problems só aparecem quando há falha; happy path não gera linha em Problems.
+- @aios-master 28/08/2026: `POST /platform/v1/log_search` `problems_only=true` via `KAPSO_API_KEY` na VPS → **200** (CLI `kapso` sem login local / ausente na VPS). Quick replies **sem** endpoint público (404).
 
 ## Change Log
 

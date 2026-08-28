@@ -46,6 +46,7 @@ Valor: alarme se a WABA cair de madrugada/domingo. Residual aceito pelo Victor: 
 
 - Draft @aios-master 28/08/2026. Confirmar schema Kapso na implementação; não copiar chute de payload.
 - @dev 28/08/2026: implementado `POST /webhook/kapso-project` com HMAC `KAPSO_PROJECT_WEBHOOK_SECRET` (fallback `KAPSO_WEBHOOK_SECRET`); parser v2 batch/single; persist `source=kapso-v2`; health `last_v2_event`; notificação Tiago em disabled/restricted/violation (janela 24h); ops doc; 9 testes unitários passando. Sem migration nova (008 ok). Assinatura painel Kapso pendente Victor.
+- @aios-master 28/08/2026: webhook de **projeto** criado via Platform API (`POST /platform/v1/whatsapp/webhooks`) id `245702e8-d5af-4dd6-bc77-ca3187dfc735`, `phone_number_id=null`, events v2 dos 4 `whatsapp.account.*`, URL `/webhook/kapso-project`. HMAC inválido → 401 no backend. Secret na VPS `KAPSO_PROJECT_WEBHOOK_SECRET`. CLI `kapso` não autenticado; usamos a mesma API dos scripts `integrate-whatsapp`.
 
 ## Change Log
 
