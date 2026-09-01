@@ -39,10 +39,14 @@ function findDuplicateAppointment(rows, booking) {
 /**
  * Incompatível ganha de expediente: Dylan+Corte fora do horário ainda recebe copy de habilitação.
  */
-function pickCreateGuard({ compatible, expedienteFit }) {
+function pickCreateGuard({ compatible, expedienteFit, janelaFit, distinctServiceCount }) {
+  if (distinctServiceCount >= 2) return { kind: 'multi_service' };
   if (compatible === false) return { kind: 'incompatible' };
   if (expedienteFit && expedienteFit.ok === false) {
     return { kind: 'expediente', reason: expedienteFit.reason || '' };
+  }
+  if (janelaFit && janelaFit.ok === false) {
+    return { kind: 'janela', reason: janelaFit.reason || '' };
   }
   return { kind: null };
 }

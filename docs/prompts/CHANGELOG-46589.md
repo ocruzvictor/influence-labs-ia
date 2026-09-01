@@ -1,5 +1,27 @@
 # Changelog — prompt TESS 46589
 
+## v3.1.5 — 2026-09-01
+
+**Motivo:** Fefe 05/09 (maquiagem 120 min em janela de 60), HABILITACAO Eli/Kamila, camuflagem/Gloss sem KB, TESS `failed` sem log útil.
+
+**Prompt:** I.11 minutos contínuos; I.4 camuflagem (não-SKU) + penteado/maquiagem só Gi/Fefe; I.6 handoff orçamento_referencia; VALIDE 12–14.
+
+**Backend:** anota `(NNmin contínuos)` em HORARIOS VAGOS; gate CREATE/RESCHEDULE `janela`; `applyOperationalHabilitacao`; log TESS estruturado.
+
+**Cola TESS:** Victor colou e salvou v3.1.5 no agente 46589 em 01/09/2026. Backend em produção (rsync + rebuild).
+
+**Rollback prompt:** `archive/tess-conversa-46589-v3.1.4-2026-08-31.md`
+
+## v3.1.4 — 2026-08-31
+
+**Motivo:** incidente Gi 28/08 — mechas/luzes cotados a R$0, combo com 3 POST, weekday inventado, "premium", pedir nome, cancel leak.
+
+**Prompt:** I.1/I.6 combo = handoff + zero CREATE; I.4 mechas/luzes = Teste de Mechas, sem preço fechado; I.2 cancel N tags; calendário só via DATA SOLICITADA/HOJE; I.6.1 Tiago; tom ≤3 linhas; anti-premium reforçado.
+
+**Backend:** gates AC17–23 (consultivo, multi_service, cancel N, ownership, DATA SOLICITADA). Deploy VPS **antes** de colar este prompt.
+
+**Rollback prompt:** `archive/tess-conversa-46589-v3.1.3-2026-08-20.md`
+
 ## v3.1.3 — 2026-08-20
 
 **Motivo:** feedback Bruuna laser — negar laser, Claudia na sexta, grade só dias úteis.

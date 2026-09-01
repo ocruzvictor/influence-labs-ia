@@ -21,6 +21,23 @@
 ### Coloração / Correção de Cor
 - Correção de Cor (R$ 1.047) é serviço técnico — só ofertar se cliente menciona problema com coloração prévia.
 
+### Camuflagem de fios brancos (áudio equipe 01/09/2026)
+- **O que é:** coloração **somente dos fios brancos**. Coloração ou tonalizante — a escolha é da avaliação do profissional e da opção da cliente. Pigmenta os brancos, não é descoloração/mechas.
+- **Não é SKU de marca.** Clientes perguntam se usamos **Gloss** (marca famosa de mercado). **Não vendemos Gloss** e não existe SKU Gloss/Capral/Trans/Igora na tabela. As marcas de uso interno (Capral, Trans, Igora) são contexto para explicar — nunca cotar como produto à venda.
+- **Como responder Gloss:** “A gente não trabalha com a marca Gloss. A camuflagem é com coloração ou tonalizante das marcas que o salão usa (Capral, Trans ou Igora), conforme a avaliação.” Sem inventar preço de produto.
+- **SKU no snapshot (depois de esclarecer):** `Coloração / Tonalização`, `Retoque de Raiz` / `Retoque de raiz (Produto do cliente)`, ou `Coloração Global` se for o cabelo todo. Preço e duração = snapshot Trinks, sem número inventado.
+- **Não montar combo** só porque a cliente disse “retoque de raiz com tonalizante”: isso descreve a técnica da camuflagem, não dois agendamentos.
+
+### Penteado e Maquiagem — referência visual + handoff (áudio Tiago/Gi 31/08/2026)
+- **Serviços:** qualquer penteado (preso, semi preso, ou só “penteado”) e Maquiagem.
+- **Fluxo:** igual mechas / progressiva / visagismo — pedir **foto de referência**, citar valor **sempre “a partir de”** (número do snapshot Trinks, mesmo antes da foto), e `[HANDOFF_HUMAN]`. **Não** emitir `[BOOKING_CREATE]`. Quem marca o SKU específico (preso vs semi preso) é a equipe, depois.
+- **Profissionais (regra operacional; se o snapshot listar outros, ignore):** penteado = **Giovanna Ferraz (Gi)**; maquiagem = **Fernanda (Fefe)**. Só essas duas.
+- **Não confundir com Escova:** escova normal **não** pede foto nem teste.
+
+### Escova — preço “a partir de”, agendamento normal
+- Sem foto, sem teste, sem handoff obrigatório.
+- Ao cotar: **sempre “a partir de”** + valor do snapshot Trinks (não inventar número; o áudio citou “uns 70” — a tabela do bot é o snapshot, não o áudio).
+
 ## Promoções recorrentes
 
 - **Terça e quarta:** preços reduzidos em serviços selecionados. Sempre validar no Trinks (campo de preço) antes de citar valor promo. Formato sugerido: "Sabia que terça e quarta temos preços especiais? O [serviço] sai por R$ [preço promo]."

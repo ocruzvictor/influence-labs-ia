@@ -14,12 +14,15 @@
 | corte e barba / completo / combo | Cabelo e Barba |
 | cabelo + barba / tudo | Cabelo e Barba |
 | pintar / pintar o cabelo / tintura | Coloração · Retoque de Coloração (perguntar se é só raiz ou completo) |
+| camuflagem / camuflar os brancos / pintar só os brancos / cobrir branco / gloss (marca) | Camuflagem de fios brancos — ver regras-comerciais.md. NÃO é SKU Gloss. Mapear ao SKU de coloração do snapshot (Coloração / Tonalização, Retoque de Raiz ou Coloração Global) depois de esclarecer se é só raiz. Tonalizante nos brancos = UM serviço, não combo. |
 | platinar / ficar loira / clarear muito | Mechas (FLUXO CONSULTIVO — não dar preço direto) |
 | mechas / luzes / californianas / balayage | Mechas (FLUXO CONSULTIVO) |
 | ficar liso / alisar / chapar | Progressiva · Cauterização · Botox Capilar (perguntar qual técnica) |
 | tratamento / hidratar / hidratação | Hidratação · Cauterização · Botox Capilar (dúvida → faq-servicos.md) |
-| escova / fazer escova | Escova |
+| escova / fazer escova | Escova (preço **a partir de** o snapshot; sem foto, sem teste) |
 | pranchar / chapinha | Escova Modelada · Escova Progressiva |
+| penteado / coque / penteado de festa / penteado de noiva | Penteado (FLUXO CONSULTIVO — foto de referência + handoff; não desambiguar preso vs semi preso; profissional = Gi) |
+| maquiagem / make / make-up | Maquiagem (FLUXO CONSULTIVO — foto de referência + handoff; profissional = Fefe) |
 
 ## Unhas
 
@@ -77,7 +80,7 @@
 ## Regras de uso (importante)
 
 1. **Em caso de ambiguidade**, pergunte ao cliente — nunca chute. Ex: "Quando você diz 'fazer o pé', você quer dizer pedicure ou depilação?"
-2. **Termos com fluxo consultivo** (mechas, visagismo) — NUNCA dar preço direto; aplicar regras de `regras-comerciais.md`.
+2. **Termos com fluxo consultivo** (mechas, visagismo, penteado, maquiagem) — aplicar `regras-comerciais.md`. Penteado/maquiagem: pode citar “a partir de” o snapshot; **não** agendar. Mechas: Teste de Mechas, sem preço fechado.
 3. **Termos masculinizados** — se contexto / nome do cliente indica masculino e existe variante "Masculina" do serviço (ex: Pedicure Masculina, Manicure Masculina), sugerir a variante.
 4. **Termo do cliente não está na lista** — tentar inferir pelo contexto; se não tiver certeza, escalonar com `[HANDOFF_HUMAN motivo=servico_nao_mapeado]` ou perguntar.
 5. **Após mapear**, sempre confirmar com o cliente: "Entendi que você quer [serviço oficial]. Confere?" — especialmente quando o cliente usou termo coloquial ou ambíguo.

@@ -9,6 +9,7 @@ Fonte principal: `docs/raw-materials/Studio Tirrá/Base de Conhecimento/Servic�
 - Servicos gratuitos identificados: Corte de franja, Teste de Mechas, Avaliacao, Futura mamae, Tratamento de retorno de mechas.
 - Visagismo (R$ 750): usar fluxo consultivo primeiro; revelar valor apenas apos explicar beneficios + parcelamento 3x sem juros.
 - Mechas (R$ 835+) e variantes premium: iniciar por Teste de Mechas gratuito e sem compromisso antes de fechar valor final.
+- **Camuflagem de brancos:** não é SKU próprio nem marca Gloss. Ver `regras-comerciais.md`. Mapear ao SKU de coloração do snapshot Trinks.
 
 ## Catalogo por categoria
 

@@ -64,6 +64,8 @@ test('item3.2 — 1 agendamento expõe bookingId real (trinks_id) + serviço + p
   assert.match(out, /bookingId=486984217/);
   assert.match(out, /Corte Masculino com Erick em 03\/06\/2026 às 10:00/);
   assert.match(out, /AGENDAMENTOS FUTUROS DO CLIENTE/);
+  assert.match(out, /cliente já identificado/);
+  assert.match(out, /NAO peca nome/);
 });
 
 test('item3.3 — múltiplos → instrui a perguntar qual (desambiguação AC10)', () => {
@@ -205,7 +207,7 @@ test('dados-cliente.1 — cliente recorrente + phone → DADOS_CLIENTE (nunca PE
     },
   }, '5511964540007');
   assert.match(out, /DADOS_CLIENTE:/);
-  assert.match(out, /Nome: Victor Cruz/);
+  assert.match(out, /Nome: Victor Cruz \(WhatsApp — NAO peca de novo\)/);
   assert.match(out, /Telefone: 5511964540007/);
   assert.match(out, /Ultimo servico: Corte Masculino/);
   assert.doesNotMatch(out, /PERFIL DO CLIENTE/);
@@ -215,7 +217,7 @@ test('dados-cliente.2 — só phone, sem clients → Telefone, sem Nome', () => 
   const { buildPersistedSection } = require('../lib/booking-parser');
   const out = buildPersistedSection(null, '+55 11 96454-0007');
   assert.match(out, /DADOS_CLIENTE:/);
-  assert.match(out, /Telefone: 5511964540007 \(WhatsApp — NAO peca de novo\)/);
+  assert.match(out, /Telefone: 5511964540007/);
   assert.doesNotMatch(out, /Nome:/);
 });
 
@@ -240,4 +242,153 @@ test('parser.combo — duas tags BOOKING_CREATE viram bookingCreates', () => {
   assert.equal(parsed.bookingConfirm.service_id, 1);
   assert.equal(parsed.bookingCreates[1].service_id, 2);
   assert.ok(!/BOOKING_CREATE/.test(parsed.clean));
+});
+
+// --- Fase D Gi (AC17/AC21) ---
+test('faseD.cancel — 3 BOOKING_CANCEL → bookingCancels.length===3 e clean sem tag', () => {
+  const { stripBookingTags } = require('../lib/booking-parser');
+  const text = [
+    'Ok!',
+    '[BOOKING_CANCEL bookingId=111 motivo=teste]',
+    '[BOOKING_CANCEL bookingId=222 motivo=teste]',
+    '[BOOKING_CANCEL bookingId=333 motivo=teste]',
+  ].join('\n');
+  const parsed = stripBookingTags(text);
+  assert.equal(parsed.bookingCancels.length, 3);
+  assert.equal(parsed.bookingCancel.agendamento_id, 111);
+  assert.ok(!/BOOKING_CANCEL/.test(parsed.clean));
+});
+
+test('faseD.leak — stripResidualBookingTags remove tags residuais', () => {
+  const { stripResidualBookingTags } = require('../lib/booking-parser');
+  const out = stripResidualBookingTags('Pronto! [BOOKING_CREATE servicoId=1] [HANDOFF_HUMAN motivo=x]');
+  assert.ok(!/\[BOOKING_/.test(out));
+  assert.ok(!/\[HANDOFF_/.test(out));
+  assert.match(out, /Pronto!/);
+});
+
+test('faseD.sanitize — Cancelei os três não mantém cancelei', () => {
+  const out = sanitizePrematureConfirm('Cancelei os três horários pra você.');
+  assert.ok(!/cancelei/i.test(out));
+});
+
+test('faseD.catalog — Luzes preco 0 → sob avaliação, não R$ 0', () => {
+  const { formatServiceCatalogLine } = require('../lib/booking-parser');
+  const line = formatServiceCatalogLine({ id: 14129487, nome: 'Luzes', preco: 0, duracaoEmMinutos: 180, profissionais: ['Giovanna'] });
+  assert.match(line, /sob avaliação/i);
+  assert.ok(!/R\$ 0/.test(line));
+});
+
+test('faseD.catalog — Teste de Mechas preco 0 → gratuito, não sob avaliação', () => {
+  const { formatServiceCatalogLine } = require('../lib/booking-parser');
+  const line = formatServiceCatalogLine({ id: 1, nome: 'Teste de Mechas', preco: 0, profissionais: ['Giovanna'] });
+  assert.match(line, /gratuito/i);
+  assert.ok(!/sob avaliação/i.test(line));
+});
+
+test('faseD.consultive — isConsultiveColorService Luzes true, Teste de Mechas false', () => {
+  const { isConsultiveColorService } = require('../lib/booking-parser');
+  assert.equal(isConsultiveColorService('Luzes'), true);
+  assert.equal(isConsultiveColorService('Teste de Mechas'), false);
+});
+
+test('faseD.ownership — isBookingOwnedByClient cruza trinks_id', () => {
+  const { isBookingOwnedByClient } = require('../lib/booking-parser');
+  const owned = [{ trinks_id: '486984217' }, { trinks_id: '999' }];
+  assert.equal(isBookingOwnedByClient('486984217', owned), true);
+  assert.equal(isBookingOwnedByClient(486984217, owned), true);
+  assert.equal(isBookingOwnedByClient('000', owned), false);
+});
+
+test('faseD.consultiveMsg — formatConsultiveBlockMessage copy estável', () => {
+  const { formatConsultiveBlockMessage } = require('../lib/booking-parser');
+  const msg = formatConsultiveBlockMessage();
+  assert.match(msg, /Teste de Mechas gratuito/i);
+  assert.match(msg, /presencialmente/i);
+});
+
+// --- Fase E (penteado/maquiagem consultivo) ---
+test('faseE.needsReference — penteado e maquiagem true; escova e mechas false', () => {
+  const { needsReferenceService, isConsultiveColorService } = require('../lib/booking-parser');
+  assert.equal(needsReferenceService('Penteado Semi Preso'), true);
+  assert.equal(needsReferenceService('Maquiagem'), true);
+  assert.equal(needsReferenceService('Make'), true);
+  assert.equal(needsReferenceService('Escova'), false);
+  assert.equal(needsReferenceService('Teste de Mechas'), false);
+  assert.equal(isConsultiveColorService('Luzes'), true);
+  assert.equal(needsReferenceService('Luzes'), false);
+});
+
+test('faseE.zeroPrice — copy própria, não menciona Teste de Mechas', () => {
+  const { formatZeroPriceBlockMessage, formatConsultiveBlockMessage } = require('../lib/booking-parser');
+  const zero = formatZeroPriceBlockMessage();
+  const consultive = formatConsultiveBlockMessage();
+  assert.match(zero, /sob avaliação/i);
+  assert.match(zero, /equipe confirma/i);
+  assert.ok(!/Teste de Mechas/i.test(zero));
+  assert.match(consultive, /Teste de Mechas/i);
+});
+
+test('faseE.catalog — escova e penteado usam a partir de; corte não', () => {
+  const { formatServiceCatalogLine } = require('../lib/booking-parser');
+  const escova = formatServiceCatalogLine({ id: 1, nome: 'Escova', preco: 70, profissionais: ['Ana'] });
+  const penteado = formatServiceCatalogLine({ id: 2, nome: 'Penteado Preso', preco: 150, profissionais: ['Gi'] });
+  const corte = formatServiceCatalogLine({ id: 3, nome: 'Corte Feminino', preco: 190, profissionais: ['Gi'] });
+  assert.match(escova, /a partir de R\$ 70/);
+  assert.match(penteado, /a partir de R\$ 150/);
+  assert.match(corte, /— R\$ 190/);
+  assert.ok(!/a partir de/.test(corte));
+});
+
+test('faseE.needsRefMsg — penteado pede foto + Gi; maquiagem Fefe', () => {
+  const { formatNeedsReferenceBlockMessage } = require('../lib/booking-parser');
+  const pent = formatNeedsReferenceBlockMessage({ serviceName: 'Penteado', price: 120 });
+  assert.match(pent, /foto de referência/i);
+  assert.match(pent, /Gi \(Giovanna Ferraz\)/i);
+  assert.match(pent, /a partir de R\$ 120/);
+  assert.ok(!/preso/i.test(pent));
+  assert.ok(!/semi/i.test(pent));
+  assert.ok(!/Teste de Mechas/i.test(pent));
+
+  const mk = formatNeedsReferenceBlockMessage({ serviceName: 'Maquiagem', price: 80, hasReferenceImage: true });
+  assert.match(mk, /Fefe \(Fernanda\)/i);
+  assert.match(mk, /Recebi sua referência/i);
+});
+
+test('faseE.habilitacao — maquiagem só Fefe mesmo com Eli/Kamila no Trinks', () => {
+  const { applyOperationalHabilitacao, renderHabilitacaoMap } = require('../lib/booking-parser');
+  const list = applyOperationalHabilitacao([
+    { id: 1, nome: 'Maquiagem', profissionais: ['Eli', 'Fefe', 'Kamila'] },
+    { id: 2, nome: 'Penteado trança preso', profissionais: ['Eli', 'Giovanna Ferraz', 'Tiago Rocha'] },
+    { id: 3, nome: 'Corte Feminino', profissionais: ['Eli', 'Fefe', 'Giovanna Ferraz'] },
+    { id: 4, nome: 'Escova', profissionais: ['Eli', 'Fefe', 'Giovanna Ferraz'] },
+  ]);
+  assert.deepEqual(list[0].profissionais, ['Fefe']);
+  assert.deepEqual(list[1].profissionais, ['Giovanna Ferraz']);
+  assert.deepEqual(list[2].profissionais, ['Eli', 'Fefe', 'Giovanna Ferraz']);
+  assert.deepEqual(list[3].profissionais, ['Eli', 'Fefe', 'Giovanna Ferraz']);
+  const map = renderHabilitacaoMap(list);
+  assert.match(map, /Maquiagem \(ID 1\): Fefe/);
+  assert.doesNotMatch(map, /Maquiagem \(ID 1\):.*Eli/);
+  assert.doesNotMatch(map, /Maquiagem \(ID 1\):.*Kamila/);
+});
+
+test('faseE.habilitacao — maquiagem sem Fefe no snapshot ainda força Fefe', () => {
+  const { applyOperationalHabilitacao } = require('../lib/booking-parser');
+  const list = applyOperationalHabilitacao([
+    { id: 9, nome: 'Maquiagem', profissionais: ['Eli', 'Kamila'] },
+  ]);
+  assert.deepEqual(list[0].profissionais, ['Fefe']);
+});
+
+test('faseE.imageMarker — hasRecentClientImageMarker ignora sticker', () => {
+  const { hasRecentClientImageMarker, CLIENT_IMAGE_MARKER } = require('../lib/booking-parser');
+  const { STICKER_MARKER } = require('../lib/kapso-media');
+  const hist = [
+    { role: 'user', content: `${STICKER_MARKER}` },
+    { role: 'assistant', content: 'oi' },
+  ];
+  assert.equal(hasRecentClientImageMarker(hist), false);
+  hist.push({ role: 'user', content: `${CLIENT_IMAGE_MARKER} coque` });
+  assert.equal(hasRecentClientImageMarker(hist), true);
 });

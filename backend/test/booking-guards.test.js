@@ -93,6 +93,44 @@ test('pickCreateGuard — ambos ok → null', () => {
   const guard = pickCreateGuard({
     compatible: true,
     expedienteFit: { ok: true, reason: '' },
+    janelaFit: { ok: true, reason: '' },
   });
   assert.equal(guard.kind, null);
+});
+
+test('pickCreateGuard — janela contínua menor que a duração', () => {
+  const guard = pickCreateGuard({
+    compatible: true,
+    expedienteFit: { ok: true, reason: '' },
+    janelaFit: { ok: false, reason: 'janela continua 60min < duracao 120min' },
+  });
+  assert.equal(guard.kind, 'janela');
+  assert.match(guard.reason, /60min/);
+});
+
+test('pickCreateGuard — expediente ganha de janela', () => {
+  const guard = pickCreateGuard({
+    compatible: true,
+    expedienteFit: { ok: false, reason: 'depois das 19h' },
+    janelaFit: { ok: false, reason: 'janela continua 30min < duracao 60min' },
+  });
+  assert.equal(guard.kind, 'expediente');
+});
+
+test('pickCreateGuard — multi_service quando distinctServiceCount >= 2', () => {
+  const guard = pickCreateGuard({
+    compatible: true,
+    expedienteFit: { ok: true, reason: '' },
+    distinctServiceCount: 2,
+  });
+  assert.equal(guard.kind, 'multi_service');
+});
+
+test('pickCreateGuard — multi_service tem prioridade sobre incompatível', () => {
+  const guard = pickCreateGuard({
+    compatible: false,
+    expedienteFit: { ok: false, reason: 'depois das 19h' },
+    distinctServiceCount: 3,
+  });
+  assert.equal(guard.kind, 'multi_service');
 });
