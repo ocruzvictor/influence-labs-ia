@@ -6,15 +6,15 @@ Não implementar nesta pesquisa. Ordem sugerida para @pm / @dev / Victor no TESS
 
 1. Não reescrever o 46589 do zero “estilo Flora 7k” nem “estilo 200 tokens”.
 2. Não migrar TESS→Gemini só para copiar o Eco Adventure. Lá a migração era provider + eval barato; aqui o gargalo é **borda + snapshot + harness**.
-3. Não enxugar o prompt antes de ter o golden set do Gabriel no eval — senão não dá para saber se melhorou.
+3. Não enxugar o prompt antes de ter o golden set da recepção no eval — senão não dá para saber se melhorou.
 
 ## O que fazer (fatia verificável)
 
 ### A. Harness (primeiro — senão qualquer framework é opinião)
 
 1. Atualizar `scripts/test-conversa-v3.mjs` (ou sucessor) para o contrato **real**: `HORARIOS VAGOS` texto, preços 17/08, I.10 sem `<break>`.
-2. Gate binário nas kill-rules K1–K8 de `docs/analysis/gabriel-smoke-aderencia-2026-08-18.md`.
-3. Fixtures: 14 turnos Gabriel + Dylan + “e com o Tiago?” + combo que estoura 19h.
+2. Gate binário nas kill-rules K1–K8 de `docs/analysis/recepcao-smoke-aderencia-2026-08-18.md`.
+3. Fixtures: 14 turna recepção + Dylan + “e com o Tiago?” + combo que estoura 19h.
 4. Critério de PASS = zero K + qualitativo ≥ 75% (mesmo desenho Flora 9.3).
 
 Owner: @qa desenha; @dev liga no script. Sem isso, troca de framework não é mensurável.
@@ -50,5 +50,5 @@ Dois profissionais no mesmo start (Erick ∥ Jackie): não está nos artefatos. 
 
 - @pm: priorizar A → D vs outras stories do 46589.
 - @dev: harness + filtro de snapshot + idempotência.
-- Victor: não colar um “framework novo” até existir score no golden Gabriel.
+- Victor: não colar um “framework novo” até existir score no golden recepção.
 - @architect: só se a opção for tool-calling (buscar serviço/slot sob demanda) em vez de snapshot filtrado — é o “just in time” da Anthropic; custa mais latência.

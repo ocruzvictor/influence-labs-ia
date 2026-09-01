@@ -108,4 +108,4 @@
 
 ---
 
-*Sessão facilitada por @analyst (Atlas) — método: 5 Whys + Pre-Mortem. Fonte: feedbacks transmitidos verbalmente por Victor em 2026-05-26 (Tiago + Victor; Gabriel sem feedback nesta janela).*
+*Sessão facilitada por @analyst (Atlas) — método: 5 Whys + Pre-Mortem. Fonte: feedbacks transmitidos verbalmente por Victor em 2026-05-26 (Tiago + Victor; recepção sem feedback nesta janela).*

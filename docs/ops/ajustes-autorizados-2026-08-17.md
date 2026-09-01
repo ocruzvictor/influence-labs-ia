@@ -14,8 +14,8 @@ Consulta feita em 17/08/2026 ~20:35 UTC no snapshot Trinks (não KB estática).
 |---|---|---|
 | Dylan | Recusa = PASS | **Meio-passe.** Recusa certa; texto da recusa **FAIL** (inventou cabelo). |
 | Corte feminino | “Não comparar Tiago vs equipe” genérico | **Tabela feminina não discrimina Tiago vs equipe.** Só dia normal vs promo. Premium Tiago/equipe vale **só no masculino**. |
-| Janela 5 dias | Aceitar e mandar Gabriel se Tiago lotado | **Alongar alcance sem REST no hot path.** Tiago cheio nos 5 dias → o bot não pode virar handoff crônico. |
-| Combo 3 serviços | Handoff na primeira dificuldade | **Tentar montar e concluir.** Gabriel só se não der. Smoke extra com outros combos. |
+| Janela 5 dias | Aceitar e mandar recepção se Tiago lotado | **Alongar alcance sem REST no hot path.** Tiago cheio nos 5 dias → o bot não pode virar handoff crônico. |
+| Combo 3 serviços | Handoff na primeira dificuldade | **Tentar montar e concluir.** a recepção só se não der. Smoke extra com outros combos. |
 
 Itens que **permanecem** do plano anterior: bolhas cortadas (`toWhatsappBlocks` + `slice(0,6)`), nunca inventar turno `Cliente:`, nunca `BOOKING_CREATE` sem confirmação real, webhook SNS silencioso pós-mutação, after-hours Kapso 422, takeover P0 #10.
 
@@ -95,7 +95,7 @@ Slots **disponíveis agora** no snapshot local:
 
 O worker já grava **7 dias úteis** (`TRINKS_SLOT_SNAPSHOT_DAYS` default 7 → 18 a 26/08). O `processMessage` só **injeta 5** (18–22/08). Os furos do Tiago em 25–26 já estão no Postgres e o TESS não vê.
 
-`extractRequestedDate` só entende `DD/MM` ou ISO. “25 de agosto de 2026” **não dispara** `ensureSlotSnapshot`. Por isso o bot disse “janela até 22/08 / Gabriel anota” mesmo com terça 25/08 já no banco.
+`extractRequestedDate` só entende `DD/MM` ou ISO. “25 de agosto de 2026” **não dispara** `ensureSlotSnapshot`. Por isso o bot disse “janela até 22/08 / a recepção anota” mesmo com terça 25/08 já no banco.
 
 Custo: FAQ/slots no hot path = **0 REST** (webhook-first). Snapshot extra = 1 REST **por data**, só se a data não existe localmente. Worker = 1 REST/data/ciclo (hoje ~7/dia). Budget 10k / cap 8500.
 
@@ -109,7 +109,7 @@ Custo: FAQ/slots no hot path = **0 REST** (webhook-first). Snapshot extra = 1 RE
 
 ---
 
-## 4. Combo de serviços — tentar concluir, Gabriel é fallback
+## 4. Combo de serviços — tentar concluir, a recepção é fallback
 
 ### O que o teste mostrou
 

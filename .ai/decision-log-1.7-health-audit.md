@@ -35,7 +35,7 @@
 | F3.2 | Reusar `lib/hooks/use-polling.ts` (não criar `use-health-poll.ts`) | Hook existente já implementa pause-on-hidden, ref-based callback latest, sem overlap, cleanup robusto | Criar novo — duplica lógica testada |
 | F3.3 | `LastCheckedCounter` como componente irmão (não pai dos cards) | Counter re-renderiza a cada 1s; isolá-lo evita re-render dos `<HealthCard>` (4 nodes pesados) | Counter no pai — performance ruim |
 | F3.4 | `useState<number \| null>(null)` + `setTimeout` no useEffect | Escapa de `react-hooks/purity` (Date.now() impure no render) e `react-hooks/set-state-in-effect` (Next 16/React 19) | useState(Date.now()) — lint error |
-| F4.1 | `<Input type="date">` nativo (não shadcn calendar) | shadcn calendar puxa react-day-picker que tem typecheck error no Next 16. Browser date picker é suficiente pro MVP (Tiago/Gabriel usam Chrome) | shadcn calendar — erro de tipos |
+| F4.1 | `<Input type="date">` nativo (não shadcn calendar) | shadcn calendar puxa react-day-picker que tem typecheck error no Next 16. Browser date picker é suficiente pro MVP (Tiago/recepção usam Chrome) | shadcn calendar — erro de tipos |
 | F4.2 | URL `?tab=` como source-of-truth (router.replace) | Permite deep-link via avatar dropdown ("Auditoria" → `/saude?tab=auditoria`) sem flash visual | useState local — perde deep-link |
 | F5.1 | `/api/admin-users` novo endpoint trivial | Filtro Select user precisa de lista de admins; usar primeira página de audit_log limitaria a quem já apareceu em log | Sem filtro user — pior UX |
 | F5.2 | `ALL_USERS_SENTINEL = "__all__"` (shadcn Select não aceita value="") | Implementação de Select Radix — value="" não dispara onChange | Limpar via undefined — Select não suporta |

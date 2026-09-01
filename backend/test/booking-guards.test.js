@@ -69,7 +69,7 @@ test('buildCreateSuccessMessage — I.8: "Te esperamos" só dentro do horário',
   });
   assert.match(open, /Te esperamos no Studio Tirra/);
   assert.doesNotMatch(closed, /Te esperamos/);
-  assert.match(closed, /Gabriel confere logo cedo/);
+  assert.match(closed, /recepção confere logo cedo/);
 });
 
 test('pickCreateGuard — incompatível ganha de expediente (Dylan+Corte 19h)', () => {

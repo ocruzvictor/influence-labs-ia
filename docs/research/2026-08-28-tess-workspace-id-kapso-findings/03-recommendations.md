@@ -21,7 +21,7 @@ Story sugerida: `salon-whatsapp-tess-workspace-id` (draft `@sm` / `@po`). Execut
 ### P1 Kapso — painel, zero deploy
 
 1. ~~Kapso → Findings → setup~~ **Adiado 28/08** (Victor): sobrepõe Tess supervisor 46590; crédito de AI Kapso extra. Reavaliar depois do go-live se a UI deles valer.
-2. Ensinar Gabriel/Tiago: busca da inbox por texto; 3–5 quick replies (`/preco`, `/endereco`, `/horario`). Story: `docs/stories/salon-whatsapp-kapso-inbox-quick-replies.md`.
+2. Ensinar recepção/Tiago: busca da inbox por texto; 3–5 quick replies (`/preco`, `/endereco`, `/horario`). Story: `docs/stories/salon-whatsapp-kapso-inbox-quick-replies.md`.
 3. Victor: Logs → Problems / free text. Story: `docs/stories/salon-whatsapp-kapso-log-search-runbook.md`.
 
 ### P2 — depois do P0

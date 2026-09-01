@@ -90,7 +90,7 @@
 - **Saída:** decisão estruturada (`{escalate: bool, reason: string, severity: low|med|high}`) + notificação a Tiago se severity >= med.
 - **Status atual:** rascunho. Prompt completo em `tess-supervisor-v1.md`.
 
-## 3. Por que separar (princípio Gabriel Bonfim)
+## 3. Por que separar (princípia recepção Bonfim)
 
 > "IA lê prompt como humano com preguiça. Prompt grande = pula instruções."
 
@@ -146,7 +146,7 @@ Conversa monolítico hoje tenta: dialogar + qualificar + decidir ação + audita
 ## 5. Escalação humana — fluxo
 
 1. Cliente diz algo como "quero falar com pessoa", "atendente", "reclamação", "isso é inaceitável", ou Conversa detecta que não consegue responder após 2 turnos.
-2. Conversa emite `[HANDOFF_HUMAN motivo=...]` + responde algo neutro tipo "Vou pedir ao Gabriel pra continuar com você daqui, ok?".
+2. Conversa emite `[HANDOFF_HUMAN motivo=...]` + responde algo neutro tipo "Vou pedir à recepção pra continuar com você daqui, ok?".
 3. Backend marca a conversa como `humano_assumiu=true` no sessionState (já temos TTL 3h em memória).
 4. Supervisor confirma o motivo e dispara notificação a Tiago (canal: WhatsApp interno? Email? Definir P0).
 5. **Bot fica silencioso para aquele número até `human_takeover_expires`** (que já existe na lógica `whatsapp.message.sent origin != cloud_api`).

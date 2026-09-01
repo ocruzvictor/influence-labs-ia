@@ -33,9 +33,9 @@ O Tiago testou o bot em produção e trouxe feedback (transcrição de áudios r
 ### Os 4 itens desta story
 
 1. **Card de confirmação sem o nome do serviço.** O recibo final mostra data, hora, profissional e valor — **omite qual serviço foi marcado** (evidência: `image_39cc4b.png`, "Avaliação para Mechas" não aparece). Tiago sugeriu "atualizar o prompt", mas o card é montado pelo **backend** (2-phase), não pelo prompt.
-2. **Bot oferece profissional que não faz o serviço.** Ele filtra só por horário livre; ofereceu profissionais às 10h ignorando que "Erick só faz masculino", "Gabriel é recepcionista". Sugestão do Tiago: "ver as atribuições de cada profissional" e filtrar por quem faz o serviço **antes** de buscar horário.
+2. **Bot oferece profissional que não faz o serviço.** Ele filtra só por horário livre; ofereceu profissionais às 10h ignorando que "Erick só faz masculino", "a recepção é recepcionista". Sugestão do Tiago: "ver as atribuições de cada profissional" e filtrar por quem faz o serviço **antes** de buscar horário.
 3. **Cancelamento não funciona.** Tiago agendou e tentou cancelar; o bot só conseguiu agendar. (Victor lembra de testar cancelamento numa versão inicial, mas não validou após a migração pra Kapso.)
-4. **Handoff para múltiplos serviços (regra nova).** Quando o cliente quer agendar mais de um serviço e a IA não resolve fácil na primeira tentativa → chamar o Gabriel, que continua o atendimento. Hoje a I.6 só escala "agendamento com mais de 1 **profissional**", não cobre "mais de 1 **serviço**".
+4. **Handoff para múltiplos serviços (regra nova).** Quando o cliente quer agendar mais de um serviço e a IA não resolve fácil na primeira tentativa → chamar a recepção, que continua o atendimento. Hoje a I.6 só escala "agendamento com mais de 1 **profissional**", não cobre "mais de 1 **serviço**".
 
 ## Causa Raiz (técnica) — descoberta-chave
 
@@ -96,7 +96,7 @@ Esse descompasso é a raiz comum dos itens 2 e 3:
 - [ ] **AC11:** Falha de cancelamento (não achou / Trinks erro) cai numa mensagem honesta + handoff, sem afirmar falsamente que cancelou.
 
 ### Item 5-novo — Handoff multi-serviço
-- [ ] **AC12:** I.6 do prompt ganha a regra: agendamento com **mais de um serviço** que a IA não resolve com facilidade na 1ª tentativa → `[HANDOFF_HUMAN motivo=multi_servico]` com a mensagem padrão de passagem pro Gabriel.
+- [ ] **AC12:** I.6 do prompt ganha a regra: agendamento com **mais de um serviço** que a IA não resolve com facilidade na 1ª tentativa → `[HANDOFF_HUMAN motivo=multi_servico]` com a mensagem padrão de passagem pra recepção.
 - [ ] **AC13:** Caso de teste: cliente pede "corte + escova + hidratação" e a montagem não é trivial → bot escala em vez de errar/loopar.
 
 ### Transversal

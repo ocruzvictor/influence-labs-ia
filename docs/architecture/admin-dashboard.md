@@ -37,7 +37,7 @@ Painel web em Next.js 15 servido em `admin.studiotirra.com.br`, reusa Postgres e
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Tiago / Gabriel (browser desktop + mobile responsive)      │
+│  Tiago / recepção (browser desktop + mobile responsive)      │
 └────────────────────────┬────────────────────────────────────┘
                          │ HTTPS
                          ▼

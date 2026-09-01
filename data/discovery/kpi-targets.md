@@ -9,7 +9,7 @@
 | Taxa de escalacao para humano | N/D | <30% | <20% | logs de handoff |
 | Conversao follow-up reagendamento | N/D | >20% | >30% | proactive_messages -> booking |
 | Conversao follow-up produto | N/D | >15% | >20% | proactive_messages -> venda |
-| Reducao da carga do Gabriel | N/D | >40% | >60% | volume manual vs automatico |
+| Reducao da carga da recepção | N/D | >40% | >60% | volume manual vs automatico |
 
 ## Regras de mensuracao
 - Baseline com janela anterior de 30 dias.

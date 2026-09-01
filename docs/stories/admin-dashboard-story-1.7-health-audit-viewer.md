@@ -18,7 +18,7 @@
 
 Sétima e **última** story do Epic Admin Dashboard. As 1.1-1.5 entregaram auth + conversas + toggles + whitelist + KB editor. A 1.6 (Métricas) entrega o painel quantitativo. Esta story fecha o quadro com **a camada de operação invisível**: status do ecossistema (Saúde) e quem-mexeu-em-quê (Auditoria).
 
-**Por que combinada:** o wireframe (`Tela 7 — Saúde + Auditoria (combinada)`) e a arquitetura (§11+§12) tratam as duas como uma vista só. Ambas são **read-only**, **de baixa frequência de uso** (Tiago/Gabriel só abrem quando algo cheira mal ou em revisão semanal), e **compartilham padrão visual** (cards de status + lista cronológica). Separar em duas stories sairia caro de scaffolding sem ganho de domínio.
+**Por que combinada:** o wireframe (`Tela 7 — Saúde + Auditoria (combinada)`) e a arquitetura (§11+§12) tratam as duas como uma vista só. Ambas são **read-only**, **de baixa frequência de uso** (Tiago/recepção só abrem quando algo cheira mal ou em revisão semanal), e **compartilham padrão visual** (cards de status + lista cronológica). Separar em duas stories sairia caro de scaffolding sem ganho de domínio.
 
 **Dependências de dados já satisfeitas:**
 
@@ -54,13 +54,13 @@ Sétima e **última** story do Epic Admin Dashboard. As 1.1-1.5 entregaram auth 
 Após esta story:
 
 - **Tiago** abre `/saude` no morning routine e vê em ≤5s se algo está degradado (Trinks lento, janela WhatsApp fechando, Postgres apertando)
-- **Gabriel** consulta auditoria pra entender "por que esse cara estava na whitelist e foi removido?" sem precisar perguntar pro Tiago
+- **recepção** consulta auditoria pra entender "por que esse cara estava na whitelist e foi removido?" sem precisar perguntar pro Tiago
 - **Victor** tem painel de evidência cruzada quando algo dá errado em prod (correlaciona timestamps de audit com logs do backend)
 - **Compliance leve:** rastro auditável de toda mutation do painel — quem mudou KB, quem desligou bot, quem adicionou whitelist, quando, de qual IP
 - **Métrica do epic:** "Zero edição manual de `.env` pra whitelist após launch" deixa de depender só do toggle UI — auditoria comprova adoção
-- **Métrica do epic:** "Tempo médio pra Gabriel detectar conversa precisando intervenção" agora tem contra-prova auditável de cada `toggle.set` e `whitelist.add`
+- **Métrica do epic:** "Tempo médio pra recepção detectar conversa precisando intervenção" agora tem contra-prova auditável de cada `toggle.set` e `whitelist.add`
 
-**ROI:** Quando esta story merga, o Epic Admin Dashboard fecha **7/7 stories Done**. Painel deixa de ser MVP em construção e vira ferramenta operacional fechada. Onboarding com Tiago + Gabriel (critério de DoD do epic) pode acontecer.
+**ROI:** Quando esta story merga, o Epic Admin Dashboard fecha **7/7 stories Done**. Painel deixa de ser MVP em construção e vira ferramenta operacional fechada. Onboarding com Tiago + recepção (critério de DoD do epic) pode acontecer.
 
 ## Objetivo
 
@@ -611,7 +611,7 @@ export async function GET(req: NextRequest) {
 - **Story 1.4 (Toggles+Whitelist):** populou `admin_audit_log` com `toggle.set`, `whitelist.add/remove`, `feature.set`. Esta story RENDERIZA esses entries — testar AC58 com ação real de toggle visível na aba auditoria
 - **Story 1.5 (KB):** populou `admin_audit_log` com `kb.create/update/restore/delete/toggle_active/tess_sync_failed`. Esta story RENDERIZA + filtra (`action prefix kb.*`)
 - **Story 1.6 (Métricas):** sem dependência. Stories independentes podem rodar em paralelo
-- **Epic DoD:** esta story FECHA o epic. Após Done, próximo passo é onboarding com Tiago + Gabriel (critério de sucesso "Tiago/Gabriel acessam ≥4x/semana cada")
+- **Epic DoD:** esta story FECHA o epic. Após Done, próximo passo é onboarding com Tiago + recepção (critério de sucesso "Tiago/recepção acessam ≥4x/semana cada")
 
 ### Coordenação com produção (impacto operacional)
 
@@ -619,7 +619,7 @@ export async function GET(req: NextRequest) {
 - **`/api/saude` é novo endpoint admin** — sem regressão
 - **`/api/audit-log/export` é novo endpoint admin** — sem regressão
 - **Trinks ping em prod** pode revelar latência alta (>1500ms) que estava invisível. Se acontecer no smoke: investigar **separadamente** depois — não bloqueia esta story (objetivo da story é tornar visível, não consertar Trinks)
-- **Polling client em prod:** com 1-2 abas simultâneas (Tiago + Gabriel) + cache 5s, esperar ≤24 req/min ao backend `/health` no peak. Aceitável.
+- **Polling client em prod:** com 1-2 abas simultâneas (Tiago + recepção) + cache 5s, esperar ≤24 req/min ao backend `/health` no peak. Aceitável.
 
 ## CodeRabbit Integration
 
@@ -691,7 +691,7 @@ Predicted Behavior:
 - [ ] Smoke prod AC58 (6 sub-cenários) — só Victor pode atestar
 - [ ] PR description menciona enrichment + export CSV — @devops responsabilidade ao criar PR
 - [ ] Status atualizado pra Done por @devops após PR mergeada + smoke OK
-- [ ] **Epic Admin Dashboard fecha em 7/7 stories Done — sinalizar pra @pm pra agendar onboarding Tiago+Gabriel**
+- [ ] **Epic Admin Dashboard fecha em 7/7 stories Done — sinalizar pra @pm pra agendar onboarding Tiago+recepção**
 
 ## Change Log
 

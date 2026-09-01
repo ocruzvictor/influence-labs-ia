@@ -20,6 +20,7 @@ const PRICE_RE = /\b(quanto|preco|preço|valor|custa|custo|quanto\s+fica)\b/i;
 const FAQ_RE = /\b(endereco|endereço|onde fica|estacionamento|pix|pagamento|formas de pagamento|horario de funcionamento|horário de funcionamento|funcionamento|como chegar)\b/i;
 const CANCEL_RE = /\b(cancela|cancelar|cancel|desmarc|desmarquei|nao vou|não vou)\b/i;
 const RESCHEDULE_RE = /\b(remarc|mudar horario|mudar horário|trocar horario|trocar horário|outro horario|outro horário)\b/i;
+// Alias legado: clientes ainda pedem humano pelo nome de quem atendia antes.
 const HANDOFF_RE = /\b(falar com|humano|gabriel|atendente|pessoa real)\b/i;
 const DATE_RE = /\b(amanha|amanhã|hoje|tarde|noite|segunda|terca|terça|quarta|quinta|sext[ao]|sabado|sábado|domingo|\d{1,2}[\/\-]\d{1,2}|\d{1,2}h|\d{1,2}:\d{2})\b/i;
 const PROFESSIONAL_RE = /\b(tiago|andre|andré|erick|fefe|fernanda|gi\b|giovanna|claudia|cláudia|bruuna|bruna)\b/i;

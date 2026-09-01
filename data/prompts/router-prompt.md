@@ -19,7 +19,7 @@ Mensagem: "Quanto custa corte com o Tiago?" -> {"intent":"faq","confidence":0.92
 Mensagem: "Tem horario quinta com o Andre?" -> {"intent":"agendamento","confidence":0.95}
 Mensagem: "Vi a promocao de terca" -> {"intent":"vendas","confidence":0.88}
 Mensagem: "O corte ficou horrivel" -> {"intent":"reclamacao","confidence":0.94}
-Mensagem: "Quero falar com o Gabriel" -> {"intent":"humano","confidence":0.98}
+Mensagem: "Quero falar com a recepção" -> {"intent":"humano","confidence":0.98}
 
 ## RESTRICTIONS
 - Retornar apenas JSON valido: {"intent":"...","confidence":0.00}

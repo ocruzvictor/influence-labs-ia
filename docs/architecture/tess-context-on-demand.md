@@ -205,7 +205,7 @@ Resposta esperada: acolhimento Studio Tirra **sem** inventar slots/preços — p
 | `quanto`, `preço`, `valor` | PRICE |
 | `endereço`, `onde fica`, `estacionamento`, `pix`, `formas de pagamento` | FAQ (KB RAG; catálogo opcional) |
 | `cancel`, `desmarc`, `remarc` | CANCEL |
-| `falar com`, `humano`, `Gabriel`, `atendente` | FAQ + handoff (sem skip de histórico) |
+| `falar com`, `humano`, `recepção`, `atendente` | FAQ + handoff (sem skip de histórico) |
 | Continuação: `sim`, `pode`, `confirmo`, `esse horário` | FULL ou BOOKING (usa histórico) |
 | Reclamação / insatisfação | FULL |
 | Owner (`isOwnerPhone`) | FULL |

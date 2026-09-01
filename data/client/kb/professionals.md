@@ -10,7 +10,6 @@
 | Giovanna | Cabeleireira | Variavel conforme agenda | Ter-Sab | Variavel | Nivel equipe |
 | Jackie | Cabeleireira | Variavel conforme agenda | Ter-Sab | Variavel | Nivel equipe |
 | Fernanda | Maquiagem, brow/lash | Variavel conforme agenda | Ter-Sab | Variavel | Nivel equipe |
-| Gabriel | Recepcao e atendimento WhatsApp | Variavel conforme operacao | Ter-Sab | Variavel | Supervisor humano principal |
 
 ## Regras operacionais
 - Sempre confirmar se agendamento e com Tiago ou Equipe antes de cotar preco final.

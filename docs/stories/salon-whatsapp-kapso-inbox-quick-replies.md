@@ -1,8 +1,8 @@
-# Story: Inbox Kapso — busca por texto + quick replies (Gabriel/Tiago)
+# Story: Inbox Kapso — busca por texto + quick replies (recepção/Tiago)
 
 **Tipo:** Brownfield ops (UX humana no Inbox)
 **Status:** Ready for Review
-**Agente executor:** Victor (configura painel) · Gabriel/Tiago (usam) · @sm (checklist)
+**Agente executor:** Victor (configura painel) · recepção/Tiago (usam) · @sm (checklist)
 **Story Points:** 1
 **Branch:** `feature/bot-46589-ajustes-resposta`
 **Pedido:** Victor / @aios-master 28/08/2026 — item 2. Sem Findings. Sem crédito de AI Kapso.
@@ -19,21 +19,21 @@ Conteúdo dos atalhos deve copiar a KB já publicada do Studio Tirrá (`data/cli
 
 ## Escopo
 
-**IN:** 3–5 quick replies no Inbox do número **bot** `+55 11 97504-0517`; checklist de uso (busca por texto + atalhos); treino Gabriel/Tiago.
+**IN:** 3–5 quick replies no Inbox do número **bot** `+55 11 97504-0517`; checklist de uso (busca por texto + atalhos); treina recepção/Tiago.
 
 **OUT:** Findings, generate-in-composer, Kapso Agent, `BOT_ACCEPT_ALL`, qualquer mudança no `94831`, código backend/admin, n8n.
 
 ## Acceptance Criteria
 
-- [x] **AC1:** Checklist em `docs/ops/kapso-inbox-quick-replies-gabriel.md`: como buscar uma frase do cliente; como disparar um atalho; quando **não** usar (thread ainda no bot / não assumir o `94831`).
+- [x] **AC1:** Checklist em `docs/ops/kapso-inbox-quick-replies-recepcao.md`: como buscar uma frase do cliente; como disparar um atalho; quando **não** usar (thread ainda no bot / não assumir o `94831`).
 - [ ] **AC2:** No Inbox Kapso do `97504-0517` existem pelo menos 3 quick replies. Nomes sugeridos (ajustar ao texto real da KB): `/horario`, `/endereco`, `/preco`. Opcional: `/estacionamento` ou `/cancelar` se o texto já existir na KB.
 - [x] **AC3:** Cada atalho cola texto **fiel** à KB vigente (não inventar valor). Review de uma linha no checklist: fonte (arquivo KB ou memória Tess).
-- [ ] **AC4:** Gabriel (ou Tiago) confirma no checklist que achou uma conversa **por texto** (não só por telefone) numa sessão de treino. Sem abrir whitelist.
+- [ ] **AC4:** a recepção (ou Tiago) confirma no checklist que achou uma conversa **por texto** (não só por telefone) numa sessão de treino. Sem abrir whitelist.
 
 ## File List
 
 - `docs/stories/salon-whatsapp-kapso-inbox-quick-replies.md` (M)
-- `docs/ops/kapso-inbox-quick-replies-gabriel.md` (A)
+- `docs/ops/kapso-inbox-quick-replies-recepcao.md` (A)
 
 ## Dev Agent Record
 
@@ -43,4 +43,4 @@ Conteúdo dos atalhos deve copiar a KB já publicada do Studio Tirrá (`data/cli
 ## Change Log
 
 - 2026-08-28 — @aios-master: story draft. Só UI humana Kapso.
-- 2026-08-28 — @dev: AC1 + AC3 implementados; AC2 + AC4 bloqueados (painel/treino Victor/Gabriel/Tiago). Status → Ready for Review (parcial).
+- 2026-08-28 — @dev: AC1 + AC3 implementados; AC2 + AC4 bloqueados (painel/treino Victor/recepção/Tiago). Status → Ready for Review (parcial).

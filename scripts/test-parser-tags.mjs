@@ -32,7 +32,7 @@ const CASES = [
   },
   {
     name: 'v2 HANDOFF_HUMAN inline',
-    input: 'Vou pedir pro Gabriel.\n\n[HANDOFF_HUMAN motivo=reclamacao_atraso]',
+    input: 'Vou pedir pra recepção.\n\n[HANDOFF_HUMAN motivo=reclamacao_atraso]',
     expects: { handoffHuman: { motivo: 'reclamacao_atraso' } }
   },
   {

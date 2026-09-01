@@ -9,7 +9,7 @@
 1. `isSalonOpen()` — função pura no backend. Lógica: Ter-Sex 9-19h, Sáb 9-18h, Dom-Seg fechado, fuso `America/Sao_Paulo`.
 2. Contexto dinâmico injeta `HORARIO_AGORA: HH:MM (DENTRO|FORA)` em toda mensagem.
 3. `notifyTiagoAfterHoursBooking()` — quando booking criado E `!isSalonOpen` → manda WhatsApp ao Tiago com resumo + Trinks ID.
-4. Prompt v2 atualizado com instrução I.8 (fora-de-horário): bot continua agendando, mas avisa cliente que Gabriel confere de manhã.
+4. Prompt v2 atualizado com instrução I.8 (fora-de-horário): bot continua agendando, mas avisa cliente que a recepção confere de manhã.
 
 ## Atualização do prompt no painel TESS
 
@@ -39,7 +39,7 @@ Manda do seu número: "tem horário pra amanhã às 10h?"
 
 **Esperado:**
 - Bot oferece slots de amanhã normalmente
-- Pode mencionar que vai registrar e Gabriel confere de manhã
+- Pode mencionar que vai registrar e a recepção confere de manhã
 
 ### Teste FH-2 — booking fora-de-horário com notificação Tiago
 
@@ -47,7 +47,7 @@ Manda agendamento completo (3 turnos: pedido → escolha slot → confirma)
 
 **Esperado:**
 - Bot cria booking na Trinks normalmente
-- Cliente recebe 2 mensagens: confirmação adaptada ("Vou registrar... Gabriel confere logo cedo") + bloco final do backend com endereço/valor
+- Cliente recebe 2 mensagens: confirmação adaptada ("Vou registrar... recepção confere logo cedo") + bloco final do backend com endereço/valor
 - **Tiago (0330) recebe DUAS notificações:**
   - 📅 "Agendamento criado FORA do horario..." com Trinks ID
   - (somente se handoff também disparar)

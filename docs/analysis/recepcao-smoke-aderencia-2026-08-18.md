@@ -1,6 +1,6 @@
-# Smoke Gabriel (17/08 noite) × prompt TESS 46589 — análise de aderência e plano de qualidade
+# Smoke de aderência (17/08 noite) × prompt TESS 46589 — análise de aderência e plano de qualidade
 
-> **@analyst (Atlas) · 2026-08-18.** Leitura calma do smoke feito por Gabriel Rocha (ex-recepção, +55 18 99824-04xx)
+> **@analyst (Atlas) · 2026-08-18.** Leitura calma do smoke de aderência (operador de teste, +55 18 99824-04xx)
 > na noite de 17/08/2026 (~23:50–00:08 BRT) contra o número do bot 95502, comparado ao prompt canônico
 > `docs/prompts/tess-conversa-v3-clean.md` (+ `docs/handoffs/46589-prompt-changes-2026-06-02.md` e
 > `docs/ops/ajustes-autorizados-2026-08-17.md`).
@@ -47,14 +47,14 @@
 | Estado do salão | `FORA do horario — SEGUNDA — salao fechado` | `backend/server.js:171-187` |
 | Dia agendado | sexta-feira **21/08/2026** | conversa |
 | Expediente da sexta | **9h–19h** (Ter-Sex) | prompt, `CONTEXTO DINÂMICO`; `server.js:183` |
-| Cliente | Gabriel Rocha (ex-recepção, testando) | conversa |
+| Cliente | operador de teste (sessão de smoke) | conversa |
 
 Isso importa por dois motivos: (a) a I.8 estava ativa a noite inteira, então o discurso de after-hours era esperado;
 (b) tudo que foi marcado depois das 19h de sexta é, por definição, fora do expediente declarado ao próprio bot.
 
 ---
 
-## 1. Scorecard — regra do prompt × turno do Gabriel
+## 1. Scorecard — regra do prompt × turno da recepção
 
 Legenda: **PASS** = cumpriu · **CONCERNS** = cumpriu parcial / ambíguo · **FAIL** = violou.
 "Turno" refere-se à numeração da conversa (1–14, duplicatas `passive` ignoradas).
@@ -68,7 +68,7 @@ Legenda: **PASS** = cumpriu · **CONCERNS** = cumpriu parcial / ambíguo · **FA
 | I.1 passo 4 — confirmação tripla antes de criar | 7→8 | **PASS** | Mini-agenda 19:30–22:00 / R$225 apresentada, cliente disse "Pode confirmar". |
 | I.1 passo 6 — não dizer "Agendado!" antes da Trinks | 8, 14 | **PASS** | Sem "Agendado!/Confirmado!" no texto do modelo (o `sanitizePrematureConfirm` também cobre). |
 | I.6 combo — tentar montar em vez de escalar na 1ª dificuldade | 7 | **PASS** | Montou corte + progressiva em sequência, somou durações, deu total. Era exatamente o comportamento pedido em 17/08. |
-| I.8 — agendar fora de horário avisando conferência do Gabriel | 1, 8 | **PASS** | Avisou e seguiu agendando, como manda a I.8. |
+| I.8 — agendar fora de horário avisando conferência da recepção | 1, 8 | **PASS** | Avisou e seguiu agendando, como manda a I.8. |
 | P NUNCA — inventar turno `Cliente:` | todos | **PASS** | Nenhuma linha `Cliente:` fabricada. |
 | I.7 — responder o batch uma vez | todos | **PASS** | Sem fatiamento por mensagem recebida. |
 
@@ -83,14 +83,14 @@ Legenda: **PASS** = cumpriu · **CONCERNS** = cumpriu parcial / ambíguo · **FA
 | F5 | **Pedido do cliente não atendido e não escalado** | 12 | **FAIL** | *"Pode deixar tudo no mesmo horário"* → o bot manteve sequencial, sem explicar por que não dá e sem escalar. A I.6 manda escalar quando *"o cliente recusar as alternativas habilitadas"* ou houver ambiguidade após **uma** pergunta. Ficou em terceiro estado: nem atende, nem explica, nem passa. |
 | F6 | **P NUNCA — mechas sem fluxo consultivo** (I.4: *"Especialidades (visagismo, mechas): fluxo consultivo. Pergunta 'o que te fez buscar?' antes de dar preço"*) | 11 | **FAIL** | Deu **R$880 / 330min** de mechas direto, sem teste de mechas e sem pergunta consultiva. É uma das poucas regras que o prompt escreve como `NUNCA` explícito. |
 | F7 | **P NUNCA — diferenciar por "premium"** (*"NUNCA 'o X é o premium'"*) | 3, 10 | **FAIL** | Usou "premium" e "TA exclusivo" para qualificar serviços/profissionais. Ver §2(c): há uma **contradição de fonte** — a própria linha R do prompt diz *"salão premium em São Caetano do Sul/SP"*. |
-| F8 | **Nome interno de SKU vazando** (sem regra; gap) | 3, 10 | **FAIL (de marca)** | `TA - Corte Masculino` é rótulo de tabela interna. Nada no prompt manda traduzir para linguagem de cliente. Gabriel apontou "jeito de escrever esquisito" — parte disso é isso. |
-| F9 | **Contradição na mesma resposta + condição comercial hedgeada** (I.4: *"Sem valor promo no contexto, diga que terça/quarta têm condição, sem inventar número"*) | 4 | **FAIL** | Disse *"Não tenho informação de preço promocional diferente por dia"* e, no mesmo bloco, *"terça e quarta costumam ter preços especiais"*, e ainda deferiu ao Gabriel. Três posições incompatíveis numa bolha. O `valorPromocional` está `null` no snapshot — a regra pedia **uma** frase, não um hedge. Gabriel registrou no áudio exatamente isso: *"dia mais barato não foi comunicado"*. |
+| F8 | **Nome interno de SKU vazando** (sem regra; gap) | 3, 10 | **FAIL (de marca)** | `TA - Corte Masculino` é rótulo de tabela interna. Nada no prompt manda traduzir para linguagem de cliente. recepção apontou "jeito de escrever esquisito" — parte disso é isso. |
+| F9 | **Contradição na mesma resposta + condição comercial hedgeada** (I.4: *"Sem valor promo no contexto, diga que terça/quarta têm condição, sem inventar número"*) | 4 | **FAIL** | Disse *"Não tenho informação de preço promocional diferente por dia"* e, no mesmo bloco, *"terça e quarta costumam ter preços especiais"*, e ainda deferiu à recepção. Três posições incompatíveis numa bolha. O `valorPromocional` está `null` no snapshot — a regra pedia **uma** frase, não um hedge. recepção registrou no áudio exatamente isso: *"dia mais barato não foi comunicado"*. |
 | F10 | **Drop silencioso de item já confirmado** (sem regra; gap) | 11 | **FAIL** | Ao remontar o combo com mechas, a progressiva — já confirmada no turno 7 — virou "opcional às 23:40" e sumiu do plano. Só voltou no turno 13 porque **o cliente percebeu** (*"Sim, mas faltou a progressiva"*). Num cliente real, some. |
 | F11 | **Formatação WhatsApp (markdown)** | 3 (e seguintes) | **FAIL de operação, não de prompt** | Usou markdown. **Nota de honestidade:** revisei o canônico `tess-conversa-v3-clean.md` linha a linha — **não existe** regra escrita proibindo markdown. A regra "sem markdown" é expectativa operacional, não texto do prompt. Portanto isto é **gap de especificação**, não desobediência. Flora tem a regra escrita (`sdr-prompt-v4.2`, linhas 249-253). |
 | F12 | **I.1 passo 2 — coletar dados do cliente novo antes de confirmar** | 8 | **CONCERNS** | O bot confirmou e criou no turno 8 com nome + telefone, e só **depois** pediu nascimento. A ordem invertida é o que abriu a porta para F2: o turno 9 (só a data) foi lido como novo pedido de agendamento. |
 | F13 | **I.10 — 1 bolha por turno** | 8, 14 | **CONCERNS** | O texto do modelo respeitou 1 bloco, mas o backend anexa `finalMessages` como blocos extras (`server.js:1326`). O commit `88dce88` ("collapse WhatsApp replies to one Kapso send") ataca isso; precisa reconfirmação em smoke, não em leitura de código. |
 | F14 | **I.8 — não fingir salão aberto** | 8, 14 (backend) | **FAIL (backend)** | `server.js:1194` empurra *"Prontinho! Te esperamos no Studio Tirra 😊"* **sempre**, inclusive fora do horário. A I.8 diz literalmente *"NÃO diga 'te espero agora'"*. O prompt está certo; o código sobrescreve. É a origem da "cópia de fora-de-horário" percebida. |
-| F15 | **Estilo/PT-BR** | 2 | **CONCERNS** | *"Corte com o André, gotei."* — typo por "gostei". Isolado, mas soma na percepção de "escrita esquisita" do Gabriel. |
+| F15 | **Estilo/PT-BR** | 2 | **CONCERNS** | *"Corte com o André, gotei."* — typo por "gostei". Isolado, mas soma na percepção de "escrita esquisita" da recepção. |
 
 **Resumo:** 8 PASS · 3 CONCERNS · 12 FAIL. Nenhum FAIL é de compreensão. Todos são de **contorno não especificado** ou de **camada errada** (código fazendo o oposto do prompt).
 
@@ -147,13 +147,13 @@ sinais `[MATERIAL]`, nunca na fala com o lead"*).
 
 Cinco mecanismos. Nenhum deles é conteúdo de viagem — todos são **estrutura de prompt**.
 
-| # | Mecanismo Flora | Onde vive | Por que resolve um FAIL do Gabriel |
+| # | Mecanismo Flora | Onde vive | Por que resolve um FAIL da recepção |
 |---|---|---|---|
 | T1 | **Bloco "O QUE VOCÊ NÃO FAZ (limites absolutos)"** — 8 linhas, no topo, antes de qualquer fluxo | `sdr-prompt-v4.2:24-33` | O 46589 tem `NUNCA:` com 11 itens, mas **no rodapé**, depois de 150 linhas de fluxo, sem hierarquia. Limites no topo são lidos como constituição; no rodapé, como rodapé. |
 | T2 | **Tabela de vocabulário obrigatório (Use sempre / Nunca use)** | `sdr-prompt-v4.2:35-52` | Resolve F7 e F8 de uma vez. Flora bane "orçamento" e "card" com substituto explícito. O 46589 proíbe "premium" **sem oferecer o que dizer no lugar** — e ainda usa a palavra na ROLE. |
 | T3 | **Regra de formatação WhatsApp explícita** | `sdr-prompt-v4.2:249-253` (*"PROIBIDO markdown de lista … use bullet unicode `•`"*) | Resolve F11. Hoje "sem markdown" é folclore de operação, não regra do prompt. |
 | T4 | **TRIP-WIRE FINAL — checklist "valide antes de enviar, senão REFAÇA"** | `sdr-prompt-v4.2:483-502` (14 itens) | É **o** mecanismo que converte regra sub-especificada em comportamento determinístico. Cada item é um `if … REFAÇA`. É o antídoto direto da família (a). |
-| T5 | **Gate binário em kill-rules, independente do %** | `9.3-rubrica-aderencia-flora-gemini.md` §4 | A lição registrada: *"estrutura pode ser 97% e mesmo assim FAIL"*. Sem isso, esta conversa do Gabriel seria lida como "boa, com alguns detalhes" — quando na verdade produziu 4 reservas órfãs. |
+| T5 | **Gate binário em kill-rules, independente do %** | `9.3-rubrica-aderencia-flora-gemini.md` §4 | A lição registrada: *"estrutura pode ser 97% e mesmo assim FAIL"*. Sem isso, esta conversa da recepção seria lida como "boa, com alguns detalhes" — quando na verdade produziu 4 reservas órfãs. |
 
 Dois refinamentos metodológicos que também transferem:
 
@@ -337,7 +337,7 @@ sexta 21/08:
 | 521403350 | turno 14 (Jackie mechas 20:30–23:40) | **fora do expediente** |
 | 521403351 | turno 14 (Erick 23:40–01:10) | **fora do expediente**, vira madrugada de sábado |
 
-Sugestão: Gabriel cancela as 4 primeiras (teste, duplicadas/órfãs) e decide as duas fora do expediente.
+Sugestão: recepção cancela as 4 primeiras (teste, duplicadas/órfãs) e decide as duas fora do expediente.
 A 521403349 pode ficar se a sexta às 19:30 for aceitável na prática — o que é, em si, a questão da §7 opção 4.
 
 ### 6.4 — Como validar (mesmo smoke, rubrica da §4)
@@ -358,12 +358,12 @@ O que existe é o oposto, e apenas para o formato da reserva: I.6 manda `HANDOFF
 O cliente pediu isso explicitamente no turno 12 (*"Pode deixar tudo no mesmo horário"*) e o bot não soube responder
 (F5). Enquanto não houver decisão, esse turno vai continuar produzindo comportamento aleatório.
 
-**Opções (para Victor/Gabriel decidirem, não para o bot inferir):**
+**Opções (para Victor/recepção decidirem, não para o bot inferir):**
 
 1. **Não existe atendimento paralelo.** O bot explica que os serviços são sequenciais e oferece a mini-agenda ou outro
    dia. Menor custo, zero código, resposta previsível. Perde-se um pedido legítimo de cliente com pressa.
 2. **Existe, mas o bot não marca — escala.** O bot reconhece o pedido, explica que combinações simultâneas são montadas
-   pelo Gabriel, e emite `[HANDOFF_HUMAN motivo=agenda_paralela]`. Custo baixíssimo, preserva a venda, transfere o
+   pela recepção, e emite `[HANDOFF_HUMAN motivo=agenda_paralela]`. Custo baixíssimo, preserva a venda, transfere o
    julgamento operacional para quem tem contexto de cadeira/lavatório.
 3. **Existe e o bot marca**, criando reservas com o **mesmo** `dataHoraInicio` para profissionais diferentes.
    Exige: (a) confirmar com a Trinks que dupla-reserva do mesmo cliente no mesmo horário é aceita; (b) regra de quais

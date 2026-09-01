@@ -378,7 +378,7 @@ function formatRequestedDateLine(dateStr) {
 }
 
 function formatMultiServiceHandoffMessage() {
-  return 'Vou passar pro Gabriel continuar o encaixe com você — ele combina os serviços certinho. Um momento! 😊';
+  return 'Vou passar pra recepção continuar o encaixe com você — eles combinam os serviços certinho. Um momento! 😊';
 }
 
 function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null, futureBookings = [], habilitacaoText = '', channelPhone = null, requestedDate = null, canonicalName = null) {
@@ -394,7 +394,7 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
   const salonNow = isSalonOpen();
   const horarioAgora = salonNow.open
     ? `HORARIO_AGORA: ${salonNow.hhmm} (DENTRO do horario — salao ABERTO)`
-    : `HORARIO_AGORA: ${salonNow.hhmm} (FORA do horario — ${salonNow.reason}). Agende normalmente mas avise o cliente que o Gabriel confere de manha.`;
+    : `HORARIO_AGORA: ${salonNow.hhmm} (FORA do horario — ${salonNow.reason}). Agende normalmente mas avise o cliente que a recepção confere de manha.`;
   const requestedDateLine = requestedDate ? formatRequestedDateLine(requestedDate) : '';
   return [
     DYNAMIC_CONTEXT_PREFIX,
@@ -1624,7 +1624,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       } else if (cancelSuccessCount > 0) {
         finalMessages.push(
           `Consegui cancelar ${cancelSuccessCount} de ${requestedCancelCount} horários. ` +
-          'Vou pedir pro Gabriel resolver o restante com você. Um momento!',
+          'Vou pedir pra recepção resolver o restante com você. Um momento!',
         );
       } else {
         throw new Error('Nenhum cancelamento concluido');
@@ -1634,7 +1634,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       console.error(`[${sessionId}] Booking cancel FAILED:`, err.message, payloadLog);
       finalMessages.push(
         `Não consegui localizar/cancelar seu horário automaticamente 😕\n` +
-        `Vou pedir pro Gabriel resolver com você. Um momento!`,
+        `Vou pedir pra recepção resolver com você. Um momento!`,
       );
     }
   }
@@ -1717,7 +1717,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       } else {
         console.error(`[${sessionId}] Booking reschedule FAILED:`, err.message);
         finalMessages.push(
-          `Tive um problema pra reagendar 😕 Vou pedir pro Gabriel resolver com você direto. Um momento!`
+          `Tive um problema pra reagendar 😕 Vou pedir pra recepção resolver com você direto. Um momento!`
         );
       }
     }

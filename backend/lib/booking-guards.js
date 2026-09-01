@@ -59,7 +59,7 @@ function buildCreateSuccessMessage({
   valorFmt,
 }) {
   const opener = afterHours
-    ? 'Registrei aqui. Como estamos fora do horário, o Gabriel confere logo cedo. Tá anotado 😊\n\n'
+    ? 'Registrei aqui. Como estamos fora do horário, a recepção confere logo cedo. Tá anotado 😊\n\n'
     : 'Prontinho! Te esperamos no Studio Tirra 😊\n\n';
   return (
     opener +

@@ -73,7 +73,7 @@ Combinadores que **somam** ao score base:
 - Cliente VIP (visitas > 5): **+10**
 - Oportunidade quente (cliente disse "quero agendar" mas não fechou): **+10**
 - Tempo de espera > 12h sem resposta humana: **+5**
-- Conversa fora-de-horário (madrugada): **+5** (Gabriel precisa olhar logo cedo)
+- Conversa fora-de-horário (madrugada): **+5** (recepção precisa olhar logo cedo)
 
 ## CRITÉRIOS DE DECISÃO
 
@@ -116,7 +116,7 @@ INPUT:
 TAG_ACIONADORA: "[HANDOFF_HUMAN motivo=reclamacao]"
 ULTIMAS_MENSAGENS: [
   { role: "user", content: "esperei 40 minutos isso é um absurdo" },
-  { role: "bot", content: "Sinto muito por isso. Vou chamar o Gabriel..." }
+  { role: "bot", content: "Sinto muito por isso. Vou chamar a recepção..." }
 ]
 ```
 
@@ -137,8 +137,8 @@ INPUT:
 ```
 TAG_ACIONADORA: "[HANDOFF_HUMAN motivo=cliente_pediu_humano]"
 ULTIMAS_MENSAGENS: [
-  { role: "user", content: "queria falar com o Gabriel" },
-  { role: "bot", content: "Vou pedir pro Gabriel continuar com você daqui..." }
+  { role: "user", content: "queria falar com a recepção" },
+  { role: "bot", content: "Vou pedir pra recepção continuar com você daqui..." }
 ]
 ```
 
@@ -248,7 +248,7 @@ OUTPUT:
 
 ## Notificação ao Tiago (escolha do canal — P0)
 
-- **Opção 1:** WhatsApp interno (número privado Tiago/Gabriel) com mensagem template — exige template Meta aprovado.
+- **Opção 1:** WhatsApp interno (número privado Tiago/recepção) com mensagem template — exige template Meta aprovado.
 - **Opção 2:** Email — mais lento mas zero infra extra.
 - **Opção 3:** Webhook → app Notion/Trello/Linear que ele já usa.
 - **Recomendação:** começar com email simples (SMTP via SendGrid free tier). Iterar depois.

@@ -4,7 +4,7 @@
 
 | Artefato | Palavras | ~tokens PT | O que aconteceu na prática |
 |---|---:|---:|---|
-| Tirrá `tess-conversa-v3-clean.md` | 2.621 | **~3.500** | Smoke Gabriel: habilitação OK, bordas FAIL |
+| Tirrá `tess-conversa-v3-clean.md` | 2.621 | **~3.500** | Smoke a recepção: habilitação OK, bordas FAIL |
 | Flora `sdr-prompt-v3-tess-ready.md` | 3.253 | ~4.400 | PACER no TESS; eval 9.4 depois no Gemini |
 | Flora `sdr-prompt-v4.2-gemini-ready.md` | 5.178 | **~7.000** | Qualidade **subiu** com prompt **maior** |
 
@@ -72,7 +72,7 @@ Não foi “PACER → prompt curto”.
 
 Lição do `9.4-relatorio-aderencia-FINAL.md`: dois modelos diferentes erravam **cenários diferentes** no mesmo trigger sub-especificado. Subir modelo não consertou. **Especificar o gatilho + medir** consertou.
 
-Isso mapeia 1:1 no Gabriel: habilitação (escrita, explícita) PASS; expediente (não escrito) FAIL. Tamanho do PACER não é a variável.
+Isso mapeia 1:1 na recepção: habilitação (escrita, explícita) PASS; expediente (não escrito) FAIL. Tamanho do PACER não é a variável.
 
 ## 4. Harness atual do Tirrá vs o que o mercado usa
 
@@ -84,13 +84,13 @@ Existe `scripts/test-conversa-v3.mjs`. Ele está **desatualizado em relação à
 - Score 7/10 com threshold 0,85; **sem kill-rule** — uma conversa que cria 7 bookings ainda “passaria” em tom
 - O próprio baseline (`conversa-v3-eval-baseline-v2.md`) admite: rodou contra prompt v2 no painel
 
-Flora 9.3 é o molde certo: checks determinísticos (regex/tag/grade) + kills que sozinhas reprovam + qualitativos 0–2. O Atlas já rascunhou isso para o 46589 em `docs/analysis/gabriel-smoke-aderencia-2026-08-18.md` (K1–K8).
+Flora 9.3 é o molde certo: checks determinísticos (regex/tag/grade) + kills que sozinhas reprovam + qualitativos 0–2. O Atlas já rascunhou isso para o 46589 em `docs/analysis/recepcao-smoke-aderencia-2026-08-18.md` (K1–K8).
 
-Golden set natural: os 14 turnos do Gabriel + os smokes 17/08 (Dylan, preço Tiago, combo).
+Golden set natural: os 14 turnos da recepção + os smokes 17/08 (Dylan, preço Tiago, combo).
 
 ## 5. Devil’s advocate — e se só encolher o prompt?
 
-Risco alto. As falhas do Gabriel são **ausência de regra**, não excesso. Apagar I.4/I.6/exemplos sem K1–K8 no harness reproduz o v2: comparativo de preço, markdown, `<break>`.
+Risco alto. As falhas da recepção são **ausência de regra**, não excesso. Apagar I.4/I.6/exemplos sem K1–K8 no harness reproduz o v2: comparativo de preço, markdown, `<break>`.
 
 O que **pode** encolher com segurança: duplicatas (1 bolha dita 4 vezes), exemplos com `<break>` mortos, ROLE “premium” vs NUNCA “premium”, few-shots que não cobrem expediente/idempotência.
 
@@ -110,7 +110,7 @@ O que **não** deve ir para o system prompt: 119 SKUs, 10 dias de grade de todo 
 [Backend como guarda]
   idempotência CREATE, recusa fora do expediente, copy I.8
 [Harness]
-  golden Gabriel + kills K1–K8, gate binário
+  golden recepção + kills K1–K8, gate binário
 ```
 
 Isso **é** troca de framework, no sentido Anthropic (context engineering), não no sentido “jogar PACER fora e colar um prompt de 200 tokens”.

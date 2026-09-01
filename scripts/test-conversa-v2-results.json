@@ -58,7 +58,7 @@
   {
     "name": "4. Reclamação → escalar humano",
     "ok": true,
-    "out": "Sinto muito por isso. Vou pedir pro Gabriel continuar com você daqui, ok? Ele resolve isso pessoalmente. 😊\n\n[HANDOFF_HUMAN motivo=cliente_expressou_frustacao]",
+    "out": "Sinto muito por isso. Vou pedir pra recepção continuar com você daqui, ok? Eles resolvem isso pessoalmente. 😊\n\n[HANDOFF_HUMAN motivo=cliente_expressou_frustacao]",
     "missing": [],
     "violated": [],
     "passedAny": true,

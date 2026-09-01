@@ -13,7 +13,7 @@
 
 - **id_prompt:** `tess-conversa-v3`
 - **escopo/cliente:** `studio-tirra`
-- **solicitante:** Victor Cruz (founder Influence Labs) — feedbacks transmitidos verbalmente em 2026-05-26 (Tiago Rocha + Victor; Gabriel sem feedback nesta janela)
+- **solicitante:** Victor Cruz (founder Influence Labs) — feedbacks transmitidos verbalmente em 2026-05-26 (Tiago Rocha + Victor; recepção sem feedback nesta janela)
 - **data_briefing:** 2026-05-26
 - **destino do prompt:** TESS agente `46589` (substituição do v2 ativo)
 - **versão base:** [docs/prompts/tess-conversa-v2.md](../tess-conversa-v2.md)

@@ -7,5 +7,5 @@
 **Contexto inferido:**
 - Foco: comparison + recent (2025–2026)
 - Domínio: LLM agents, WhatsApp, booking, prompt/context engineering, eval harness
-- Âncora interna: smoke Gabriel 17/08 + `docs/analysis/gabriel-smoke-aderencia-2026-08-18.md`
+- Âncora interna: smoke de aderência 17/08 + `docs/analysis/recepcao-smoke-aderencia-2026-08-18.md`
 - Âncora irmã (só leitura): `ecoadventure-sdr-wpp` Flora v3 TESS → v4.x Gemini

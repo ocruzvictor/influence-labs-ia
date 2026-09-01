@@ -8,7 +8,7 @@ Documento fonte usado para prefill da discovery:
 - Cidade: Sao Caetano do Sul/SP.
 - Setor: beleza e cuidados pessoais (8+ anos).
 - Volume WhatsApp: 50-80 mensagens/dia.
-- Operacao humana principal: Gabriel (WhatsApp + recepcao).
+- Operacao humana principal: recepção (WhatsApp + presencial).
 - Plataforma core: Trinks (agenda + CRM + vendas).
 - Integracao existente: WhatsApp Business API (Meta) + Trinks Conecta.
 - Risco atual: no-show 15-20%.

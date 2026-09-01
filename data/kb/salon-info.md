@@ -21,7 +21,7 @@
 
 ## Contato
 - WhatsApp: numero oficial do Studio Tirra (interno)
-- Supervisor de atendimento: Gabriel Rocha Ferreira
+- Supervisor de atendimento: a recepção
 - Dono: Tiago Rocha
 
 ## Mensagem Fora do Horario

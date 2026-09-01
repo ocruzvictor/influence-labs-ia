@@ -19,7 +19,7 @@
 | 15. Quais formas de pagamento voces aceitam? | Aceitamos Pix e cartao de credito. | [x] |
 | 16. Como funciona cancelamento? | Nao cobramos taxa de no-show. Nossa prioridade e confirmar presenca e reorganizar agenda com antecedencia. | [ ] |
 | 17. Se eu atrasar, perco o horario? | Se avisar, tentamos remanejar para te atender. Em agenda lotada, pode haver necessidade de ajuste. | [ ] |
-| 18. Posso falar com humano? | Sim. Se voce preferir, te transfiro para o Gabriel no atendimento humano. | [ ] |
+| 18. Posso falar com humano? | Sim. Se voce preferir, te transfiro para a recepção no atendimento humano. | [ ] |
 | 19. Voces vendem produtos? | Sim, temos revenda de produtos como shampoos, condicionadores e pomadas. | [x] |
 | 20. Vou receber lembrete do meu horario? | Sim. Enviamos confirmacao no dia anterior e, para horarios a tarde, lembrete extra na manha do dia. | [ ] |
 

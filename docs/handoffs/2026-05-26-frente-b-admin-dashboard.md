@@ -6,7 +6,7 @@
 
 ## Contexto
 
-Studio Tirra precisa de uma interface web pra Tiago (dono) e Gabriel (supervisor) gerenciarem o atendimento sem precisar de SSH/curl/Trinks-painel-cru. Hoje a operação é fragmentada:
+Studio Tirra precisa de uma interface web pra Tiago (dono) e a recepção (supervisor) gerenciarem o atendimento sem precisar de SSH/curl/Trinks-painel-cru. Hoje a operação é fragmentada:
 
 - **Trinks** (sistema de agendamento): painel próprio, fora do nosso controle
 - **WhatsApp Business** (Kapso): inbox da recepção, sem analytics próprios do bot
@@ -18,7 +18,7 @@ A frente B unifica isso num painel administrativo.
 
 ## Goal
 
-MVP de dashboard web onde Tiago e Gabriel podem:
+MVP de dashboard web onde Tiago e a recepção podem:
 
 1. **Ver conversas em tempo real** — todas as conversas ativas, com filtro/busca
 2. **Toggle bot on/off** — global ou por número (whitelist mgmt sem editar `.env`)
@@ -41,13 +41,13 @@ MVP de dashboard web onde Tiago e Gabriel podem:
 1. `*create-epic` Studio Tirra Admin Dashboard MVP
 2. Quebra em stories (sugestão de 6 stories alinhadas com os goals acima)
 3. Define prioridades (MVP1 = quais features bloqueiam launch interno; MVP2 = quais ficam pra depois)
-4. Documenta personas: Tiago (dono, foco em métricas + KB) vs Gabriel (operador, foco em conversas + intervenção)
+4. Documenta personas: Tiago (dono, foco em métricas + KB) vs recepção (operador, foco em conversas + intervenção)
 
 ### Fase 2 — Tech design (@architect Aria)
 
 1. Decisão: app web standalone? Adicionar rota `/admin` no backend Express atual?
 2. Stack frontend: Next.js? Vite + React puro? HTML+Alpine pra MVP rápido?
-3. Auth: simples (basic auth via env), Magic link (email), OAuth Google? — Tiago/Gabriel são poucos usuários
+3. Auth: simples (basic auth via env), Magic link (email), OAuth Google? — Tiago/recepção são poucos usuários
 4. Persistência: usa o Postgres existente (`influence_labs_salon`) ou adiciona schema próprio?
 5. Realtime: SSE / WebSocket / polling 5s?
 6. Hosting: mesma VPS (subdomínio `admin.studiotirra.com.br`)?

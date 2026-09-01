@@ -1,4 +1,4 @@
-# Checklist: Inbox Kapso — busca por texto + quick replies (Gabriel / Tiago)
+# Checklist: Inbox Kapso — busca por texto + quick replies (recepção / Tiago)
 
 **Número correto:** Inbox do **bot** +55 11 97504-0517 **somente**.
 
@@ -91,9 +91,9 @@ Estacionamento está **PENDENTE CONFIRMACAO** em `data/client/kb/salon-info.md`.
 
 | Atalho | Fonte KB | Fiel? |
 |---|---|---|
-| `/horario` | faq.md #2 | [ ] Gabriel/Tiago confirmam |
-| `/endereco` | faq.md #1 | [ ] Gabriel/Tiago confirmam |
-| `/preco` | faq.md #5+#7+#8 | [ ] Gabriel/Tiago confirmam |
+| `/horario` | faq.md #2 | [ ] recepção/Tiago confirmam |
+| `/endereco` | faq.md #1 | [ ] recepção/Tiago confirmam |
+| `/preco` | faq.md #5+#7+#8 | [ ] recepção/Tiago confirmam |
 | `/cancelar` | faq.md #16 | [ ] opcional |
 
 ---
@@ -133,18 +133,18 @@ Corte masculino: Equipe R$ 90 (promo R$ 85). Tiago R$ 105 (promo R$ 100).
 Nao cobramos taxa de no-show. Nossa prioridade e confirmar presenca e reorganizar agenda com antecedencia.
 ```
 
-- [ ] Victor: 3+ quick replies criados no painel
+- [x] Victor: 3+ quick replies criados no painel (confirmado 28/08/2026)
 - [ ] Victor: testou disparo de cada um numa conversa de treino
 
-### AC4 — Treino busca por texto (Gabriel ou Tiago)
+### AC4 — Treino busca por texto (a recepção ou Tiago)
 
 Sessão de treino **sem abrir whitelist**:
 
-1. Gabriel ou Tiago abre Inbox do **97504-0517**.
+1. a recepção ou Tiago abre Inbox do **97504-0517**.
 2. Busca uma frase que **lembra** de ter visto numa conversa recente (ex.: “horário”, “corte”, “agendar”) — **não** só o telefone.
 3. Confirma que a conversa correta aparece.
 
-- [ ] Gabriel ou Tiago: achou conversa por **texto** (data: _________)
+- [ ] a recepção ou Tiago: achou conversa por **texto** (data: _________)
 
 ---
 

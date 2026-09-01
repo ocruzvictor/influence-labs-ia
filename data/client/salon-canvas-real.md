@@ -1,11 +1,11 @@
 # Pareto AI Canvas - Studio Tirra (Dados Reais)
 
 ## 1. Problema
-- Dor principal atual: atendimento WhatsApp e recepcao presencial concentrados no Gabriel.
+- Dor principal atual: atendimento WhatsApp e recepção presencial concentrados na mesma função.
 - Impacto no negocio: atrasos de resposta, risco de erro operacional, sobrecarga humana, no-show estimado em 15-20%.
 
 ## 2. Processo AS-IS
-- Fluxo atual: cliente chama no WhatsApp, Gabriel faz triagem, consulta Trinks manualmente, negocia horario e confirma.
+- Fluxo atual: cliente chama no WhatsApp, a recepção faz triagem, consulta Trinks manualmente, negocia horario e confirma.
 - Ferramentas atuais: WhatsApp Business API (Meta) + Trinks (agenda, CRM e vendas).
 - Gargalos: multitarefa no balcao, pouca proatividade comercial, dependecia de uma pessoa.
 
@@ -18,7 +18,7 @@
 - Nome: Assistente Virtual Studio Tirra.
 - Tom: amigavel, levemente informal, objetivo e profissional.
 - Personalidade: resolutiva, educada, focada em agenda.
-- Frases permitidas: "vou verificar os horarios agora", "posso te ajudar com agendamento", "te transfiro para o Gabriel se preferir".
+- Frases permitidas: "vou verificar os horarios agora", "posso te ajudar com agendamento", "te transfiro para a recepção se preferir".
 - Frases proibidas: prometer sem validar, inventar horario, insistir em venda apos recusa.
 
 ## 5. Funcoes do Agente
@@ -42,7 +42,7 @@
 | Taxa de no-show | 15-20% | -30% relativo | -50% relativo |
 | Conversao follow-up reagendamento | N/D | >20% | >30% |
 | Conversao follow-up produto | N/D | >15% | >20% |
-| Reducao da carga do Gabriel | N/D | >40% | >60% |
+| Reducao da carga da recepção | N/D | >40% | >60% |
 
 ## 8. Riscos
 - Estourar limite da API Trinks sem cache/rate limit.

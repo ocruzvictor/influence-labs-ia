@@ -27,8 +27,8 @@ Segunda story do Epic Admin Dashboard. A Story 1.1 entregou auth + scaffold em p
 
 Após esta story, mesmo **sem nenhuma UI**:
 
-- **Tiago/Gabriel** podem desligar o bot via `curl PATCH /api/toggles` em emergência (kill switch real, propaga em ≤5s)
-- **Tiago/Gabriel** podem adicionar/remover números da whitelist sem precisar de SSH + edição de `.env` + redeploy
+- **Tiago/recepção** podem desligar o bot via `curl PATCH /api/toggles` em emergência (kill switch real, propaga em ≤5s)
+- **Tiago/recepção** podem adicionar/remover números da whitelist sem precisar de SSH + edição de `.env` + redeploy
 - **Todas as próximas stories de UI** consomem a mesma API → trabalho frontend vira 5 PRs pequenas em sequência
 - **Audit log existe e captura mutações** → rastreabilidade desde o dia 1
 - **Conversation history exposta** → debugging e suporte fica trivial via curl

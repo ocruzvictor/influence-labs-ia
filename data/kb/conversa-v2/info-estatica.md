@@ -21,12 +21,12 @@
 
 ## Contato
 - WhatsApp: numero oficial do Studio Tirra (interno)
-- Supervisor de atendimento: Gabriel Rocha Ferreira
+- Supervisor de atendimento: a recepção
 - Dono: Tiago Rocha
 
 ## Mensagem Fora do Horario
 
-Comportamento atualizado (alinhado com `tess-conversa-v2.md` I.8): o bot atende 24/7 com escopo conversacional + registro de intencao de agendamento via tags. A confirmacao humana e o follow-up ocorrem na manha seguinte com Gabriel (terca-sabado, 7h BRT via Supervisor).
+Comportamento atualizado (alinhado com `tess-conversa-v2.md` I.8): o bot atende 24/7 com escopo conversacional + registro de intencao de agendamento via tags. A confirmacao humana e o follow-up ocorrem na manha seguinte com a recepção (terca-sabado, 7h BRT via Supervisor).
 
 Tom esperado fora-de-horario (referencia, nao copy literal):
 "Oi! Posso adiantar seu pedido aqui mesmo (registrar agendamento, tirar duvidas de servico). A recepcao confere e confirma com voce logo cedo (terca a sabado, manha)."

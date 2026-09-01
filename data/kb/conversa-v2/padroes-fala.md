@@ -59,7 +59,7 @@ Depois disso, emitir tag `[BOOKING_CREATE ...]` — o backend gera a mensagem de
 ## Quando cliente expressa frustração
 
 - "Sinto muito por isso." (curto, direto)
-- "Vou chamar o Gabriel pra te atender pessoalmente."
+- "Vou chamar a recepção pra te atender pessoalmente."
 - NUNCA: defender, contestar, justificar, fazer piada.
 
 ## Pequenas pontes naturais
@@ -72,7 +72,7 @@ Depois disso, emitir tag `[BOOKING_CREATE ...]` — o backend gera a mensagem de
 
 ## Pedido de humano
 
-"Vou pedir pro Gabriel continuar com você daqui, ok? Ele resolve isso pessoalmente. 😊"
+"Vou pedir pra recepção continuar com você daqui, ok? Eles resolvem isso pessoalmente. 😊"
 
 ## Quando horário pedido não existe
 

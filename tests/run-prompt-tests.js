@@ -138,7 +138,7 @@ function mockRouterIntent(input) {
   const humans = [
     'humano',
     'pessoa',
-    'gabriel',
+    'recepcao',
     'atendente',
     'transfer',
     'robo',
@@ -192,8 +192,8 @@ function mockReceptionistAnswer(test) {
   const slots = test.context?.available_slots || [];
   const firstSlot = slots[0] || '14:00';
 
-  if (msg.includes('falar com o gabriel')) {
-    return 'Claro! Vou transferir para o Gabriel agora.';
+  if (msg.includes('falar com a recepcao')) {
+    return 'Claro! Vou transferir para a recepção agora.';
   }
   if (msg.includes('sou cliente nova')) {
     return 'Perfeito! Para comecar seu cadastro, me passa nome completo, celular, email e data de nascimento.';
@@ -214,7 +214,7 @@ function mockReceptionistAnswer(test) {
     return 'Sem problema. Temos tolerancia de 15 minutos. Vem com seguranca.';
   }
   if (msg.includes('nao gostei')) {
-    return 'Lamento por isso. Vou escalar para o Gabriel cuidar do seu caso com prioridade.';
+    return 'Lamento por isso. Vou escalar para a recepção cuidar do seu caso com prioridade.';
   }
   if (msg.includes('mover meu horario')) {
     return 'Podemos manter horario confirmado para nao te prejudicar.';
@@ -308,8 +308,8 @@ function mockFaqAnswer(test) {
   if (msg.includes('quem faz manicure')) {
     return 'Manicure e atendida por Maluzinha e Jackie.';
   }
-  if (msg.includes('falar com o gabriel')) {
-    return 'Posso transferir agora para atendimento humano com o Gabriel.';
+  if (msg.includes('falar com a recepcao')) {
+    return 'Posso transferir agora para atendimento humano com a recepção.';
   }
   if (msg.includes('politica para cliente de risco')) {
     return 'Para perfil de risco, pode ser solicitado deposito de 50% para confirmar.';

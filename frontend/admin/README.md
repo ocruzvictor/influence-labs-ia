@@ -159,7 +159,7 @@ Resumo dos passos no VPS:
 3. Aplicar migration 001 se ainda não aplicada
 4. Validar `https://admin.studiotirra.com.br/login` carrega
 5. `npm run seed:admin` dentro do container (ou via host com env apontando
-   para Postgres do VPS) para Tiago/Gabriel
+   para Postgres do VPS) para Tiago/recepção
 
 ## Notas para a próxima story
 

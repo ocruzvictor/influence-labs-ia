@@ -133,7 +133,7 @@ test('clientSpokeLastKapso: última msg OUTBOUND → exclui (salão falou por ú
   assert.equal(clientSpokeLastKapso({ client_phone: '5511964540007' }, map), false);
 });
 
-test('clientSpokeLastKapso: cobre os baldes do Gabriel (já-respondida/agendada/sumiu = outbound → exclui)', () => {
+test('clientSpokeLastKapso: cobre os baldes da recepção (já-respondida/agendada/sumiu = outbound → exclui)', () => {
   const map = new Map([
     ['5511111111111', 'outbound'], // já respondida
     ['5512222222222', 'outbound'], // já agendada (salão confirmou)

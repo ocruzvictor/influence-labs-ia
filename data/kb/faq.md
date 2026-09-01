@@ -54,11 +54,11 @@ Sim. Temos produtos Don Alcides, BOAZ, Alice da Venda e itens de conveniencia.
 Sim. Terca e quarta costumam ter precos promocionais em servicos selecionados.
 
 ### 18. Quem e o melhor profissional para [servico]?
-Para indicacao subjetiva, escalo para o Gabriel orientar o melhor encaixe para seu caso.
+Para indicacao subjetiva, escalo para a recepção orientar o melhor encaixe para seu caso.
 
 ### 19. Parcelam?
 Sim, alguns servicos (como Visagismo) permitem parcelamento sem juros.
 
-### 20. Quero falar com uma pessoa / Gabriel / Tiago.
+### 20. Quero falar com uma pessoa / atendente / Tiago.
 Perfeito. Vou te transferir agora mesmo para atendimento humano.
 

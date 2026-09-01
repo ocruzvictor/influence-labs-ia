@@ -117,7 +117,7 @@ async function fetchFutureBookings() {
   }
 }
 
-// AC6: horário da última mensagem do CLIENTE (role='user'), pro Gabriel encaixar no FIFO.
+// AC6: horário da última mensagem do CLIENTE (role='user'), pra recepção encaixar no FIFO.
 function lastClientMsgTs(conv) {
   const msgs = conv?.messages;
   if (Array.isArray(msgs)) {
@@ -141,7 +141,7 @@ function formatArrival(ts) {
 // --- Chamada Supervisor (TESS 46590) ---
 // AC6 (Camada 2): input enriquecido com os sinais "fura-fila" — quem falou por último
 // (reusa o Map Kapso do AC2, NÃO recomputa), se tem agendamento futuro (sinal, não filtro — AC3),
-// e o horário da última msg do cliente (pro Gabriel encaixar no FIFO).
+// e o horário da última msg do cliente (pra recepção encaixar no FIFO).
 async function classifyConversation({
   phone, client, messages, clientName = null,
   quemFalouPorUltimo = null, temAgendamento = null, horarioUltimaMsgCliente = null,

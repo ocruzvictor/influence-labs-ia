@@ -54,7 +54,7 @@ Sim. Temos produtos Don Alcides, BOAZ, Alice da Venda e itens de conveniência.
 Sim. Terça e quarta costumam ter preços promocionais em serviços selecionados.
 
 ### 18. Quem é o melhor profissional para [serviço]?
-Para indicação subjetiva, escalo para o Gabriel orientar o melhor encaixe para seu caso.
+Para indicação subjetiva, escalo para a recepção orientar o melhor encaixe para seu caso.
 
 ### 19. Parcelam?
 Sim, alguns serviços (como Visagismo) permitem parcelamento sem juros.
@@ -62,5 +62,5 @@ Sim, alguns serviços (como Visagismo) permitem parcelamento sem juros.
 ### 20. Fazem camuflagem? Usam Gloss?
 Camuflagem é coloração só dos fios brancos (coloração ou tonalizante, conforme avaliação). Não usamos a marca Gloss; o salão usa Capral, Trans ou Igora na técnica — isso não é SKU à venda. Preço: SKU de coloração do snapshot (Coloração / Tonalização, Retoque de Raiz ou Coloração Global), depois de confirmar se é só raiz ou mais.
 
-### 21. Quero falar com uma pessoa / Gabriel / Tiago.
+### 21. Quero falar com uma pessoa / atendente / Tiago.
 Perfeito. Vou te transferir agora mesmo para atendimento humano.

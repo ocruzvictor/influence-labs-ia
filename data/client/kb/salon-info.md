@@ -24,7 +24,7 @@
 - Observacoes de acesso: PENDENTE CONFIRMACAO
 
 ## Operacao
-- Responsavel humano principal: Gabriel (WhatsApp + recepcao)
+- Responsavel humano principal: recepção (WhatsApp + presencial)
 - Cabeleireiro principal e gestor: Tiago Rocha
 - Volume estimado WhatsApp: 50-80 mensagens/dia
 - Ticket medio estimado: R$ 80-120

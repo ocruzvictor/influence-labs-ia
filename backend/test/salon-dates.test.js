@@ -83,7 +83,7 @@ test('bookingFitsExpediente — sexta 18:00+60 fecha às 19:00 (ok); 18:30+60 es
   assert.equal(bookingFitsExpediente('2026-08-21', '18:30', 60).ok, false);
 });
 
-test('bookingFitsExpediente — sexta 19:00/19:30 e 23:40+90 (smoke Gabriel) rejeitados', () => {
+test('bookingFitsExpediente — sexta 19:00/19:30 e 23:40+90 (smoke de aderência) rejeitados', () => {
   assert.equal(bookingFitsExpediente('2026-08-21', '19:00', 0).ok, false);
   assert.equal(bookingFitsExpediente('2026-08-21', '19:30', 60).ok, false);
   assert.equal(bookingFitsExpediente('2026-08-21', '23:40', 90).ok, false);

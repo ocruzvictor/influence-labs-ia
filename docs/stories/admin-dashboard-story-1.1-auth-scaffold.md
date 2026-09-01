@@ -18,9 +18,9 @@ Primeira story do epic Admin Dashboard. Cria o scaffold completo do projeto Next
 
 ## Valor de negócio
 
-Após esta story, Tiago e Gabriel terão um **ponto de entrada autenticado** para o painel — fundação que destrava as 5 próximas stories. Por si só:
+Após esta story, Tiago e a recepção terão um **ponto de entrada autenticado** para o painel — fundação que destrava as 5 próximas stories. Por si só:
 
-- **Para Tiago/Gabriel:** acesso testável ao painel (mesmo que só com placeholder na home) — valida UX de login, sessão persistente diária, e domínio configurado. Permite feedback precoce sobre login antes de gastar esforço em features.
+- **Para Tiago/recepção:** acesso testável ao painel (mesmo que só com placeholder na home) — valida UX de login, sessão persistente diária, e domínio configurado. Permite feedback precoce sobre login antes de gastar esforço em features.
 - **Para o projeto:** desbloqueia paralelização das stories 1.2–1.6 (todas dependem do shell + middleware). Sem essa fundação, o epic gargala em 1 story por vez.
 - **ROI imediato:** custo Resend = $0 (free tier folga 50x), VPS já paga, dev ~5h. Risk-adjusted return: alto.
 
@@ -413,7 +413,7 @@ Coloca o resultado em `ADMIN_JWT_SECRET`. **Cuidado:** trocar invalida todas as 
 | Singleton `pg.Pool` duplica em hot reload Next.js dev | Média | Baixo | Pattern `global._pgPool` mostrado no Step 3 |
 | Cookie `Secure: true` em dev local (http) bloqueia login | Média | Médio (dev fica travado) | Detectar via `env.NODE_ENV` — `Secure` só em produção |
 | JWT secret < 64 chars em prod | Baixa | Alto (security) | Zod valida em startup, fail-fast antes de servir tráfego |
-| Magic link em spam (deliverability ruim primeiro envio) | Média | Médio | SPF/DKIM via Resend + domínio próprio. Plano: testar com Gmail/Outlook ANTES de Tiago/Gabriel |
+| Magic link em spam (deliverability ruim primeiro envio) | Média | Médio | SPF/DKIM via Resend + domínio próprio. Plano: testar com Gmail/Outlook ANTES de Tiago/recepção |
 | Migration 001 não aplicada antes de iniciar dev | Baixa | Alto (bloqueia tudo) | Step 0 implícito no README. @dev valida com `\dt admin_*` antes de codar |
 | Cert SSL `admin.studiotirra.com.br` não emitido pre-deploy | Alta | Alto (deploy falha) | @devops emite cert ANTES do merge da story (paralelo). Dívida técnica do certbot-container já tracked |
 
@@ -715,7 +715,7 @@ Migration **PRECISA estar aplicada** antes do deploy — esse é bloqueador exte
    - verificar domínio `studiotirra.com.br` no Resend
    - emitir cert SSL `admin.studiotirra.com.br`
    - `docker compose up -d --build admin-frontend`
-   - `npm run seed:admin -- tiago@... "Tiago"` + Gabriel
+   - `npm run seed:admin -- tiago@... "Tiago"` + recepção
 4. Victor → validar AC funcionais e2e:
    - login → email recebido → click → dashboard
    - logout → redirect → cookie cleared

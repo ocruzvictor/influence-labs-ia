@@ -23,14 +23,14 @@
   {
     "group": "B. Casos drásticos",
     "name": "B1. Serviço que não existe",
-    "out": "Oi! Que bom que entrou em contato! 😊\n\nEntão, extensão de cílios não está em nosso cardápio atual, mas temos **lash lifting** — que deixa os cílios muito mais volumosos e definidos, sem precisar de manutenção frequente. É um serviço incrível pra quem quer realçar o olhar!\n\nVocê topa agendar o lash lifting? E em relação ao dia, amanhã (26) estamos com agenda cheia, mas tenho horários ótimos **na sexta (30/05)** com a Giovanna, nossa esteticista especialista. Te ofereço um horário?\n\nOu se preferir confirmar se tem extensão mesmo, é só chamar o Gabriel pra detalhar! ✌🏻",
+    "out": "Oi! Que bom que entrou em contato! 😊\n\nEntão, extensão de cílios não está em nosso cardápio atual, mas temos **lash lifting** — que deixa os cílios muito mais volumosos e definidos, sem precisar de manutenção frequente. É um serviço incrível pra quem quer realçar o olhar!\n\nVocê topa agendar o lash lifting? E em relação ao dia, amanhã (26) estamos com agenda cheia, mas tenho horários ótimos **na sexta (30/05)** com a Giovanna, nossa esteticista especialista. Te ofereço um horário?\n\nOu se preferir confirmar se tem extensão mesmo, é só chamar a recepção pra detalhar! ✌🏻",
     "warnings": [],
     "hasBold": true
   },
   {
     "group": "B. Casos drásticos",
     "name": "B2. Irritado sem palavra óbvia",
-    "out": "Sinto muito por isso, Carla. Vou chamar o Gabriel agora pra entender melhor o que aconteceu e resolver com você pessoalmente.\n\n[HANDOFF_HUMAN motivo=reclamacao_frustacao_cliente]",
+    "out": "Sinto muito por isso, Carla. Vou chamar a recepção agora pra entender melhor o que aconteceu e resolver com você pessoalmente.\n\n[HANDOFF_HUMAN motivo=reclamacao_frustacao_cliente]",
     "warnings": [],
     "hasBold": false
   },

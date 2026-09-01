@@ -14,9 +14,9 @@
 
 ## Contexto
 
-Quinta story do Epic Admin Dashboard. As 1.1-1.4 entregaram auth + listagem de conversas + drill-down + toggles + whitelist. Painel admin já tem **utilidade operacional plena** pra Gabriel/Tiago no dia-a-dia, mas todo conteúdo cognitivo do agente (promoções, FAQs novas, regras de venda atualizadas) **ainda mora ou no prompt da TESS (ed. manual UI) ou em arquivos `.md` no repo (não consumidos em runtime)**.
+Quinta story do Epic Admin Dashboard. As 1.1-1.4 entregaram auth + listagem de conversas + drill-down + toggles + whitelist. Painel admin já tem **utilidade operacional plena** pra recepção/Tiago no dia-a-dia, mas todo conteúdo cognitivo do agente (promoções, FAQs novas, regras de venda atualizadas) **ainda mora ou no prompt da TESS (ed. manual UI) ou em arquivos `.md` no repo (não consumidos em runtime)**.
 
-Esta story entrega o **editor de conhecimento dinâmico**: Tiago/Gabriel adicionam/editam memories que o agente consome via RAG da TESS, **sem dev no meio, sem deploy**.
+Esta story entrega o **editor de conhecimento dinâmico**: Tiago/recepção adicionam/editam memories que o agente consome via RAG da TESS, **sem dev no meio, sem deploy**.
 
 **Spike + PoC desta sessão (2026-05-27) confirmaram Caminho B viável:**
 - `execute_agent(agentId=33200, message=..., memoryCollections=[id])` faz TESS injetar memórias relevantes via embedding semântico em runtime
@@ -44,7 +44,7 @@ Esta story entrega o **editor de conhecimento dinâmico**: Tiago/Gabriel adicion
 Após esta story:
 
 - **Tiago** edita preço de serviço novo, anti-pattern descoberto na semana, ou promoção sazonal **em ≤2 min** sem abrir terminal nem chamar dev
-- **Gabriel** adiciona FAQ sobre dúvida recorrente que viu na semana, sem aprovação técnica
+- **recepção** adiciona FAQ sobre dúvida recorrente que viu na semana, sem aprovação técnica
 - **Agente** reflete mudança na **próxima conversa** (sync TESS imediato)
 - **Versionamento** preservado — rollback granular se uma edição causar regressão de qualidade
 - **Audit** completo — quem/quando/o-quê (diff por versão)
@@ -540,7 +540,7 @@ UI lê esses campos pra mostrar o banner "X items dessincronizados" (AC41).
 
 ### Coordenação com o agente Tirra (produção)
 
-- **Mudança no `backend/server.js` é breaking semanticamente** — primeira mensagem após deploy COM `TIRRA_KB_COLLECTION_ID` setado e collection populada já injeta KB. Validar com smoke isolado ANTES de Tiago/Gabriel começarem a editar.
+- **Mudança no `backend/server.js` é breaking semanticamente** — primeira mensagem após deploy COM `TIRRA_KB_COLLECTION_ID` setado e collection populada já injeta KB. Validar com smoke isolado ANTES de Tiago/recepção começarem a editar.
 - **Rollback simples:** unset `TIRRA_KB_COLLECTION_ID` no `.env` → restart backend → bot volta a operar sem memory collection (prompt original intacto).
 - **Prompt do agent na UI TESS NÃO MUDA** nesta story. As info estáticas (endereço, horário, formas de pagamento) continuam hardcoded no prompt. KB editor é pra info **dinâmica** (promoções, FAQs novas, regras atualizadas, anti-patterns descobertos).
 

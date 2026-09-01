@@ -7,14 +7,14 @@
 
 ## Objetivo
 
-Entregar um painel administrativo web onde **Tiago (dono)** e **Gabriel (supervisor)** gerenciam o atendimento do agente Studio Tirra sem precisar de SSH, curl ou edição manual de `.env`. Substitui a operação fragmentada atual (Trinks + WhatsApp + supervisor TESS + backend opaco) por uma UI única.
+Entregar um painel administrativo web onde **Tiago (dono)** e **a recepção** gerenciam o atendimento do agente Studio Tirra sem precisar de SSH, curl ou edição manual de `.env`. Substitui a operação fragmentada atual (Trinks + WhatsApp + supervisor TESS + backend opaco) por uma UI única.
 
 ## Personas
 
 | Persona | Foco principal | Frequência de uso |
 |---------|----------------|-------------------|
 | **Tiago Rocha** (dono) | Métricas de negócio, KB editor, decisões macro | Diário (manhã) |
-| **Gabriel** (supervisor) | Conversas live, intervenção humana, toggle bot | Diário (turno) |
+| **recepção** (supervisor) | Conversas live, intervenção humana, toggle bot | Diário (turno) |
 
 Ambos entram **quase todos os dias** — login não pode atritar. Decisão de auth (abaixo) reflete isso.
 
@@ -41,7 +41,7 @@ Ambos entram **quase todos os dias** — login não pode atritar. Decisão de au
 ## Arquitetura resultante (esperada)
 
 ```
-Tiago/Gabriel (browser)
+Tiago/recepção (browser)
     ↕ https://admin.studiotirra.com.br
 nginx (VPS 72.60.155.118)
     ↓ proxy → admin-frontend:3002 (Next.js)
@@ -78,7 +78,7 @@ nginx (VPS 72.60.155.118)
 - Remarcação direta pelo painel (Tiago usa Trinks separado)
 - Notificações push / email de alertas
 - Multi-idioma
-- Roles granulares (MVP: só "admin" — Tiago e Gabriel têm mesmos poderes)
+- Roles granulares (MVP: só "admin" — Tiago e a recepção têm mesmos poderes)
 
 ## Stories (a serem criadas por @sm)
 
@@ -99,7 +99,7 @@ Sugestão de breakdown — @sm finaliza estrutura no `*draft` de cada uma.
 
 - [ ] 6 stories Done (QA gate PASS)
 - [ ] `admin.studiotirra.com.br` no ar com SSL Let's Encrypt
-- [ ] Tiago e Gabriel com login funcional (testado por ambos)
+- [ ] Tiago e a recepção com login funcional (testado por ambos)
 - [ ] Conversa real do dia visível no painel em <5s do envio
 - [ ] Toggle bot testado (desliga → mensagem não responde → religa → responde)
 - [ ] KB edit refletida na próxima conversa do bot (TESS lê do novo source)
@@ -109,10 +109,10 @@ Sugestão de breakdown — @sm finaliza estrutura no `*draft` de cada uma.
 
 ## Métricas de sucesso (pós-launch)
 
-- Tiago/Gabriel acessam ≥4x/semana cada
+- Tiago/recepção acessam ≥4x/semana cada
 - Zero edição manual de `.env` pra whitelist após launch
 - KB atualizada por Tiago sem ajuda de dev em ≤30d
-- Tempo médio pra Gabriel detectar conversa precisando intervenção: <2min (vs hoje, depende de reativo)
+- Tempo médio pra recepção detectar conversa precisando intervenção: <2min (vs hoje, depende de reativo)
 
 ## Riscos & Mitigações
 
@@ -123,7 +123,7 @@ Sugestão de breakdown — @sm finaliza estrutura no `*draft` de cada uma.
 | Polling 5s gera carga no Postgres com muitas conversas | Baixa (volume atual baixo) | Médio | Indexar `conversation_history(created_at, phone)`; cache em memória 2s no backend |
 | Subdomínio `admin.*` exposto sem WAF/rate-limit | Média | Alto (auth attacks) | nginx rate limit + fail2ban + magic link sem brute force |
 | Métricas Trinks via API têm latência/rate limit | Média | Médio | Job de sync periódico (1h) populando tabela local |
-| Tiago não adota o painel (continua usando WhatsApp/SSH) | Baixa | Alto (epic perde valor) | Onboarding com Tiago + Gabriel ANTES de declarar Done; métrica de adoção é critério de sucesso |
+| Tiago não adota o painel (continua usando WhatsApp/SSH) | Baixa | Alto (epic perde valor) | Onboarding com Tiago + recepção ANTES de declarar Done; métrica de adoção é critério de sucesso |
 
 ## Recursos relevantes (input pra @architect e @dev)
 

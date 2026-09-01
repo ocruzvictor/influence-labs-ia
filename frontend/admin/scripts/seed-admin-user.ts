@@ -3,7 +3,7 @@
  *
  * Uso:
  *   npm run seed:admin -- tiago@studiotirra.com.br "Tiago Rocha"
- *   npm run seed:admin -- gabriel@studiotirra.com.br "Gabriel" admin
+ *   npm run seed:admin -- admin@studiotirra.com.br "Admin" admin
  *
  * Re-rodar com mesmo email reativa (active=true) e atualiza nome/role.
  */

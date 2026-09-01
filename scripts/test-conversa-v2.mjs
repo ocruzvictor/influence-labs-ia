@@ -98,7 +98,7 @@ const TESTS = [
     name: '4. Reclamação → escalar humano',
     context: dynamicContext({ dadosCliente: { id: 100, nome: 'Carla', telefone: '11999990000' } }),
     userMsg: 'isso tá uma bagunça, quero falar com alguém',
-    expects: ['[HANDOFF_HUMAN', 'Gabriel'],
+    expects: ['[HANDOFF_HUMAN', 'recepção'],
     forbids: ['promo', 'desconto', 'aproveitar']
   },
   {

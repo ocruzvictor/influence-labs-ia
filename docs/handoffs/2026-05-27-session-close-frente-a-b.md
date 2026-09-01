@@ -68,7 +68,7 @@
 | Login e2e (magic link Resend + sessão 30d) | ✅ validado pelo Victor |
 | Cert SSL Let's Encrypt | ✅ expira 2026-08-24 |
 | Users seedados | ✅ `tiago.terref@gmail.com`, `victor.cruz@pareto.plus` |
-| User Gabriel | ⏸️ pendente (Gabriel não mandou email ainda) |
+| User recepção | ⏸️ pendente (recepção não mandou email ainda) |
 | Patches críticos backportados ao código | ✅ 3 patches incluídos no PR #4 antes do merge |
 
 **Stack confirmada:**
@@ -104,7 +104,7 @@ Epic: `docs/stories/epics/EPIC-studio-tirra-admin-dashboard.md`
    - "qual o valor pra cortar com o Tiago?" → esperado: só o preço do Tiago, sem comparativo
    - "queria fazer o pé sábado" → esperado: pergunta de desambiguação (pedicure vs depilação)
    - Confirmar booking completo → esperado: confirmação estruturada em bolha única + tag `[BOOKING_CREATE]` íntegra
-2. **Gabriel** — mandar email pra ele se cadastrar no admin dashboard (`https://admin.studiotirra.com.br` → ele faz magic link)
+2. **recepção** — mandar email pra ele se cadastrar no admin dashboard (`https://admin.studiotirra.com.br` → ele faz magic link)
 3. **Decidir próxima story da Frente B** — recomendação: começar pela #2 (Conversas live) porque é a feature mais visível e desbloqueia operação do dia-a-dia do Tiago
 
 ### IA / próxima sessão — pendente decisão Victor

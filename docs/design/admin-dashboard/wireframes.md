@@ -10,12 +10,12 @@
 
 ## 🎯 Filosofia de design
 
-Painel admin pra 2 usuários (Tiago + Gabriel), acesso quase diário, foco operacional. Princípios:
+Painel admin pra 2 usuários (Tiago + recepção), acesso quase diário, foco operacional. Princípios:
 
 1. **Densidade > beleza** — Tiago checa 5x ao dia, não pode demorar pra achar info
 2. **Estado visível** — toggle on/off, bot ativo/silenciado, conversas live precisam de feedback imediato
 3. **Atalho > exploração** — atalhos de teclado pras 3 ações mais frequentes (filtrar conversas, toggle bot, abrir KB)
-4. **Empatia operacional** — Gabriel está atendendo cliente em paralelo, UI não pode "competir" com WhatsApp aberto
+4. **Empatia operacional** — recepção está atendendo cliente em paralelo, UI não pode "competir" com WhatsApp aberto
 5. **Brand sutil** — paleta Studio Tirra (Warm Authority) presente mas não dominante; dashboard é ferramenta, não landing page
 
 ## 🎨 Tokens visuais (do design system existente)
@@ -501,9 +501,9 @@ admin.studiotirra.com.br
   ┌────────────────────────────────────────────────────────────────┐
   │ 🕐 há 12min · Tiago · kb.update       "faq-servicos" v.4      │
   │ 🕐 há 1h · Tiago · toggle.set         "feature:audio" → off   │
-  │ 🕐 há 2h · Gabriel · whitelist.add    +5511988887777 (human)  │
+  │ 🕐 há 2h · recepção · whitelist.add    +5511988887777 (human)  │
   │ 🕐 há 3h · Tiago · login              Chrome · 192.168.1.42   │
-  │ 🕐 há 5h · sistema · session.expired  Gabriel                 │
+  │ 🕐 há 5h · sistema · session.expired  recepção                 │
   │ 🕐 ontem 18h · Tiago · kb.update      "precos" v.7            │
   │ ...                                                            │
   └────────────────────────────────────────────────────────────────┘
@@ -554,7 +554,7 @@ admin.studiotirra.com.br
 | `640–1024px` (tablet) | 2 colunas KPIs, nav horizontal mantida, sidebar drill-down vira sheet |
 | `> 1024px` (desktop) | Layout completo, 3 colunas KPIs, sidebar drill-down fixa |
 
-**Alvo primário:** desktop (Tiago/Gabriel usam laptop). Mobile é "checkar rápido", não tarefa principal.
+**Alvo primário:** desktop (Tiago/recepção usam laptop). Mobile é "checkar rápido", não tarefa principal.
 
 ---
 

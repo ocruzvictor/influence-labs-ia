@@ -13,7 +13,7 @@
 
 ## Contexto
 
-Terceira story do Epic Admin Dashboard. A Story 1.2-DATA entregou em produção todos os endpoints REST necessários (`GET /api/conversas`, `GET /api/conversas/[phone]`, com cursor pagination, filtros, cache LRU 2s, audit). Esta story **consome essa API** e entrega a primeira tela visual operacional — a tela mais usada por Gabriel no dia-a-dia.
+Terceira story do Epic Admin Dashboard. A Story 1.2-DATA entregou em produção todos os endpoints REST necessários (`GET /api/conversas`, `GET /api/conversas/[phone]`, com cursor pagination, filtros, cache LRU 2s, audit). Esta story **consome essa API** e entrega a primeira tela visual operacional — a tela mais usada por recepção no dia-a-dia.
 
 Hoje o painel admin tem apenas login + dashboard placeholder. Esta story transforma o painel de "shell" em "ferramenta de operação real".
 
@@ -22,7 +22,7 @@ Hoje o painel admin tem apenas login + dashboard placeholder. Esta story transfo
 **Escopo:** Tela 3 (lista de conversas com filtros + polling 5s) + Tela 3b (drill-down de timeline de uma conversa com polling 3s).
 
 **Fora de escopo (V2 ou outras stories):**
-- Atalhos de teclado globais (`⌘K`, `g c`, `↑↓`, `r`) → Story polish futura (1.7) se Tiago/Gabriel pedirem
+- Atalhos de teclado globais (`⌘K`, `g c`, `↑↓`, `r`) → Story polish futura (1.7) se Tiago/recepção pedirem
 - Sidebar "Dados do cliente" com campos Trinks (cadastro, última visita, visitas totais) → Trinks integration não existe ainda
 - Ações no drill-down: "Pausar bot 1h", "Bloquear número", "Adicionar nota" → dependem da Story 1.4 (whitelist UI) e de schema `notes` que não existe; nesta story renderizar **stubs disabled com tooltip "Disponível em breve"**
 - Avatar/role badges com avatar real → MVP usa iniciais
@@ -32,12 +32,12 @@ Hoje o painel admin tem apenas login + dashboard placeholder. Esta story transfo
 
 Após esta story:
 
-- **Gabriel** vê todas as conversas em andamento sem abrir 5 WhatsApps. Detecta takeover/atenção em <2min (métrica de sucesso do Epic)
+- **recepção** vê todas as conversas em andamento sem abrir 5 WhatsApps. Detecta takeover/atenção em <2min (métrica de sucesso do Epic)
 - **Tiago** entra de manhã, abre `/conversas`, e em 1 olhada sabe quantas conversas ativas o bot está conduzindo
 - **Debugging vira trivial** — Victor (ou qualquer dev) pode auditar fluxo completo de uma conversa sem `psql`
 - **Próxima story (1.4)** consome a UI base (top nav, polling, filtros) e adiciona apenas ações de controle
 
-**ROI:** Primeira ferramenta operacional real do painel. Sem ela, todo o backend da 1.2-DATA fica "invisível" para Tiago/Gabriel.
+**ROI:** Primeira ferramenta operacional real do painel. Sem ela, todo o backend da 1.2-DATA fica "invisível" para Tiago/recepção.
 
 ## Objetivo
 

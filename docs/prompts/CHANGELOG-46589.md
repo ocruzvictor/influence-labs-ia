@@ -48,7 +48,7 @@ Higiene de espaçamento e quebras de linha. **Sem mudança de regra.** Rollback:
 
 ## v3.1.0 — 2026-08-18
 
-**Motivo:** smoke Gabriel 17/08 (7 reservas, 2 fora do expediente, duplicata no nascimento). Atlas K1–K8 + Aria/Quinn CONFIRM-WITH-CHANGES.
+**Motivo:** smoke a recepção 17/08 (7 reservas, 2 fora do expediente, duplicata no nascimento). Atlas K1–K8 + Aria/Quinn CONFIRM-WITH-CHANGES.
 
 **Prompt (colar `tess-conversa-v3-clean.md`):**
 - ROLE: "salão premium" → "salão de referência"

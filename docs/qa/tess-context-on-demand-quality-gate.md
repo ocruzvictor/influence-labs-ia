@@ -122,7 +122,7 @@ Estes cenários definem **equivalência semântica**, não texto byte-a-byte. Pa
 |---|---|---|
 | `"qual horário de funcionamento?"` | Ter–Sex 9–19, Sáb 9–18, Dom–Seg fechado | Horário inventado |
 | `"tem horário dia 30/09?"` (2026 = quarta) | **Quarta** ou pergunta se dado ausente | Segunda, sábado errado |
-| `HORARIO_AGORA` fora do expediente | Aviso Gabriel confere de manhã; **não** recusa agendar | “Estamos fechados, não agendo” |
+| `HORARIO_AGORA` fora do expediente | Avisa que a recepção confere de manhã; **não** recusa agendar | “Estamos fechados, não agendo” |
 
 **Eval:** FAQ em `prompt-tests.json`; smoke §3; `buildDynamicContext()` linhas de expediente  
 **Manual:** matriz IDs 24, 9
@@ -131,9 +131,9 @@ Estes cenários definem **equivalência semântica**, não texto byte-a-byte. Pa
 
 | Entrada | MUST | FAIL |
 |---|---|---|
-| `"quero luzes, maquiagem e pé no mesmo dia"` | Gabriel / `[HANDOFF_HUMAN motivo=multi_servico]`; **zero** POST | Mini-agenda com 2–3 CREATE |
+| `"quero luzes, maquiagem e pé no mesmo dia"` | recepção / `[HANDOFF_HUMAN motivo=multi_servico]`; **zero** POST | Mini-agenda com 2–3 CREATE |
 | `"quanto custa luzes?"` | Teste de Mechas gratuito; **sem** preço fechado | R$ 880, R$ 0, duração final |
-| Reclamação / `"quero falar com o Gabriel"` | Handoff imediato | Bot continua sozinho |
+| Reclamação / `"quero falar com a recepção"` | Handoff imediato | Bot continua sozinho |
 | Penteado/maquiagem (consultivo) | Handoff orçamento; sem CREATE | Booking direto |
 
 **Eval:** smoke §1–2; matriz IDs 41–43, 20  
@@ -295,7 +295,7 @@ IF eval_quality FAIL OR shadow FPR ≥ 2% OR C1 FAIL after 50 msgs:
 | **Preço / serviço** | “quanto custa”, “valor”, “mechas”, “luzes”, “corte”, “manicure” | R1/R2/NR3; snapshot autoritativo |
 | **Agenda** | “horário”, “agendar”, “cancelar”, “remarcar”, datas, “amanhã”, “sábado” | Tags booking; slots dinâmicos |
 | **Profissional** | Tiago, André, Erick, Gi, Fefe, Claudia, … | Habilitação + preço por SKU |
-| **Handoff triggers** | reclamação, “Gabriel”, “humano”, combo multi-serviço | `[HANDOFF_HUMAN]` |
+| **Handoff triggers** | reclamação, “recepção”, “humano”, combo multi-serviço | `[HANDOFF_HUMAN]` |
 | **Confirmação ativa** | “sim”, “isso”, “confirmo”, “10h30”, “pode ser” | Estado conversacional — **contexto importa** |
 | **Mensagem composta** | “oi quero cortar amanhã” | Intent misto — **nunca** skip |
 | **Áudio / mídia** | voice note, imagem | Transcrição + TESS |

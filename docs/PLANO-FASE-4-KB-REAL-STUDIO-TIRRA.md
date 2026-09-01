@@ -18,7 +18,7 @@ O projeto beta NAO é um "salao generico". É o **Studio Tirra** em Sao Caetano 
 
 ### Mudanca critica de arquitetura:
 - **Sistema de agenda**: Trinks (nao Google Calendar nem Postgres custom)
-- **Supervisor/Escalacao**: Gabriel Rocha Ferreira (nao a "dona")
+- **Supervisor/Escalacao**: a recepção (nao a "dona")
 - **Dono**: Tiago Rocha (profissional premium + owner)
 - **Classificacao de clientes**: Sistema de score (Bom >80%, Neutro 50-80%, Mau <50%)
 
@@ -110,7 +110,7 @@ Substituir TODOS os arquivos em `data/kb/` com dados reais do Studio Tirra.
 
 ## Contato
 - WhatsApp: [numero]
-- Supervisor de atendimento: Gabriel Rocha Ferreira
+- Supervisor de atendimento: a recepção
 
 ## Mensagem Fora do Horario
 "Ola! Que bom que voce entrou em contato! No momento nao estamos disponiveis. Nosso atendimento no WhatsApp e de terca a sexta das 9h as 19h e de sabado das 9h as 18h. Gostaria de adiantar o assunto? Assim que possivel responderemos!"
@@ -283,13 +283,13 @@ Criar FAQ baseado nas conversas reais + prompt v1. Top 20 perguntas:
 "Tercas e quartas temos precos promocionais em varios servicos! Quer saber os valores?"
 
 ### 18. Quem e o melhor profissional para [servico]?
-[Escalar para Gabriel — recomendacao subjetiva demais para IA]
-"Todos os nossos profissionais sao otimos! Mas para te indicar o ideal pro seu caso, vou passar para o Gabriel que pode te orientar melhor."
+[Escalar para a recepção — recomendacao subjetiva demais para IA]
+"Todos os nossos profissionais sao otimos! Mas para te indicar o ideal pro seu caso, vou passar para a recepção que pode te orientar melhor."
 
 ### 19. Parcelam?
 "Alguns servicos como o Visagismo podem ser parcelados em 3x sem juros. Para outros servicos, aceitamos cartao de credito."
 
-### 20. Quero falar com uma pessoa / com o Gabriel / com o Tiago
+### 20. Quero falar com uma pessoa / com a recepção / com o Tiago
 [ESCALACAO IMEDIATA]
 "Claro! Vou te transferir agora mesmo."
 ```
@@ -414,7 +414,7 @@ Incorporar do prompt v1 do Studio Tirra:
 - **Protocolo de saudacao**: "Ola! Tudo bem?" + identificar se novo ou recorrente
 - **Confirmacao tripla** obrigatoria
 - **Mensagem final** com endereco + estacionamento + valor
-- **Resolucao de conflitos**: NUNCA resolver sozinho, escalar para Gabriel
+- **Resolucao de conflitos**: NUNCA resolver sozinho, escalar para a recepção
 - **Tom adaptativo**: caloroso para bons clientes, formal para maus clientes
 - **Frases reais extraidas das conversas boas**:
   - "Vou verificar os horarios disponiveis"
@@ -429,7 +429,7 @@ Incorporar do prompt v1 do Studio Tirra:
 Incorporar regras especiais:
 - **Visagismo**: NUNCA revelar preco direto. Fluxo consultivo primeiro.
 - **Mechas**: NUNCA revelar preco direto. Oferecer teste gratuito primeiro.
-- **Recomendacao de profissional**: Escalar para Gabriel (subjetivo demais)
+- **Recomendacao de profissional**: Escalar para a recepção (subjetivo demais)
 - Respostas VERBATIM da KB quando possivel
 
 ### Task 2.4 — `data/prompts/sales-prompt.md` (ATUALIZAR)
@@ -469,11 +469,11 @@ Criar documento com as 12 regras "NUNCA FAZER" extraidas das conversas ruins:
 
 12. **NUNCA priorizar cobranca sobre empatia em momentos delicados** (cliente no hospital, luto, etc).
 
-## Gatilhos de Escalacao Imediata para Gabriel
+## Gatilhos de Escalacao Imediata para a recepção
 - Qualquer reclamacao, feedback negativo ou insatisfacao
 - Keywords: "decepcionado", "problema", "nao gostei", "horrivel", "absurdo"
 - Conflito de agenda (dois clientes no mesmo slot)
-- Pedido para falar com pessoa: "Quero falar com uma pessoa", "Posso falar com o Gabriel?"
+- Pedido para falar com pessoa: "Quero falar com uma pessoa", "Posso falar com a recepção?"
 - 3+ tentativas de reagendamento na mesma conversa
 - Agendamento complexo (multiplos profissionais na mesma visita)
 - Pergunta nao coberta na FAQ apos 2 tentativas
@@ -526,7 +526,7 @@ Para cada workflow, substituir nodes Postgres de agenda por chamadas HTTP para A
 **Se Trinks NAO tiver API publica:**
 - Documentar alternativas (webhook, scraping, manual sync)
 - Considerar integracao via Zapier/Make se Trinks suportar
-- Worst case: manter agenda manual com input do Gabriel via Chatwoot
+- Worst case: manter agenda manual com input da recepção via Chatwoot
 
 **Atualizar em:** `n8n-workflows/WF-02-receptionist.json`, `WF-04-sales.json`, `WF-06-cron-jobs.json`
 
@@ -550,7 +550,7 @@ Substituir cenarios genericos por cenarios reais do Studio Tirra:
     {"input": "Tem horario quinta com o Andre?", "expected_intent": "agendamento"},
     {"input": "Vi a promocao de terca, me conta", "expected_intent": "vendas"},
     {"input": "O corte ficou horrivel", "expected_intent": "reclamacao"},
-    {"input": "Quero falar com o Gabriel", "expected_intent": "humano"},
+    {"input": "Quero falar com a recepção", "expected_intent": "humano"},
     {"input": "Quanto custa visagismo?", "expected_intent": "faq"},
     {"input": "Posso remarcar pra sabado?", "expected_intent": "agendamento"}
   ],

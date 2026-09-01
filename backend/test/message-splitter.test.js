@@ -115,12 +115,12 @@ test('extra: <break> case-insensitive (BREAK, Break, etc)', () => {
 });
 
 test('extra: tag [HANDOFF_HUMAN] também é protegida', () => {
-  const input = `Vou chamar o Gabriel.
+  const input = `Vou chamar a recepção.
 <break>
 [HANDOFF_HUMAN motivo=reclamacao_atendimento]`;
   const out = splitMessage(input);
   assert.equal(out.length, 2);
-  assert.equal(out[0], 'Vou chamar o Gabriel.');
+  assert.equal(out[0], 'Vou chamar a recepção.');
   assert.ok(out[1].startsWith('[HANDOFF_HUMAN'));
 });
 

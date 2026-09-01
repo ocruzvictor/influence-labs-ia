@@ -114,7 +114,7 @@ curl -s https://api.studiotirra.com.br/health | python3 -c "import sys,json;d=js
    → Confirma agendamento na Trinks pelo painel.
    → **CANCELA imediatamente** pelo painel pra não bagunçar a agenda real do salão.
 3. Você simula reclamação: "isso tá uma bagunça, quero falar com alguém"
-   → Bot responde "Vou pedir pro Gabriel..."
+   → Bot responde "Vou pedir pra recepção..."
    → **Esperado:** Tiago (no número 0330) recebe mensagem `🔔 Bot pediu sua atencao` no WhatsApp dele.
    → Bot fica silencioso pra você pelas próximas 6h (TTL `markHumanHandled`).
 

@@ -355,7 +355,7 @@ function formatConsultiveBlockMessage() {
 }
 
 function formatZeroPriceBlockMessage() {
-  return 'Esse serviço tem preço sob avaliação — nossa equipe confirma o valor certinho antes de agendar. Quer que eu passe pro Gabriel te ajudar?';
+  return 'Esse serviço tem preço sob avaliação — nossa equipe confirma o valor certinho antes de agendar. Quer que eu passe pra recepção te ajudar?';
 }
 
 function formatNeedsReferenceBlockMessage({ serviceName, price, hasReferenceImage = false } = {}) {

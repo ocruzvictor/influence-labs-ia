@@ -12,7 +12,7 @@ diretamente na nuvem da Meta (WhatsApp Cloud API), sem BSP intermediário.
 ## ⚠️ Leia antes de sair de casa — 3 avisos que mudam a decisão
 
 1. **A migração para Cloud API desconecta o número do app WhatsApp Business.**
-   Hoje o Gabriel atende o dia a dia pelo app. Depois da migração, o número vive 100% na
+   Hoje a recepção atende o dia a dia pelo app. Depois da migração, o número vive 100% na
    API — o app WhatsApp Business **para de funcionar** para esse número. O atendimento
    humano passa a ser via Chatwoot (`chat.studiotirra.com.br`). Confirme com o Tiago que
    isso é aceitável para o teste. *(Procure no painel a opção "Coexistence" — se disponível,

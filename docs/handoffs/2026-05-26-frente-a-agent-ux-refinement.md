@@ -6,7 +6,7 @@
 
 ## Contexto
 
-Studio Tirra (salão de Tiago Rocha em São Caetano do Sul/SP) está rodando o agente Conversa (TESS 46589) em produção. A waitlist (clientes reais) começou a interagir e Tiago + Gabriel (supervisor humano) estão coletando observações sobre a experiência real.
+Studio Tirra (salão de Tiago Rocha em São Caetano do Sul/SP) está rodando o agente Conversa (TESS 46589) em produção. A waitlist (clientes reais) começou a interagir e Tiago + recepção (supervisor humano) estão coletando observações sobre a experiência real.
 
 O agente está **funcional** (booking, cancelamento, transcrição áudio, after-hours, supervisor matinal todos funcionando), mas tem espaço pra refinamento de **comunicação**, **tom**, **forma de quebrar mensagens**, e **pequenas correções de fluxo conversacional** baseadas em feedback humano que não é capturável só por logs.
 
@@ -14,7 +14,7 @@ Objetivo da frente: levar o agente de "funciona" pra "soa natural e elegante".
 
 ## Goal
 
-Prompt v3 do agente Conversa (46589) com ajustes finos derivados de feedback estruturado de Tiago + Gabriel, validados via bateria de testes antes de deploy.
+Prompt v3 do agente Conversa (46589) com ajustes finos derivados de feedback estruturado de Tiago + recepção, validados via bateria de testes antes de deploy.
 
 ## Não é o escopo desta frente
 
@@ -26,7 +26,7 @@ Prompt v3 do agente Conversa (46589) com ajustes finos derivados de feedback est
 
 ### Fase 1 — Intake estruturado (@analyst Alex)
 
-1. Victor coleta os feedbacks brutos (texto livre) que Tiago e Gabriel enviaram
+1. Victor coleta os feedbacks brutos (texto livre) que Tiago e a recepção enviaram
 2. @analyst executa `*brainstorm` pra estruturar:
    - Quais padrões aparecem repetidamente?
    - Quais são one-off vs sistêmicos?
@@ -65,7 +65,7 @@ Prompt v3 do agente Conversa (46589) com ajustes finos derivados de feedback est
 
 Antes de chamar @analyst, ter à mão:
 
-- [ ] Logs/screenshots/textos dos feedbacks de Tiago e Gabriel (qualquer formato)
+- [ ] Logs/screenshots/textos dos feedbacks de Tiago e a recepção (qualquer formato)
 - [ ] Lista de números na waitlist (pra @analyst correlacionar com `conversation_history`)
 - [ ] Decisão: rodar V3 com whitelist atual (3 números) ou expandir antes do refactor
 - [ ] Janela de tolerância pra A/B test (ex: 1 semana com V2 e V3 alternados? Ou direto V3?)
@@ -81,7 +81,7 @@ Antes de chamar @analyst, ter à mão:
 
 ```
 @analyst
-*brainstorm sobre os feedbacks de waitlist Studio Tirra (Tiago + Gabriel)
+*brainstorm sobre os feedbacks de waitlist Studio Tirra (Tiago + recepção)
 ```
 
 Ou direto:

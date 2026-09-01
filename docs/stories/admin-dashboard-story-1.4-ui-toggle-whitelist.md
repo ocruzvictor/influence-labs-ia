@@ -26,15 +26,15 @@ Esta story entrega a **primeira UI de controle** do painel — kill switch + fea
 **Fora de escopo (V2 ou outras stories):**
 - Histórico inline de mudanças do toggle (link "Ver histórico") → Story 1.6 (audit log viewer)
 - Edição de descrição/label do toggle pela UI → não há requisito; descrição vive no schema
-- Expiração automática de whitelist (`expires_at`) → schema não tem; "Pausar bot 1h" usa `human_only` permanente e Tiago/Gabriel removem manualmente. Auto-expiração vira Story 1.4.1 se virar dor real
+- Expiração automática de whitelist (`expires_at`) → schema não tem; "Pausar bot 1h" usa `human_only` permanente e Tiago/recepção removem manualmente. Auto-expiração vira Story 1.4.1 se virar dor real
 - Notas (campo livre) anexadas a uma conversa → schema `notes` não existe
 
 ## Valor de negócio
 
 Após esta story:
 
-- **Tiago/Gabriel** desligam o bot em 1 click (sem `curl`, sem SSH) — kill switch real, propaga em ≤5s
-- **Tiago/Gabriel** adicionam/removem números da whitelist via UI — fim definitivo da era "redeploy pra mudar whitelist" (já era backend-ready desde 1.2-DATA, mas só agora consumível por humano)
+- **Tiago/recepção** desligam o bot em 1 click (sem `curl`, sem SSH) — kill switch real, propaga em ≤5s
+- **Tiago/recepção** adicionam/removem números da whitelist via UI — fim definitivo da era "redeploy pra mudar whitelist" (já era backend-ready desde 1.2-DATA, mas só agora consumível por humano)
 - **Operação cotidiana** — desligar bot para teste, bloquear número-spam, marcar VIP com `human_only`
 - **Métricas de adoção do Epic** começam a fazer sentido — "zero edição manual de `.env` após launch" exige UI funcional
 
@@ -256,7 +256,7 @@ Entregar:
 | 2 | Confirmação em features | Sem confirmação, apenas toast | Wireframe §327 ("UX rápida") |
 | 3 | Confirmação em remove whitelist | AlertDialog obrigatório | Ação destrutiva |
 | 4 | Phone input behavior | Filtrar `[^\d]` em onChange + Zod no submit | Defesa em profundidade |
-| 5 | "Pausar bot 1h" sem expiração real | `mode='human_only'` permanente — Tiago/Gabriel removem manualmente | Schema não tem `expires_at` |
+| 5 | "Pausar bot 1h" sem expiração real | `mode='human_only'` permanente — Tiago/recepção removem manualmente | Schema não tem `expires_at` |
 | 6 | Histórico inline de toggle | OUT — Story 1.6 (audit log viewer) | Cortar escopo |
 | 7 | Adicionar nota a conversa | OUT — schema `notes` não existe; stub permanece disabled | Advisor + sem schema |
 | 8 | Toggle key naming convention | `feature:audio`, `feature:supervisor` etc. — qualquer key nova fora do mapping renderiza com fallback safe | Defensive coding |
@@ -268,7 +268,7 @@ Entregar:
 | Tiago clica accidental no kill switch | AlertDialog com `autoFocus` em Cancelar |
 | Race entre toggle PATCH e re-fetch traz estado antigo | Optimistic update + revert em erro; re-fetch espera response |
 | Backend tem 5s de cache → toggle pode parecer "não aplicou" se admin testar em <5s | Documentar no toast: "Bot atualizado. Propaga em até 5s." |
-| Whitelist com 100+ items vira ruim | OUT de escopo (Tiago/Gabriel não devem chegar nesse volume tão cedo); paginação fica V2 se virar dor |
+| Whitelist com 100+ items vira ruim | OUT de escopo (Tiago/recepção não devem chegar nesse volume tão cedo); paginação fica V2 se virar dor |
 | Modal de add em mobile fica apertado | shadcn Dialog já vira full-screen em mobile — validar |
 | 1.3 não mergeada → ACs 29-31 ficam órfãos | @dev marca como N/A no PR description e cobre depois |
 

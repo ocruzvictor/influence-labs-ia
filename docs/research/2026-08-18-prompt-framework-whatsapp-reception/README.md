@@ -10,7 +10,7 @@ O system prompt canônico do 46589 tem **~3,5 mil tokens**. O da Flora v4.2, que
 
 O que o mercado chama de problema em 2025–2026 não é “ter 3 mil tokens de instrução”. É **context rot**: cada turno do Tirrá manda prompt + KB TESS + **119 serviços** + habilitação + 10 dias de slots + 15 turns de memória. Aí sim a atenção dilui — e o modelo obedece o caminho feliz (escrito no topo) e perde as bordas (expediente, não recriar, markdown).
 
-**Não reescrever PACER do zero.** Compactar constituição, filtrar o snapshot por intenção, e montar um harness no molde Flora 9.3 usando o smoke do Gabriel como golden set.
+**Não reescrever PACER do zero.** Compactar constituição, filtrar o snapshot por intenção, e montar um harness no molde Flora 9.3 usando o smoke da recepção como golden set.
 
 - Relatório: [02-research-report.md](./02-research-report.md)
 - Recomendações: [03-recommendations.md](./03-recommendations.md)

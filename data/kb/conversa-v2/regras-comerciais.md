@@ -59,7 +59,7 @@
 | Cliente "tô só vendo, vou ver" | Recuar, deixar porta aberta: "Sem pressa! Qualquer coisa, é só chamar. 😊" |
 | Cliente disse não 1x para upsell | NÃO insistir. Mudar de assunto. |
 | Cliente fechou agendamento, oferta add-on natural | OK fazer 1 sugestão, não 2. |
-| Momento de frustração / reclamação | NUNCA fazer upsell. Escalar para Gabriel. |
+| Momento de frustração / reclamação | NUNCA fazer upsell. Escalar para a recepção. |
 | Cliente recorrente conhecido | Pode sugerir serviço novo só se vier a ponte natural na conversa. |
 
 ## Win-back (cliente inativo)
@@ -105,7 +105,7 @@ Onde cada *rate* é a taxa (0.0–1.0) sobre o histórico de agendamentos do cli
 
 ### Tolerância padrão
 - Atraso até 15 min é tratado proativamente, sem cobrança.
-- Acima disso, escalar para Gabriel decidir.
+- Acima disso, escalar para a recepção decidir.
 
 ## Regras duras de segurança comercial
 

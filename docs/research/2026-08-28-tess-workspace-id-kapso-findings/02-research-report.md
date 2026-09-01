@@ -84,7 +84,7 @@ API `GET/POST /platform/v1/log_search` (query, `problems_only`, sources: API, Me
 
 Antes: filtro por telefone. Agora: texto da mensagem, nome, telefone. Também: contact property filters, quick replies (`/atalho`), atalhos J/K/Enter/R, generate-in-composer (créditos).
 
-**Adequação:** Gabriel / recepção / Tiago no Inbox Kapso. Zero código. Maior ganho de UX humana desta leva.
+**Adequação:** recepção / recepção / Tiago no Inbox Kapso. Zero código. Maior ganho de UX humana desta leva.
 
 ### 2.5 Changelog além do e-mail
 
@@ -110,7 +110,7 @@ Antes: filtro por telefone. Agora: texto da mensagem, nome, telefone. Também: c
 | Persona | Dor hoje | O que ajuda |
 |---|---|---|
 | Cliente | Resposta errada / conversa trava | Findings (frustração, unresolved, claim errado) → prompt/backend |
-| Atendente (Gabriel / app 94831 + Inbox Kapso) | Achar conversa, repetir texto | Inbox search, quick replies, atalhos |
+| Atendente (recepção / app 94831 + Inbox Kapso) | Achar conversa, repetir texto | Inbox search, quick replies, atalhos |
 | Administrador (Tiago) | Não vê padrão de falha | Findings no sidebar Kapso; enforcement e-mail |
 | AI / backend (Victor) | Debug HMAC/send/TESS | Log search, Kapso Agent + repo, header workspace-id |
 | Recepção humana 94831 | Fora desta leva (não mexer no número) | — |

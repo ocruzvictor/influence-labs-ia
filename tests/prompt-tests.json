@@ -17,7 +17,7 @@
       "expected_intent": "reclamacao"
     },
     {
-      "input": "Quero falar com o Gabriel",
+      "input": "Quero falar com a recepção",
       "expected_intent": "humano"
     },
     {
@@ -278,7 +278,7 @@
       ]
     },
     {
-      "input": "Quero falar com o Gabriel",
+      "input": "Quero falar com a recepção",
       "context": {
         "available_slots": [
           "10:00"
@@ -286,7 +286,7 @@
       },
       "expected_contains": [
         "transferir",
-        "Gabriel"
+        "recepção"
       ],
       "expected_not_contains": [
         "continuo sozinho"
@@ -393,7 +393,7 @@
       },
       "expected_contains": [
         "lamento",
-        "Gabriel"
+        "recepção"
       ],
       "expected_not_contains": [
         "discutir"
@@ -583,7 +583,7 @@
       "source": "products.md"
     },
     {
-      "input": "Quero falar com o Gabriel",
+      "input": "Quero falar com a recepção",
       "expected_contains": [
         "transferir",
         "atendimento humano"

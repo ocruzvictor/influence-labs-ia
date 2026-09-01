@@ -52,7 +52,7 @@ Observacao: os nomes abaixo combinam informacao oficial + inferencia de integrac
 
 ## Fallbacks caso API nao esteja habilitada no ambiente
 1. Integracao oficial via parceiro (ativar modulo de API com suporte Trinks)
-2. Sincronizacao semiautomatica via Chatwoot/Gabriel em casos criticos
+2. Sincronizacao semiautomatica via Chatwoot/recepção em casos criticos
 3. Evitar scraping como estrategia principal (alto risco de manutencao)
 
 ## Decisao para fase 4

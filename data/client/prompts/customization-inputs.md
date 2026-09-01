@@ -24,4 +24,4 @@
 
 ## Regras de handoff
 - Gatilhos obrigatorios: reclamacao, pedido de humano, baixa confianca, erro de integracao, caso complexo
-- Mensagem padrao: "Vou te encaminhar para o Gabriel no atendimento humano agora."
+- Mensagem padrao: "Vou te encaminhar para a recepção no atendimento humano agora."

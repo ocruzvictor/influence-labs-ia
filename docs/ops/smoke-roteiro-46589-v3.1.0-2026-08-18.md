@@ -2,9 +2,9 @@
 
 **Número do bot:** `+55 11 95502-8331`  
 **Recepção humana (não usar):** `+55 11 94831-9426`  
-**Quem testa:** Victor (e opcionalmente Dylan/Gabriel na whitelist)  
+**Quem testa:** Victor (e opcionalmente Dylan/recepção na whitelist)  
 **Pré:** prompt v3.1.0 colado no TESS 46589 **e** backend desta fatia no VPS. Sem `BOT_ACCEPT_ALL`.  
-**Não confirmar** reserva de cliente real. Se criar booking de teste, **cancele no mesmo fluxo** ou avise o Gabriel.
+**Não confirmar** reserva de cliente real. Se criar booking de teste, **cancele no mesmo fluxo** ou avise a recepção.
 
 Espere **1 bolha** por turno. Sem `**negrito**`. Sem a palavra "premium". Sem "TA - Corte…".
 
@@ -75,7 +75,7 @@ Se ainda tiver reserva de teste ativa:
 
 **Esperado:** pede o booking da seção / usa cancel+create ou reschedule. A reserva antiga **não** fica viva junto da nova.
 
-Se ficar ambíguo, pode escalar pro Gabriel — isso é aceitável. Criar a segunda **sem** cancelar a primeira é FAIL.
+Se ficar ambíguo, pode escalar pra recepção — isso é aceitável. Criar a segunda **sem** cancelar a primeira é FAIL.
 
 ---
 
@@ -83,7 +83,7 @@ Se ficar ambíguo, pode escalar pro Gabriel — isso é aceitável. Criar a segu
 
 **Você:** `pode deixar corte com o Erick e mechas com a Jackie no mesmo horário`
 
-**Esperado:** **não** marca paralelo. Passa pro Gabriel (`Vou pedir pro Gabriel continuar com você…`). Sem dois `BOOKING_CREATE` com o mesmo `dataHoraInicio`.
+**Esperado:** **não** marca paralelo. Passa pra recepção (`Vou pedir pra recepção continuar com você…`). Sem dois `BOOKING_CREATE` com o mesmo `dataHoraInicio`.
 
 ---
 
@@ -91,7 +91,7 @@ Se ficar ambíguo, pode escalar pro Gabriel — isso é aceitável. Criar a segu
 
 **Você:** `quero agendar corte sábado de manhã`
 
-**Esperado:** conversa normal, avisa que o Gabriel confere de manhã. Se confirmar e criar: card **sem** "Te esperamos". Texto tipo registrei / Gabriel confere.
+**Esperado:** conversa normal, avisa que a recepção confere de manhã. Se confirmar e criar: card **sem** "Te esperamos". Texto tipo registrei / recepção confere.
 
 ---
 
