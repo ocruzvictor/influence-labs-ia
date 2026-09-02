@@ -1,0 +1,87 @@
+schema: 1
+story: 'resume-ia.2'
+story_title: 'CLI/API POST .../resume — envio proativo + janela 24h'
+gate: CONCERNS
+status_reason: 'Re-review qgIterations=2: REQ-001/REQ-002/TEST-001/REL-002 e invalidatePhoneCache verificados no codigo; fatia 32/32 passa. Residual: FOR UPDATE ainda nao cobre TESS+Kapso (WONT_FIX Dex).'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:resume@96ddfe82,test@5e055b23,server@11a84db8,owner@36f917f2,assembler@d2ba8e1e,thread@488c8be5,audit@1175f94b,017@50014df8,rollback@c5f98937,thread-test@afac8793,HEAD:468391d7'
+updated: '2026-09-02T02:11:34Z'
+qg_iteration: 2
+previous_gate: FAIL
+top_issues:
+  - id: 'REL-001'
+    severity: medium
+    finding: 'SELECT FOR UPDATE ainda vive so no pre-check e commita antes de TESS+Kapso. POSTs concorrentes no mesmo phone podem passar o gate de silencio juntos. Cache de silencio agora e invalidado nos writes (parte cache FECHADA). Lock longo ~20s permanece WONT_FIX.'
+    suggested_action: 'Aceitar serialização in-process por phone em story futura, ou advisory lock Postgres (pg_advisory_xact_lock) sem segurar a row bot_thread_state durante TESS. Não bloquear Done desta story.'
+    suggested_owner: 'dev'
+    status: partial
+waiver: { active: false }
+
+quality_score: 78
+expires: '2026-09-16T02:11:34Z'
+
+evidence:
+  tests_reviewed: 32
+  tests_passed: 32
+  tests_failed: 0
+  test_command: 'node --test backend/test/resume-conversation.test.js backend/test/bot-thread-state.test.js'
+  risks_identified: 1
+  coderabbit: 'SKIP — CLI indisponível / tree suja fora do IN. [AUTO-DECISION] review manual da fatia; QA não auto-fixa (anti-self-review).'
+  product_gates:
+    fake_role_user_da_nota: PASS
+    update_bot_whitelist: PASS
+    janela_24h_inclui_passive: PASS
+    nota_20_500: PASS
+    http_409_human_only_block_human_spoke: PASS
+    leak_40_chars: PASS
+    consume_on_inbound: PASS
+    already_active_pending_note: PASS
+    idempotency_no_cache_422_503: PASS
+    invalidate_phone_cache_on_writes: PASS
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    ac_gaps: []
+  prior_findings:
+    REQ-001:
+      status: RESOLVED
+      evidence: 'peekPendingResumeNote read-only; processMessage força skippedTess=false se pending note; markResumeNoteConsumed só após tessText no ramo TESS.'
+    REQ-002:
+      status: RESOLVED
+      evidence: 'already_active somente se !silenced && !pendingNote; persistPendingResumeNote substitui nota e zera consumed_at; teste window_closed + nota diferente.'
+    TEST-001:
+      status: RESOLVED
+      notes: '401 Express continua predicado espelhado (não HTTP server); coberturas peek/mark/skip+nota/persistStaffOutbound/>500/actor/>422 retry presentes.'
+    REL-002:
+      status: RESOLVED
+      evidence: 'shouldCacheIdempotentResult só 200 sent|window_closed|already_active; teste 422 retry chama TESS 2x.'
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Rota espelha X-Admin-Token/ADMIN_TOKEN. Audit loga note_hash+length. Sem UPDATE bot_whitelist. Sem persist da nota como role=user.'
+  performance:
+    status: PASS
+    notes: 'Leak sliding window O(n) nota ≤500. Lock curto no pre-check.'
+  reliability:
+    status: CONCERNS
+    notes: 'Cache invalidate nos writes resume + mark consumed. Idempotencia nao cacheia 422/503. Race concorrente no send permanece (WONT_FIX lock longo).'
+  maintainability:
+    status: PASS
+    notes: 'Módulo SOT resume-conversation.js; 017 isolada; helper admin-audit fail-silent.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Serializar resume por phone (advisory lock) sem FOR UPDATE durante TESS+Kapso.'
+      refs: ['backend/lib/resume-conversation.js']
+    - action: 'Teste HTTP real 401 da rota Express (hoje só predicado espelhado).'
+      refs: ['backend/test/resume-conversation.test.js', 'backend/server.js']
+    - action: 'Aplicar 016+017 no VPS antes do cutover (story 5).'
+      refs: ['infra/migrations/017_last_staff_outbound_at.sql']
+
+auto_decisions:
+  - 'YOLO: elicit=true nas tasks → skip; decisões neste arquivo.'
+  - 'CodeRabbit self-healing não executado: QA não modifica source; Dex aplicou fixes.'
+  - 'Status header era ready-for-review (não InReview literal) → tratar como InReview para transição CONCERNS → Done (pedido explícito do loop QA).'
+  - 'REL-001 lock: nao FAIL no ultimo loop; Dex WONT_FIX documentado; cache parte verificada; severity medium; gate CONCERNS.'
+  - 'qgIterations=2; terceira review seria último loop — não necessário se CONCERNS.'

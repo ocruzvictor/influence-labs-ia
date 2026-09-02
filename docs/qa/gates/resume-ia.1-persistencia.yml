@@ -1,0 +1,62 @@
+schema: 1
+story: 'resume-ia.1'
+story_title: 'Persistência bot_thread_state no lugar do Map humanHandledUntil'
+gate: CONCERNS
+status_reason: 'ACs IN implementados e testes da fatia 5/5 passam; gaps de cobertura no fail-path da health e silêncio perdido se o INSERT falhar (sem fallback em memória).'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:016@a412ba3e,lib@16ffcc24,test@0b24ac98,rollback@da930c34,HEAD:468391d7'
+updated: '2026-09-02T02:00:00Z'
+top_issues:
+  - id: 'TEST-001'
+    severity: medium
+    finding: 'AC6 pede degradar /health se a tabela não existir; countActiveSilenced cobre COUNT ativo, mas não há teste de db.query null / relation missing nem HTTP /health.'
+    suggested_action: 'Adicionar teste unitário de countActiveSilenced → null quando query retorna null, e opcionalmente assert de human_handled.table_ready false no handler de health.'
+    suggested_owner: 'dev'
+  - id: 'REL-001'
+    severity: medium
+    finding: 'Se db.query retorna null no INSERT, markHumanHandled só loga warn e não grava cache; isHumanHandled fail-open (false). Handoff/takeover deixa de silenciar o bot enquanto o Postgres está indisponível.'
+    suggested_action: 'Aceitar como fail-open documentado nesta story, ou (story follow-up) dual-write cache quente mesmo quando o INSERT falhar, com log estruturado.'
+    suggested_owner: 'dev'
+waiver: { active: false }
+
+quality_score: 80
+expires: '2026-09-16T02:00:00Z'
+
+evidence:
+  tests_reviewed: 5
+  tests_passed: 5
+  tests_failed: 0
+  risks_identified: 2
+  coderabbit: 'SKIP — CLI presente; working tree com centenas de arquivos não relacionados à story. [AUTO-DECISION] review manual da fatia IN apenas; QA não auto-fixa código de aplicação (anti-self-review / mission constraint).'
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Owner skip em mark/is; phone digitsOnly; sem endpoint resume; sem mutação de bot_whitelist.'
+  performance:
+    status: PASS
+    notes: 'Cache por phone TTL 5s separado de bot-state.js; COUNT no health, não Map.size.'
+  reliability:
+    status: CONCERNS
+    notes: 'Fail-open em leitura e INSERT falho = bot fala durante handoff se DB cair. Health degrada sem 500 (db.query catch → null). Migration 016 não aplicada neste ambiente (ops/deploy).'
+  maintainability:
+    status: PASS
+    notes: 'Módulo extraído; rollback isolado; colunas resume_* reservadas sem uso (OUT respeitado).'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Teste de countActiveSilenced/health quando db.query retorna null (tabela ausente).'
+      refs: ['backend/lib/bot-thread-state.js', 'backend/test/bot-thread-state.test.js', 'backend/server.js']
+    - action: 'Decidir se INSERT falho deve popular cache quente (continuidade do silêncio in-process).'
+      refs: ['backend/lib/bot-thread-state.js']
+    - action: 'Aplicar 016_bot_thread_state.sql no ambiente de deploy antes do cutover prod.'
+      refs: ['infra/migrations/016_bot_thread_state.sql']
+
+auto_decisions:
+  - 'Status ready-for-review ≡ InReview (string usada pelo @dev neste repo) → transição para Done.'
+  - 'CodeRabbit self-healing não executado: QA não modifica source; tree suja fora do IN da story.'
+  - 'CONCERNS não bloqueia Done; issues medium para apply-qa-fixes opcional / débito.'

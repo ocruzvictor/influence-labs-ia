@@ -27,15 +27,30 @@ const {
   isClaudiaFridaySlot,
 } = require('./lib/salon-dates');
 const { formatAnnotatedTimes, bookingFitsSlotWindow } = require('./lib/slot-windows');
+const {
+  groupOpenSlots,
+  formatFullSlotsBlock,
+} = require('./lib/tess-context-slots');
+const {
+  sanitizePremiumResponse,
+  RETRY_USER_MESSAGE,
+} = require('./lib/tess-premium-sanitize');
 const { summarizeFailedTessResponse } = require('./lib/tess-errors');
 const {
   createIdempotencyKey,
   findDuplicateAppointment,
   buildCreateSuccessMessage,
   pickCreateGuard,
+  comboOverlaps,
 } = require('./lib/booking-guards');
-const { getBotState } = require('./lib/bot-state');
-const { tessAuthHeaders, tessWorkspaceConfigured } = require('./lib/tess-auth');
+const { getBotState, resolvePhoneAccess } = require('./lib/bot-state');
+const {
+  markHumanHandled: markHumanHandledPersist,
+  isHumanHandled,
+  countActiveSilenced,
+  persistStaffOutbound,
+} = require('./lib/bot-thread-state');
+const { tessAuthHeaders, tessWorkspaceConfigured, tessWorkspaceId } = require('./lib/tess-auth');
 
 // --- Load .env (zero deps) ---
 try {
@@ -80,31 +95,14 @@ const BOT_ALLOWED_PHONES = (process.env.BOT_ALLOWED_PHONES || '')
   .filter(Boolean);
 const BOT_ACCEPT_ALL = process.env.BOT_ACCEPT_ALL === 'true';
 
-// --- Human takeover state (memoria, TTL configuravel) ---
+// --- Human takeover state (Postgres bot_thread_state + cache 5s por phone) ---
 // Coexistencia: quando o staff do salao responde manualmente pelo app, Kapso envia
 // 'whatsapp.message.sent' com origin='business_app' (se o evento estiver assinado).
 // Marcamos a conversa como human-handled e o bot fica silencioso por HUMAN_HANDLED_TTL_HOURS.
 const HUMAN_HANDLED_TTL_MS = (parseInt(process.env.HUMAN_HANDLED_TTL_HOURS || '6', 10)) * 60 * 60 * 1000;
-const humanHandledUntil = new Map(); // phone (digits) -> timestamp_ms (vencimento)
 
-function markHumanHandled(phone) {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (!digits) return;
-  const until = Date.now() + HUMAN_HANDLED_TTL_MS;
-  humanHandledUntil.set(digits, until);
-  console.log(`[kapso] ${digits} → HUMAN-HANDLED ate ${new Date(until).toISOString()}`);
-}
-
-function isHumanHandled(phone) {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (!digits) return false;
-  const until = humanHandledUntil.get(digits);
-  if (!until) return false;
-  if (Date.now() > until) {
-    humanHandledUntil.delete(digits);
-    return false;
-  }
-  return true;
+async function markHumanHandled(phone, reason = 'handoff') {
+  await markHumanHandledPersist(phone, reason, { ttlMs: HUMAN_HANDLED_TTL_MS });
 }
 
 // Parser de tags de booking — importado de modulo compartilhado (backend/lib/).
@@ -137,14 +135,32 @@ const { normalizeKapsoMediaContent } = require('./lib/kapso-media');
 
 // Monitor de cota Trinks (contador mensal compartilhado) — story trinks-quota-monitor.
 const { getRequestBudget, newlyCrossed } = require('./lib/trinks-usage');
+const {
+  recordTessCredits,
+  getTessCreditUsage,
+  fetchTessAccountSnapshot,
+  saveCreditAlertState,
+  newlyDropped,
+  formatTessCreditAlert,
+} = require('./lib/tess-credit-usage');
 const { createTrinksApi } = require('./lib/trinks-api');
 const { buildCancelPayload, QUEM_CANCELOU } = require('./lib/trinks-mapping');
 const { createTrinksLocalStore } = require('./lib/trinks-local-store');
 const { createTrinksSnsHandler, SnsValidationError } = require('./lib/trinks-sns');
 const { createTrinksWebhookProcessor } = require('./lib/trinks-webhook-processor');
 const { handleMetaAccountUpdates, handleKapsoAccountV2Events } = require('./lib/whatsapp-account-events');
-const { isOwnerPhone, renderOwnerContext } = require('./lib/owner-access');
+const { isOwnerPhone, renderOwnerContext, renderOperatorResumeContext } = require('./lib/owner-access');
 const { shouldEmitHandoff, emitOperationalEvent } = require('./lib/operational-events');
+const {
+  resumeConversation,
+  peekPendingResumeNote,
+  markResumeNoteConsumed,
+  OPERATOR_RESUME_TRIGGER,
+} = require('./lib/resume-conversation');
+const {
+  shouldAttemptOwnerResume,
+  handleOwnerResumeInbound,
+} = require('./lib/owner-resume-parser');
 const { parseTessContextConfig } = require('./lib/tess-context-config');
 const {
   classifyTessIntent,
@@ -381,10 +397,11 @@ function formatMultiServiceHandoffMessage() {
   return 'Vou passar pra recepção continuar o encaixe com você — eles combinam os serviços certinho. Um momento! 😊';
 }
 
-function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null, futureBookings = [], habilitacaoText = '', channelPhone = null, requestedDate = null, canonicalName = null) {
+function buildDynamicContext(businessDays, slotsText, professionalsText, history = [], servicesText = '', persistedMemory = null, futureBookings = [], habilitacaoText = '', channelPhone = null, requestedDate = null, canonicalName = null, operatorResumeNote = null) {
   const persistedSection = buildPersistedSection(persistedMemory, channelPhone, canonicalName);
   const futureBookingsSection = renderFutureBookings(futureBookings, formatBookingDateTime); // item 3 Rota C
   const ownerSection = renderOwnerContext(channelPhone);
+  const operatorSection = operatorResumeNote ? renderOperatorResumeContext(operatorResumeNote) : '';
   const speakerLabel = isOwnerPhone(channelPhone) ? 'Tiago (dono)' : 'Cliente';
   const historyText = history.length
     ? '\n\nHISTORICO DA CONVERSA:\n' + history
@@ -399,6 +416,7 @@ function buildDynamicContext(businessDays, slotsText, professionalsText, history
   return [
     DYNAMIC_CONTEXT_PREFIX,
     ...(ownerSection ? [ownerSection, ''] : []),
+    ...(operatorSection ? [operatorSection, ''] : []),
     `HOJE: ${formatFullDateLabel(getTodayIsoInSalonTimeZone())}`,
     horarioAgora,
     'HORARIO DE FUNCIONAMENTO: Ter-Sex 9h-19h | Sab 9h-18h | Dom-Seg FECHADO',
@@ -492,43 +510,47 @@ async function pingTrinks() {
 // Postgres last-OK tracker (Story 1.7)
 let globalLastOkAt = null;
 
+async function fetchSlotsGrouped(date) {
+  const from = new Date(`${date}T00:00:00-03:00`);
+  const to = new Date(from.getTime() + 86400000);
+  const [slots, professionals] = await Promise.all([
+    trinksLocalStore.listSlots({ from, to }),
+    trinksLocalStore.listProfessionals(),
+  ]);
+  const openSlots = filterSlotsWithinExpediente(slots);
+  const professionalNames = new Map(professionals.map((p) => [
+    String(p.trinks_id),
+    p.nickname || p.name || `Profissional ${p.trinks_id}`,
+  ]));
+  const grouped = groupOpenSlots(
+    openSlots,
+    professionalNames,
+    (profName, startsAt) => isClaudiaFridaySlot(profName, startsAt),
+  );
+  return { label: formatDateLabel(date), date, professionals: grouped };
+}
+
+async function getSlotsGrouped(date) {
+  try {
+    return await fetchSlotsGrouped(date);
+  } catch (err) {
+    console.error('Local slots grouped error:', err.message);
+    return {
+      label: formatDateLabel(date),
+      date,
+      professionals: [],
+      error: err.message,
+    };
+  }
+}
+
 async function getSlots(date) {
   try {
-    const from = new Date(`${date}T00:00:00-03:00`);
-    const to = new Date(from.getTime() + 86400000);
-    const [slots, professionals] = await Promise.all([
-      trinksLocalStore.listSlots({ from, to }),
-      trinksLocalStore.listProfessionals(),
-    ]);
-    const openSlots = filterSlotsWithinExpediente(slots);
-    if (!openSlots.length) {
-      return `HORARIOS VAGOS ${formatDateLabel(date)}:\n- Nenhum horario disponivel no snapshot local.`;
+    const grouped = await fetchSlotsGrouped(date);
+    if (!grouped.professionals.length) {
+      return `HORARIOS VAGOS ${grouped.label}:\n- Nenhum horario disponivel no snapshot local.`;
     }
-    const professionalNames = new Map(professionals.map(p => [
-      String(p.trinks_id),
-      p.nickname || p.name || `Profissional ${p.trinks_id}`,
-    ]));
-    const grouped = new Map();
-    for (const slot of openSlots) {
-      const key = String(slot.professional_id);
-      const profName = professionalNames.get(key) || '';
-      if (isClaudiaFridaySlot(profName, slot.starts_at)) continue;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key).push(slot.starts_at);
-    }
-    const lines = [];
-    for (const [professionalId, starts] of grouped) {
-      if (!starts.length) continue;
-      const times = formatAnnotatedTimes(starts);
-      if (!times) continue;
-      lines.push(`- ${professionalNames.get(professionalId) || `Profissional ${professionalId}`}: ${times}`);
-    }
-    if (!lines.length) {
-      return `HORARIOS VAGOS ${formatDateLabel(date)}:\n- Nenhum horario disponivel no snapshot local.`;
-    }
-    let txt = `HORARIOS VAGOS ${formatDateLabel(date)} (início livre; só ofereça se duracaoMinutos ≤ minutos contínuos; o serviço também precisa terminar antes do fechamento Ter-Sex 9h-19h / Sáb 9h-18h):\n`;
-    txt += `${lines.join('\n')}\n`;
-    return txt;
+    return `${formatFullSlotsBlock(grouped.label, grouped.professionals)}\n`;
   } catch (err) {
     console.error('Local slots error:', err.message);
     return 'HORARIOS: Snapshot local indisponivel. Encaminhe para atendimento humano.';
@@ -1074,6 +1096,121 @@ function formatAssistantOutput(rawText, isFirstTurn) {
 }
 
 
+/**
+ * Turno TESS proativo pós-resume — sem fake user turn da nota do operador.
+ * source=operator_resume via bloco ORIENTACAO_OPERADOR no contexto dinâmico.
+ */
+async function runOperatorResumeTurn(phone, operatorNote) {
+  const sessionId = phone;
+  const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [], persistedMemory: null };
+
+  let trinksCanonicalName = null;
+  if (state.history.length === 0 && phone) {
+    const mem = await loadClientMemory(phone);
+    state.persistedMemory = (mem.history.length || mem.client) ? mem : null;
+    try {
+      const digits = String(phone).replace(/\D/g, '');
+      const trinksClient = await trinksLocalStore.getClientByPhone(digits);
+      if (trinksClient?.name) trinksCanonicalName = trinksClient.name;
+    } catch {
+      /* non-blocking */
+    }
+  }
+
+  const historyForClassify = state.history.slice(-8);
+  const futureBookingsForClassify = phone ? await loadClientFutureBookings(phone) : [];
+  const intentResult = classifyTessIntent(
+    OPERATOR_RESUME_TRIGGER,
+    historyForClassify,
+    futureBookingsForClassify,
+  );
+
+  const requestedDate = extractRequestedDate(OPERATOR_RESUME_TRIGGER);
+  const historyForModel = state.history.slice(-8);
+  const persistedForModel = state.persistedMemory
+    ? {
+      ...state.persistedMemory,
+      history: (state.persistedMemory.history || []).slice(-8),
+    }
+    : null;
+
+  const assembledCtx = await assembleTessContext({
+    sessionId,
+    messageText: OPERATOR_RESUME_TRIGGER,
+    phone,
+    intentResult,
+    config: TESS_CONTEXT_CONFIG,
+    slotContextDays: SLOT_CONTEXT_DAYS,
+    requestedDate,
+    historyForModel,
+    persistedForModel,
+    trinksCanonicalName,
+    operatorResumeNote: operatorNote,
+    operatorResumeTrigger: OPERATOR_RESUME_TRIGGER,
+    buildDynamicContext,
+    getSlots,
+    getSlotsGrouped,
+    getProfessionals,
+    getServicesText,
+    loadClientFutureBookings,
+    ensureSlotSnapshot,
+    getNextBusinessDays,
+    mergeSlotContextDates,
+    nextSaturdayDates,
+  });
+
+  console.log(`[${sessionId}] operator_resume TESS turn (note_len=${operatorNote.length})`);
+
+  const tessRaw = await callTESS([
+    { role: 'user', content: assembledCtx.userMessageWithContext },
+  ], state.rootId);
+
+  let tessText = extractTESSResponse(tessRaw);
+  const premiumResult = await sanitizePremiumResponse({
+    tessText,
+    sessionId,
+    retryCall: async () => {
+      const retryRaw = await callTESS([
+        { role: 'user', content: assembledCtx.userMessageWithContext },
+        { role: 'assistant', content: tessText },
+        { role: 'user', content: RETRY_USER_MESSAGE },
+      ], state.rootId);
+      return extractTESSResponse(retryRaw);
+    },
+  });
+  tessText = premiumResult.text;
+
+  const rootId = extractTESSRootId(tessRaw);
+  if (rootId) state.rootId = rootId;
+
+  if (!tessText) {
+    throw new Error('tess_empty_response');
+  }
+
+  const {
+    clean: cleanText,
+    handoffHuman,
+  } = stripBookingTags(tessText);
+  const leakFreeText = stripResidualBookingTags(cleanText);
+  const sanitizedCleanText = sanitizeWhatsappMarkdown(leakFreeText);
+  const formatted = formatAssistantOutput(sanitizedCleanText, state.turn === 0);
+
+  state.history.push({ role: 'assistant', content: sanitizedCleanText });
+  state.turn += 1;
+  state.lastAccess = Date.now();
+  sessionState.set(sessionId, state);
+
+  return {
+    text: formatted.response,
+    responses: formatted.responses,
+    handoffHuman,
+    persistAssistant: async (clientPhone, content) => {
+      await saveConversationTurns(clientPhone, [{ role: 'assistant', content }]);
+    },
+  };
+}
+
+
 // --- Core message orchestration ---
 async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw, phone = null, kapsoConversationId = null) {
   const startTime = Date.now();
@@ -1116,16 +1253,27 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   const futureBookingsForClassify = phone ? await loadClientFutureBookings(phone) : [];
   const intentResult = classifyTessIntent(messageText, historyForClassify, futureBookingsForClassify);
   const isMedia = isMediaMessage(messageText);
-  const skippedTess = shouldSkipTess({
-    intent: intentResult.intent,
-    confidence: intentResult.confidence,
-    history: historyForClassify,
-    messageText,
-    isMedia,
-    skipEnabled: TESS_CONTEXT_CONFIG.skipTrivial,
-    trivialMaxChars: TESS_CONTEXT_CONFIG.trivialMaxChars,
-    isOwner: isOwnerPhone(phone),
-  });
+
+  let pendingOperatorNote = null;
+  if (phone) {
+    pendingOperatorNote = await peekPendingResumeNote(db, phone);
+    if (pendingOperatorNote) {
+      console.log(`[${sessionId}] pending resume note (len=${pendingOperatorNote.length}) — force TESS turn`);
+    }
+  }
+
+  const skippedTess = pendingOperatorNote
+    ? false
+    : shouldSkipTess({
+      intent: intentResult.intent,
+      confidence: intentResult.confidence,
+      history: historyForClassify,
+      messageText,
+      isMedia,
+      skipEnabled: TESS_CONTEXT_CONFIG.skipTrivial,
+      trivialMaxChars: TESS_CONTEXT_CONFIG.trivialMaxChars,
+      isOwner: isOwnerPhone(phone),
+    });
 
   const lastEntry = state.history[state.history.length - 1];
   if (lastEntry?.role !== 'user' || lastEntry.content !== messageText) {
@@ -1146,6 +1294,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   let svcPayload = { text: '', data: [] };
   let contextProfile = 'FULL';
   let assembledCtx = null;
+  let tessCredits = null;
 
   if (skippedTess) {
     tessText = trivialSkipResponse();
@@ -1177,6 +1326,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       skippedTess: true,
       tessCredits: null,
     });
+    recordTessCredits(db, tessCredits ?? 0);
   } else {
     assembledCtx = await assembleTessContext({
       sessionId,
@@ -1189,8 +1339,10 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       historyForModel,
       persistedForModel,
       trinksCanonicalName,
+      operatorResumeNote: pendingOperatorNote,
       buildDynamicContext,
       getSlots,
+      getSlotsGrouped,
       getProfessionals,
       getServicesText,
       loadClientFutureBookings,
@@ -1208,7 +1360,22 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     ], state.rootId);
 
     tessText = extractTESSResponse(tessRaw);
-    const tessCredits = extractTessCredits(tessRaw);
+    const premiumResult = await sanitizePremiumResponse({
+      tessText,
+      sessionId,
+      retryCall: async () => {
+        const retryRaw = await callTESS([
+          { role: 'user', content: assembledCtx.userMessageWithContext },
+          { role: 'assistant', content: tessText },
+          { role: 'user', content: RETRY_USER_MESSAGE },
+        ], state.rootId);
+        const retryRoot = extractTESSRootId(retryRaw);
+        if (retryRoot) state.rootId = retryRoot;
+        return extractTESSResponse(retryRaw);
+      },
+    });
+    tessText = premiumResult.text;
+    tessCredits = extractTessCredits(tessRaw);
     logTessTurnTelemetry({
       sessionId,
       intent: intentResult.intent,
@@ -1216,6 +1383,12 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       skippedTess: false,
       tessCredits,
     });
+    recordTessCredits(db, tessCredits ?? 0);
+
+    if (pendingOperatorNote && phone && tessText) {
+      await markResumeNoteConsumed(db, phone);
+      console.log(`[${sessionId}] resume note consumed after TESS turn`);
+    }
   }
 
   const rootId = tessRaw ? extractTESSRootId(tessRaw) : null;
@@ -1305,30 +1478,43 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   );
 
   let needsReferenceBlock = null;
-  if (distinctServiceIds.size < 2) {
-    for (const createTag of createsToRun) {
-      const svcEntryRef = svcPayload.data.find((s) => String(s.id) === String(createTag.service_id));
-      const servicoNomeRef = createTag.service_name || svcEntryRef?.nome || resolveServiceName(svcPayload.data, createTag.service_id);
-      if (!needsReferenceService(servicoNomeRef)) continue;
+  let consultivePreBlock = null;
+  for (const createTag of createsToRun) {
+    const svcEntryRef = svcPayload.data.find((s) => String(s.id) === String(createTag.service_id));
+    const servicoNomeRef = createTag.service_name || svcEntryRef?.nome || resolveServiceName(svcPayload.data, createTag.service_id);
+    if (!consultivePreBlock && isConsultiveColorService(servicoNomeRef)) {
+      if (!handoffHuman) handoffHuman = { motivo: 'orcamento_referencia' };
+      consultivePreBlock = formatConsultiveBlockMessage();
+    }
+    if (!needsReferenceBlock && needsReferenceService(servicoNomeRef)) {
       if (!handoffHuman) handoffHuman = { motivo: 'orcamento_referencia' };
       needsReferenceBlock = formatNeedsReferenceBlockMessage({
         serviceName: servicoNomeRef,
         price: svcEntryRef?.preco,
         hasReferenceImage: hasRecentClientImageMarker(state.history),
       });
-      break;
     }
+    if (needsReferenceBlock && consultivePreBlock) break;
   }
 
-  const skipCreates = handoffHuman || distinctServiceIds.size >= 2;
+  const overlapBlock = !handoffHuman && comboOverlaps(createsToRun);
+  if (overlapBlock) {
+    handoffHuman = { motivo: 'multi_servico' };
+  }
+
+  const skipCreates = Boolean(handoffHuman);
 
   if (skipCreates && createsToRun.length) {
-    if (!handoffHuman) handoffHuman = { motivo: 'multi_servico' };
+    const blockKind = needsReferenceBlock
+      ? 'needs_reference'
+      : consultivePreBlock
+        ? 'consultive'
+        : overlapBlock
+          ? 'combo_overlap'
+          : 'handoff';
     console.log(
       `[${sessionId}] Booking CREATE blocked:`,
-      needsReferenceBlock
-        ? 'needs_reference'
-        : handoffHuman.motivo === 'multi_servico' && distinctServiceIds.size >= 2 ? 'multi_service' : 'handoff',
+      blockKind,
       `distinctServices=${distinctServiceIds.size}`,
     );
     if (needsReferenceBlock) {
@@ -1343,6 +1529,17 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
           distinctServiceCount: distinctServiceIds.size,
         },
       }).catch(() => {});
+    } else if (consultivePreBlock) {
+      finalMessages.push(consultivePreBlock);
+      emitOperationalEvent(db, {
+        event: 'guard.blocked',
+        clientPhone,
+        kapsoConversationId,
+        payload: {
+          kind: 'consultive',
+          distinctServiceCount: distinctServiceIds.size,
+        },
+      }).catch(() => {});
     } else {
       finalMessages.push(formatMultiServiceHandoffMessage());
       emitOperationalEvent(db, {
@@ -1350,7 +1547,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         clientPhone,
         kapsoConversationId,
         payload: {
-          kind: distinctServiceIds.size >= 2 ? 'multi_service' : 'handoff',
+          kind: overlapBlock ? 'combo_overlap' : 'handoff',
           distinctServiceCount: distinctServiceIds.size,
         },
       }).catch(() => {});
@@ -1729,7 +1926,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     console.log(`[${sessionId}] HANDOFF_HUMAN motivo:${handoffHuman.motivo}`);
     // Marcar conversa como human-handled para silenciar bot ate Tiago responder.
     // Dono: nunca silenciar o próprio thread nem notificar o Tiago sobre ele mesmo.
-    if (clientPhone && !isOwnerPhone(clientPhone)) markHumanHandled(clientPhone);
+    if (clientPhone && !isOwnerPhone(clientPhone)) await markHumanHandled(clientPhone, 'handoff');
     if (shouldEmitHandoff(clientPhone)) {
       emitOperationalEvent(db, {
         event: 'handoff.human',
@@ -1888,12 +2085,18 @@ async function notifyTiagoHandoff({ motivo, clientPhone, clientName, lastClientM
     console.warn('[handoff] phone_number_id ausente — nao posso enviar via Kapso');
     return;
   }
+  const phoneDigits = String(clientPhone || '').replace(/\D/g, '') || '?';
+  const displayName = clientName && clientName !== 'Cliente' ? clientName : 'cliente';
   const text =
-    `🔔 Bot pediu sua atencao\n\n` +
-    `Motivo: ${motivo || 'nao especificado'}\n` +
-    `Cliente: ${clientName || 'sem nome'} (${clientPhone || '?'})\n` +
-    `Ultima msg: "${(lastClientMsg || '').slice(0, 200)}"\n\n` +
-    `Abre o WhatsApp do salao pra continuar com o cliente. Bot esta silencioso pelas proximas horas.`;
+    `🔔 Bot pediu sua atenção\n\n` +
+    `Motivo: ${motivo || 'não especificado'}\n` +
+    `Cliente: ${displayName}\n` +
+    `Telefone: ${phoneDigits}\n` +
+    `Última msg: "${(lastClientMsg || '').slice(0, 200)}"\n\n` +
+    `Para retomar a IA, responda AQUI neste chat:\n` +
+    `retomar ${displayName}. <orientação 20–500 caracteres>\n\n` +
+    `Ex.: retomar Bianca. Agenda o teste de mecha — obrigatório, independente da venda consultiva.\n\n` +
+    `A IA está silenciosa na thread da cliente até você retomar.`;
   try {
     await sendKapsoMessage(TIAGO_NOTIFICATION_PHONE, text, phoneNumberId);
     console.log(`[handoff] notificacao enviada ao Tiago (${TIAGO_NOTIFICATION_PHONE}) — motivo: ${motivo}`);
@@ -1925,8 +2128,12 @@ async function sendKapsoSingle(to, text, phoneNumberId) {
     signal: AbortSignal.timeout(10000),
   });
   const body = await res.text().catch(() => '');
-  if (!res.ok) console.error(`[kapso] send → ${res.status}: ${body.slice(0, 300)}`);
-  else console.log(`[kapso] send → ${res.status} para ${to}`);
+  if (!res.ok) {
+    console.error(`[kapso] send → ${res.status}: ${body.slice(0, 300)}`);
+    return false;
+  }
+  console.log(`[kapso] send → ${res.status} para ${to}`);
+  return true;
 }
 
 // Envia mensagem para a Kapso, com split tag-aware se o texto conter <break>.
@@ -1937,21 +2144,29 @@ async function sendKapsoSingle(to, text, phoneNumberId) {
 async function sendKapsoMessage(to, text, phoneNumberId) {
   if (!KAPSO_API_KEY) {
     console.error('[kapso] KAPSO_API_KEY ausente — nao envio mensagem');
-    return;
+    return false;
   }
   if (!phoneNumberId) {
     console.error('[kapso] phone_number_id ausente — nao envio mensagem');
-    return;
+    return false;
   }
   const bubbles = collapseToKapsoSends(text);
   if (bubbles.length === 0) {
     console.warn('[kapso] sendKapsoMessage chamado com texto vazio — skip');
-    return;
+    return false;
   }
   for (let i = 0; i < bubbles.length; i++) {
     if (i > 0) await sleep(BUBBLE_DELAY_MS);
-    await sendKapsoSingle(to, bubbles[i], phoneNumberId);
+    const sent = await sendKapsoSingle(to, bubbles[i], phoneNumberId);
+    if (!sent) return false;
   }
+  return true;
+}
+
+/** Resume IA: falha se Kapso não enviar (503 kapso_send_failed). */
+async function sendKapsoMessageStrict(to, text, phoneNumberId) {
+  const ok = await sendKapsoMessage(to, text, phoneNumberId);
+  if (!ok) throw new Error('kapso_send_failed');
 }
 
 function validateKapsoWebhookSignature(req, { secret, label = 'kapso' } = {}) {
@@ -2089,7 +2304,10 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     const origin = m?.kapso?.origin;
     if (dir === 'outbound' && origin && origin !== 'cloud_api') {
       const targetPhone = e?.conversation?.phone_number || m?.to || m?.from;
-      if (!isOwnerPhone(targetPhone)) markHumanHandled(targetPhone);
+      if (!isOwnerPhone(targetPhone)) {
+        await markHumanHandled(targetPhone, 'business_app');
+        await persistStaffOutbound(targetPhone);
+      }
     }
   }
 
@@ -2170,35 +2388,20 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     return res.json({ ok: true });
   }
 
-  // 4b. Whitelist por número
-  if (!BOT_ACCEPT_ALL) {
-    if (botState.whitelist && botState.whitelist.size > 0) {
-      // DB autoritativo
-      const mode = botState.whitelist.get(sessionPhone);
-      if (mode === 'block' || mode === 'human_only') {
-        console.log(`[kapso][${sessionId}] phone ${sessionPhone} mode=${mode} via DB — bot inativo`);
-        return res.json({ ok: true });
-      }
-      if (mode !== 'allow') {
-        console.log(`[kapso][${sessionId}] phone ${sessionPhone} ausente da whitelist DB — bot inativo`);
-        return res.json({ ok: true });
-      }
-    } else {
-      // Fallback legacy: DB indisponível ou whitelist vazia → env BOT_ALLOWED_PHONES
-      if (BOT_ALLOWED_PHONES.length === 0) {
-        console.log(`[kapso][${sessionId}] WHITELIST VAZIA (DB+env) — bot silencioso`);
-        return res.json({ ok: true });
-      }
-      if (!BOT_ALLOWED_PHONES.includes(sessionPhone)) {
-        console.log(`[kapso][${sessionId}] telefone fora do whitelist env (fallback) — bot inativo`);
-        return res.json({ ok: true });
-      }
-    }
+  // 4b. Whitelist / denylist por número.
+  // block e human_only valem mesmo com BOT_ACCEPT_ALL=true (OPEN).
+  const phoneAccess = resolvePhoneAccess(sessionPhone, botState, {
+    acceptAll: BOT_ACCEPT_ALL,
+    allowedPhones: BOT_ALLOWED_PHONES,
+  });
+  if (phoneAccess.silent) {
+    console.log(`[kapso][${sessionId}] phone ${sessionPhone} ${phoneAccess.reason} — bot inativo`);
+    return res.json({ ok: true });
   }
 
   // 4b. Human takeover: se a conversa foi marcada como human-handled, bot fica calado ate o TTL.
   // Dono (Tiago): nunca silenciar — ele comanda a IA neste número.
-  if (isHumanHandled(sessionPhone) && !isOwnerPhone(sessionPhone)) {
+  if (await isHumanHandled(sessionPhone) && !isOwnerPhone(sessionPhone)) {
     console.log(`[kapso][${sessionId}] conversa human-handled — bot silencioso (TTL ${HUMAN_HANDLED_TTL_MS / 3600000}h)`);
     return res.json({ ok: true });
   }
@@ -2248,6 +2451,35 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     }
 
     const kapsoConversationId = firstConv?.id || events[0]?.conversation_id || null;
+
+    // Owner resume parser (story resume-ia-3): âncora estreita ANTES de processMessage do dono.
+    if (shouldAttemptOwnerResume(isOwnerPhone(sessionPhone), messageText)) {
+      await handleOwnerResumeInbound({
+        messageText,
+        db,
+        resumeDeps: {
+          db,
+          getBotState,
+          resolvePhoneAccess,
+          emitOperationalEvent,
+          runOperatorResumeTurn,
+          sendKapsoMessage: sendKapsoMessageStrict,
+          getKapsoPhoneNumberId: () => lastKnownKapsoPhoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID,
+          markHumanHandled,
+          envAcceptAll: BOT_ACCEPT_ALL,
+          envAllowedPhones: BOT_ALLOWED_PHONES,
+        },
+        sendAck: async (ackText) => {
+          if (!TIAGO_NOTIFICATION_PHONE) {
+            console.warn('[owner-resume] TIAGO_NOTIFICATION_PHONE ausente — ack pulado');
+            return;
+          }
+          await sendKapsoMessage(TIAGO_NOTIFICATION_PHONE, ackText, phoneNumberId);
+        },
+      });
+      return;
+    }
+
     const result = await processMessage(sessionId, messageText, contactName, null, sessionId, kapsoConversationId);
     const blocks = result.responses?.length ? result.responses : [result.response];
     for (const block of blocks) {
@@ -2531,6 +2763,31 @@ app.get('/admin/last-digest', (req, res) => {
   return res.json({ ok: true, ...lastSupervisorRun });
 });
 
+app.post('/admin/conversations/:phone/resume', async (req, res) => {
+  if (!ADMIN_TOKEN || req.headers['x-admin-token'] !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const { note, actor } = req.body || {};
+  try {
+    const result = await resumeConversation(req.params.phone, { note, actor }, {
+      db,
+      getBotState,
+      resolvePhoneAccess,
+      emitOperationalEvent,
+      runOperatorResumeTurn,
+      sendKapsoMessage: sendKapsoMessageStrict,
+      getKapsoPhoneNumberId: () => lastKnownKapsoPhoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID,
+      markHumanHandled,
+      envAcceptAll: BOT_ACCEPT_ALL,
+      envAllowedPhones: BOT_ALLOWED_PHONES,
+    });
+    return res.status(result.httpStatus).json(result.body);
+  } catch (err) {
+    console.error('[admin] resume erro:', err.message);
+    return res.status(503).json({ error: 'internal_error' });
+  }
+});
+
 // Inicia o scheduler do supervisor (cron interno, checa 7h ter-sab fuso salao)
 supervisor.startScheduler({
   sendKapsoMessage,
@@ -2572,6 +2829,98 @@ async function checkTrinksQuota() {
   }
 }
 setInterval(() => { checkTrinksQuota().catch(e => console.error('[trinks-quota] check erro:', e.message)); }, TRINKS_QUOTA_CHECK_MS);
+
+// --- Monitor de créditos TESS (story tess-context-on-demand) ---
+// Alerta no WhatsApp quando o remaining da CARTEIRA cai — não bloqueia callTESS.
+// Não usa TESS_CREDIT_BUDGET − used local (isso avisava ~400 com ~900 na conta).
+const TESS_CREDIT_BUDGET = parseFloat(process.env.TESS_CREDIT_BUDGET || '1000');
+const TESS_ALERT_REMAINING_THRESHOLDS = (process.env.TESS_ALERT_REMAINING_THRESHOLDS || '500,200,50')
+  .split(',')
+  .map(s => parseFloat(s.trim()))
+  .filter(n => Number.isFinite(n) && n >= 0);
+const TESS_ALERT_PHONES_RAW = (process.env.TESS_ALERT_PHONES || '')
+  .split(',').map(s => s.trim().replace(/\D/g, '')).filter(Boolean);
+const TESS_ALERT_PHONES = TESS_ALERT_PHONES_RAW.length
+  ? TESS_ALERT_PHONES_RAW
+  : (TRINKS_ALERT_PHONES.length
+    ? TRINKS_ALERT_PHONES
+    : (TIAGO_NOTIFICATION_PHONE ? [TIAGO_NOTIFICATION_PHONE] : []));
+const TESS_CREDIT_CHECK_MS = (parseInt(process.env.TESS_CREDIT_CHECK_MIN || '10', 10)) * 60 * 1000;
+
+const TESS_CREDIT_REMAINING_PATHS = (process.env.TESS_CREDIT_REMAINING_PATHS || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+async function fetchTessAccountForAlerts(day) {
+  if (!tessWorkspaceConfigured()) return null;
+  return fetchTessAccountSnapshot({
+    fetchFn: fetch,
+    authHeaders: tessAuthHeaders(),
+    apiBase: TESS_API_BASE,
+    workspaceId: tessWorkspaceId(),
+    day,
+    remainingPaths: TESS_CREDIT_REMAINING_PATHS,
+  });
+}
+
+async function readTessCreditUsage() {
+  return getTessCreditUsage(db, TESS_CREDIT_BUDGET, () => new Date(), {
+    accountFetcher: fetchTessAccountForAlerts,
+  });
+}
+
+async function checkTessCredits() {
+  const usage = await readTessCreditUsage();
+  if (usage.account_remaining == null) {
+    console.warn(
+      `[tess-credits] remaining da carteira TESS indisponível na API — alerta WhatsApp omitido `
+      + `(used local ${usage.credits_used.toFixed(2)}, API used ${usage.account_used ?? 'n/d'})`,
+    );
+    await saveCreditAlertState(db, {
+      day: usage.day,
+      alertedThresholds: usage.alerted_thresholds || [],
+      accountUsed: usage.account_used,
+      accountRemaining: null,
+    });
+    return;
+  }
+  const alerted = new Set(usage.alerted_thresholds || []);
+  const toAlert = newlyDropped(usage.account_remaining, TESS_ALERT_REMAINING_THRESHOLDS, alerted);
+  if (!toAlert.length) {
+    await saveCreditAlertState(db, {
+      day: usage.day,
+      alertedThresholds: [...alerted],
+      accountUsed: usage.account_used,
+      accountRemaining: usage.account_remaining,
+    });
+    return;
+  }
+  toAlert.forEach((t) => alerted.add(t));
+  await saveCreditAlertState(db, {
+    day: usage.day,
+    alertedThresholds: [...alerted],
+    accountUsed: usage.account_used,
+    accountRemaining: usage.account_remaining,
+  });
+  const threshold = Math.min(...toAlert);
+  const msg = formatTessCreditAlert({
+    day: usage.day,
+    accountRemaining: usage.account_remaining,
+    accountUsed: usage.account_used,
+    calls: usage.calls,
+    threshold,
+  });
+  console.warn('[tess-credits] ' + msg);
+  const pnid = lastKnownKapsoPhoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID;
+  if (pnid && TESS_ALERT_PHONES.length) {
+    for (const phone of TESS_ALERT_PHONES) {
+      sendKapsoMessage(phone, msg, pnid).catch(e => console.error('[tess-credits] alerta falhou:', e.message));
+    }
+  } else {
+    console.warn('[tess-credits] sem TESS_ALERT_PHONES (ou fallback) ou phone_number_id — alerta só no log');
+  }
+}
+setInterval(() => { checkTessCredits().catch(e => console.error('[tess-credits] check erro:', e.message)); }, TESS_CREDIT_CHECK_MS);
+
 setInterval(() => {
   trinksApi.refreshConsumption()
     .catch(e => console.error('[trinks-consumption] refresh erro:', e.message));
@@ -2608,6 +2957,7 @@ app.get('/health', async (req, res) => {
       ? null
       : requestBudget.local_consumed - providerUsed,
   };
+  const tess_credits = await readTessCreditUsage();
   let trinks_webhook = {
     configured: Boolean(TRINKS_SNS_TOPIC_ARN),
     last_received_at: null,
@@ -2710,6 +3060,26 @@ app.get('/health', async (req, res) => {
     // Health continua disponivel antes da migration 008.
   }
 
+  let human_handled = {
+    table_ready: false,
+    active_count: 0,
+    ttl_hours: HUMAN_HANDLED_TTL_MS / 3600000,
+  };
+  try {
+    const activeCount = await countActiveSilenced();
+    if (activeCount !== null) {
+      human_handled = {
+        table_ready: true,
+        active_count: activeCount,
+        ttl_hours: HUMAN_HANDLED_TTL_MS / 3600000,
+      };
+    } else {
+      console.warn('[health] bot_thread_state unavailable — human_handled.active_count degraded');
+    }
+  } catch (_) {
+    // Health continua disponivel antes da migration 016.
+  }
+
   res.json({
     status: 'ok',
     service: 'studio-tirra-webchat',
@@ -2728,15 +3098,26 @@ app.get('/health', async (req, res) => {
     trinks_webhook,
     trinks_snapshots,
     trinks_usage,
+    tess_credits: {
+      day: tess_credits.day,
+      used: tess_credits.account_used != null
+        ? tess_credits.account_used
+        : tess_credits.credits_used,
+      local_used: tess_credits.credits_used,
+      calls: tess_credits.calls,
+      budget: tess_credits.budget,
+      pct: tess_credits.pct,
+      remaining: tess_credits.account_remaining,
+      remaining_source: tess_credits.account_remaining != null ? 'account' : tess_credits.remaining_source,
+      account_used: tess_credits.account_used,
+      account_remaining: tess_credits.account_remaining,
+    },
     bot: {
       accept_all: BOT_ACCEPT_ALL,
       whitelist_count: BOT_ALLOWED_PHONES.length,
       mode: BOT_ACCEPT_ALL ? 'OPEN' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT' : 'WHITELIST'),
       whitelist_source: 'see /admin/api/whitelist (Story 1.2-DATA cutover in progress)',
-      human_handled: {
-        active_count: humanHandledUntil.size,
-        ttl_hours: HUMAN_HANDLED_TTL_MS / 3600000,
-      },
+      human_handled,
     },
     meta: {
       configured: Boolean(META_ACCESS_TOKEN && META_PHONE_NUMBER_ID),

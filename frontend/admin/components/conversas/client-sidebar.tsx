@@ -6,6 +6,7 @@
  *   • Pausar bot 1h        → POST /api/whitelist mode=human_only (sem expiração real;
  *                            schema não tem expires_at, Tiago remove manualmente)
  *   • Bloquear número      → AlertDialog → POST /api/whitelist mode=block
+ *   • Retomar IA           → ResumeIaDialog → POST /api/conversas/[phone]/resume
  *   • Adicionar nota       → permanece DISABLED (schema `notes` não existe; Story futura)
  *
  * Trinks fields (cadastro, última visita, visitas totais) são OUT.
@@ -30,6 +31,7 @@ import { formatPhone } from "@/lib/format/phone";
 import { formatAbsolute } from "@/lib/format/date";
 import { useWhitelist } from "@/lib/hooks/use-whitelist";
 import type { ClientRow } from "@/lib/clients";
+import { ResumeIaDialog } from "@/components/conversas/resume-ia-dialog";
 
 interface Props {
   phone: string;
@@ -42,6 +44,7 @@ export function ClientSidebar({ phone, client, msgCount, firstMsgAt }: Props): R
   // autoFetch=false: não precisamos da lista aqui, só o add() pra atalhos
   const { add, mutating } = useWhitelist(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
 
   const handlePause = async (): Promise<void> => {
     await add({
@@ -98,12 +101,20 @@ export function ClientSidebar({ phone, client, msgCount, firstMsgAt }: Props): R
             disabled={mutating}
             variant="destructive"
           />
+          <ActionButton
+            label="Retomar IA"
+            description="Retoma o bot após handoff com orientação para a Tess"
+            onClick={() => setResumeOpen(true)}
+            disabled={mutating}
+          />
           <DisabledStubButton label="Adicionar nota" />
         </div>
         <p className="mt-3 text-xs text-zinc-500">
           Ações usam a whitelist global. Você pode editar/remover em <strong>/toggles</strong>.
         </p>
       </section>
+
+      <ResumeIaDialog phone={phone} open={resumeOpen} onOpenChange={setResumeOpen} />
 
       <AlertDialog open={confirmBlock} onOpenChange={setConfirmBlock}>
         <AlertDialogContent>

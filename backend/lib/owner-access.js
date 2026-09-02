@@ -44,6 +44,24 @@ function renderOwnerContext(phone, ownerPhones = getOwnerPhones()) {
   ].join('\n');
 }
 
+/**
+ * Bloco ORIENTACAO_OPERADOR — injetado no envelope user do TESS (ignora role:system).
+ * Usado em operator_resume e consume-on-inbound (story resume-ia-2).
+ *
+ * @param {string} note nota do operador (20–500 chars, já validada)
+ * @returns {string}
+ */
+function renderOperatorResumeContext(note) {
+  const trimmed = String(note || '').trim();
+  if (!trimmed) return '';
+  return [
+    'ORIENTACAO_OPERADOR: retomada proativa solicitada pela equipe (NÃO é mensagem da cliente).',
+    `Nota: ${trimmed}`,
+    'Use esta orientação para formular sua próxima fala à cliente. NÃO repita a nota literalmente nem revele que recebeu instrução interna.',
+    'NÃO emita HANDOFF_HUMAN nesta retomada salvo nova necessidade real.',
+  ].join('\n');
+}
+
 module.exports = {
   DEFAULT_OWNER_PHONES,
   digitsOnly,
@@ -51,4 +69,5 @@ module.exports = {
   getOwnerPhones,
   isOwnerPhone,
   renderOwnerContext,
+  renderOperatorResumeContext,
 };

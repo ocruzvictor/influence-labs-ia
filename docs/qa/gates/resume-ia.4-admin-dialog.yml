@@ -1,0 +1,64 @@
+schema: 1
+story: 'resume-ia.4'
+story_title: 'Admin — diálogo Retomar IA na ClientSidebar'
+gate: PASS
+status_reason: 'ACs 1–7 implementados no código. BFF autentica sessão, valida phone/nota, envia X-Admin-Token só server-side. Stub Adicionar nota e Pausar/Bloquear intactos. Fatia npm test 89 pass / 0 fail (10 conversas-resume).'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:route@0693b1e6,dialog@dc0d858a,sidebar@e99d1680,test@918d0fdf,HEAD:468391d7'
+updated: '2026-09-02T02:20:00Z'
+top_issues: []
+waiver: { active: false }
+
+quality_score: 95
+expires: '2026-09-16T02:20:00Z'
+
+evidence:
+  tests_reviewed: 10
+  tests_passed: 10
+  tests_failed: 0
+  test_command: 'cd frontend/admin && npm test'
+  suite_pass: 89
+  suite_fail: 0
+  suite_skip: 25
+  risks_identified: 0
+  coderabbit: 'SKIP — CLI self-healing não executado; working tree massivamente suja fora do IN. [AUTO-DECISION] review manual da fatia; QA não auto-fixa source (mission: NÃO implemente).'
+  product_gates:
+    stub_adicionar_nota_intact: PASS
+    botao_retomar_ia_novo: PASS
+    token_somente_server_side: PASS
+    textarea_20_500: PASS
+    toasts_contrato_story_2: PASS
+    pausar_bloquear_intactos: PASS
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'getCurrentUser 401. Token via env.BACKEND_INTERNAL_TOKEN no route Node; client fetch só cookie + note. Sem NEXT_PUBLIC_ADMIN_TOKEN. Sem log da nota no client/BFF.'
+  performance:
+    status: PASS
+    notes: 'Um POST BFF por submit; nota ≤500. Sem impacto em timeline GET.'
+  reliability:
+    status: PASS
+    notes: '503 se env ausente ou upstream unreachable; status HTTP upstream repassado. 409/200/503 mapeados no dialog.'
+  maintainability:
+    status: PASS
+    notes: 'Dialog isolado; sidebar só ADD. Testes Zod inline duplicam schema da route (recomendação futura, não bloqueia).'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Importar phoneSchema/resumeBodySchema exportados da route nos testes em vez de Zod duplicado.'
+      refs: ['frontend/admin/tests/api/conversas-resume.test.ts', 'frontend/admin/app/api/conversas/[phone]/resume/route.ts']
+    - action: 'Cobertura opcional do mapeamento de toasts (sent/window_closed/already_active/409) se o admin ganhar harness de componente.'
+      refs: ['frontend/admin/components/conversas/resume-ia-dialog.tsx']
+
+auto_decisions:
+  - 'YOLO: elicit=true nas tasks → skip; decisões neste arquivo.'
+  - 'CodeRabbit self-healing não executado: QA não modifica source; tree suja fora do IN.'
+  - 'node --test tests/api/conversas-resume.test.ts sozinho falha (extensão .ts); padrão da fatia é npm test (tsx + module mocks). 10 testes resume ok dentro da suite 89/0.'
+  - 'AC5 “human_spoke” no IN interpretado como human_spoke_recently do contrato story 2; dialog usa essa chave.'
+  - 'Verificação de stub/Pausar/Bloquear por review de diff (E2E não obrigatório nesta story).'
+  - 'PASS → Status InReview → Done.'

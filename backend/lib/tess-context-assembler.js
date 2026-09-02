@@ -4,6 +4,7 @@
 
 const { buildContextProfile, PROFILES } = require('./tess-context-profiles');
 const { logContextBytes } = require('./tess-context-bytes');
+const { compactBookingSlotsBlock } = require('./tess-context-slots');
 const {
   filterServicesByKeywords,
   formatServicesText,
@@ -60,8 +61,11 @@ async function assembleTessContext(params) {
     historyForModel,
     persistedForModel,
     trinksCanonicalName,
+    operatorResumeNote,
+    operatorResumeTrigger,
     buildDynamicContext,
     getSlots,
+    getSlotsGrouped,
     getProfessionals,
     getServicesText,
     loadClientFutureBookings,
@@ -106,6 +110,23 @@ async function assembleTessContext(params) {
     sessionId,
   });
 
+  const useCompactBooking = config.effectiveMode === 'scoped'
+    && profileSpec.profile === PROFILES.BOOKING
+    && typeof getSlotsGrouped === 'function';
+
+  if (useCompactBooking && profileSpec.fetchCatalog) {
+    fetchMeta.catalogRequested = true;
+    svcPayload = await getServicesText();
+    if (profileSpec.filterCatalog && svcPayload.data?.length) {
+      const historyText = (historyForModel || []).map((m) => m.content).join('\n');
+      const filterSource = `${messageText}\n${historyText}`;
+      const filtered = filterServicesByKeywords(svcPayload.data, filterSource);
+      if (filtered?.length) {
+        svcPayload = formatServicesText(filtered);
+      }
+    }
+  }
+
   if (profileSpec.fetchSlots) {
     if (requestedDate) {
       try {
@@ -120,16 +141,40 @@ async function assembleTessContext(params) {
     }
     if (slotDates.length) {
       fetchMeta.slotsRequested = slotDates.length;
-      const slotTexts = await Promise.all(slotDates.map((date) => getSlots(date)));
-      slotsAll = slotTexts.join('\n');
+      if (useCompactBooking) {
+        const historyText = (historyForModel || []).map((m) => m.content).join('\n');
+        const allowedProfessionalNames = [...new Set(
+          (svcPayload.data || [])
+            .flatMap((s) => (Array.isArray(s.profissionais) ? s.profissionais : []))
+            .filter(Boolean),
+        )];
+        const groupedBlocks = await Promise.all(
+          slotDates.map(async (date) => {
+            const grouped = await getSlotsGrouped(date);
+            return compactBookingSlotsBlock({
+              label: grouped.label,
+              professionals: grouped.professionals,
+              messageText,
+              historyText,
+              allowedProfessionalNames,
+            });
+          }),
+        );
+        slotsAll = groupedBlocks.join('\n');
+      } else {
+        const slotTexts = await Promise.all(slotDates.map((date) => getSlots(date)));
+        slotsAll = slotTexts.join('\n');
+      }
     }
   }
 
-  if (profileSpec.fetchCatalog) {
+  if (profileSpec.fetchCatalog && !fetchMeta.catalogRequested) {
     fetchMeta.catalogRequested = true;
     svcPayload = await getServicesText();
     if (profileSpec.filterCatalog && svcPayload.data?.length) {
-      const filtered = filterServicesByKeywords(svcPayload.data, messageText);
+      const historyText = (historyForModel || []).map((m) => m.content).join('\n');
+      const filterSource = `${messageText}\n${historyText}`;
+      const filtered = filterServicesByKeywords(svcPayload.data, filterSource);
       if (filtered?.length) {
         svcPayload = formatServicesText(filtered);
       }
@@ -157,9 +202,11 @@ async function assembleTessContext(params) {
     phone,
     requestedDate,
     trinksCanonicalName,
+    operatorResumeNote,
   );
 
-  const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${messageText}`;
+  const clientLine = operatorResumeTrigger || messageText;
+  const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${clientLine}`;
 
   const shellEstimate = dynamicContext
     .replace(slotsAll || '', '')

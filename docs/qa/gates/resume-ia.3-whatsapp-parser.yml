@@ -1,0 +1,64 @@
+schema: 1
+story: 'resume-ia.3'
+story_title: 'WhatsApp — ping de handoff + parser estreito no thread do dono'
+gate: PASS
+status_reason: 'Copy do ping não ensina abrir o chat da cliente; parser só via isOwnerPhone; 0/1/N e actor=whatsapp cobertos; thread cliente ignorada. Fatia 12/12 passa.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:parser@a9864037,test@94423f68,server@1ec6066f,story@69b49061,HEAD:468391d7'
+updated: '2026-09-02T02:16:00Z'
+qg_iteration: 1
+previous_gate: null
+top_issues: []
+waiver: { active: false }
+
+quality_score: 92
+expires: '2026-09-16T02:16:00Z'
+
+evidence:
+  tests_reviewed: 12
+  tests_passed: 12
+  tests_failed: 0
+  test_command: 'node --test backend/test/owner-resume-parser.test.js'
+  risks_identified: 0
+  coderabbit: 'SKIP — CLI indisponível / tree suja fora do IN. [AUTO-DECISION] review manual da fatia; QA não implementa (pedido: NÃO implemente).'
+  product_gates:
+    ping_nao_abre_chat_cliente: PASS
+    parser_somente_isOwnerPhone: PASS
+    desambiguacao_0_1_N: PASS
+    resumeConversation_actor_whatsapp: PASS
+    thread_cliente_ignorada: PASS
+    nota_20_500_sem_limpar_silencio: PASS
+    ack_tiago_nao_cliente: PASS
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Hook gated por shouldAttemptOwnerResume(isOwnerPhone(sessionPhone), text). handleOwnerResumeInbound só é chamado nesse ramo. Ack via TIAGO_NOTIFICATION_PHONE, nunca sessionPhone da cliente.'
+  performance:
+    status: PASS
+    notes: 'Uma query de pendentes só no ramo âncora+owner. Nota ≤500.'
+  reliability:
+    status: PASS
+    notes: '0/N não chamam resumeConversation. Nota curta ack e return antes da query/resume. Falha de db.query cai no catch do webhook (sem ack) — residual, não bloqueia.'
+  maintainability:
+    status: PASS
+    notes: 'Módulo dedicado; SOT resume-conversation.js não duplicada; sendKapsoMessageStrict reusado.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Teste handleOwnerResumeInbound para N pendentes (ack lista + zero resumeConversation) e formatResumeResultAck 422/503.'
+      refs: ['backend/test/owner-resume-parser.test.js']
+    - action: 'Matching de nome por contains pode colidir (Ana ⊂ Diana); se doer em produção, exigir token de palavra.'
+      refs: ['backend/lib/owner-resume-parser.js']
+    - action: 'Âncora só no início da mensagem (^); prefixo tipo “ok retomar” cai no TESS dono — aceitável; smoke story 5.'
+      refs: ['backend/lib/owner-resume-parser.js']
+
+auto_decisions:
+  - 'YOLO: elicit=true nas tasks → skip; decisões neste arquivo.'
+  - 'CodeRabbit self-healing não executado: CLI skip + QA não modifica source.'
+  - 'NÃO implemente: zero refactor, zero testes novos, só gate + QA Results + Status.'
+  - 'PASS/CONCERNS → Done: gate PASS → InReview → Done.'

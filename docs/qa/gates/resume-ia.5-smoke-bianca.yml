@@ -1,0 +1,77 @@
+schema: 1
+story: 'resume-ia.5'
+story_title: 'Smoke Bianca (número de teste) + telemetria resume.*'
+gate: CONCERNS
+status_reason: 'AC1 PASS — roteiro ops completo (número de teste, não Bianca real, passos + negativos + SQL). AC2–AC6 live WAIVED/CONCERNS: BLOCKED_LIVE documentado, zero evidência inventada. AC7 CodeRabbit skip graceful_degradation documentado. Units 1–4 aceitos como contrato; smoke VPS ainda pendente para fechar DoD live do epic.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:smoke@d820c153,story@2c81387f,HEAD:468391d7'
+updated: '2026-09-02T02:23:00Z'
+qg_iteration: 1
+previous_gate: null
+top_issues:
+  - id: LIVE-SMOKE-BLOCKED
+    severity: medium
+    suggested_owner: po
+    description: 'AC2–AC6 não executados no VPS. Dex BLOCKED_LIVE (sem ADMIN_TOKEN/HOST). Tabela de evidência do roteiro vazia. Não é FAIL: roteiro completo e nenhuma evidência live foi inventada.'
+  - id: CODERABBIT-SKIP
+    severity: low
+    suggested_owner: qa
+    description: 'AC7 skip documentado: CLI 0.6.1 presente; --prompt-only removida; review --agent --base main → TRPCClientError. graceful_degradation. Reexecutar vs main na branch do epic quando o serviço responder.'
+waiver: { active: false }
+
+quality_score: 90
+expires: '2026-09-16T02:23:00Z'
+
+evidence:
+  tests_reviewed: 0
+  tests_executed_this_review: 0
+  live_smoke_executed: false
+  live_evidence_invented: false
+  units_1_4_claimed_by_dev: 'PASS — Dex: backend npm test 410/410; fatia resume-conversation 25, bot-thread-state 6, owner-resume-parser 11. QA não reexecutou nesta review (NÃO implemente / sem VPS).'
+  risks_identified: 1
+  coderabbit: 'SKIP — documentado na story (TRPCClientError). [AUTO-DECISION] não FAIL; graceful_degradation + QA não auto-fixa source.'
+  product_gates:
+    roteiro_existe: PASS
+    numero_teste_nao_bianca_real: PASS
+    passos_positivos_negativos_sql: PASS
+    evidencia_live_ac2_ac6: BLOCKED_LIVE
+    evidencia_inventada: PASS_NONE
+    coderabbit_0_critical: SKIP_DOCUMENTED
+  trace:
+    ac_covered: [1]
+    ac_waived_blocked_live: [2, 3, 4, 5, 6]
+    ac_skip_documented: [7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Roteiro proíbe número real da Bianca e PII no record. Placeholder 55XXXXXXXXXXX + whitelist 011/012/013. 013 marcada como cliente real autorizado — só com confirmação Victor/Tiago. ADMIN_TOKEN não colado.'
+  performance:
+    status: PASS
+    notes: 'N/A ops smoke. Sem código de produto nesta story.'
+  reliability:
+    status: CONCERNS
+    notes: 'Contrato coberto por units das stories 1–4. Persistência pós-restart, Kapso send, window_closed e telemetria resume.* não observados em VPS nesta review.'
+  maintainability:
+    status: PASS
+    notes: 'Roteiro versionado com curls, SQL, negativos, tabela de evidência e seção unit-as-substituto. Typo menor: Passo 0 aponta window_closed como “seção 5”; o negativo está na §4.'
+
+recommendations:
+  immediate:
+    - action: 'Victor no VPS: export TEST_PHONE (011 ou 012; 013 só se confirmado) + ADMIN_TOKEN + HOST; aplicar 016+017; deploy backend stories 1–4; executar seções 1–4 do roteiro; preencher tabela de evidência com timestamps reais (sem PII Bianca).'
+      refs: ['docs/ops/smoke-resume-ia-pos-handoff-bianca-teste.md']
+  future:
+    - action: 'Corrigir referência “seção 5” → “§4” no Passo 0 do roteiro.'
+      refs: ['docs/ops/smoke-resume-ia-pos-handoff-bianca-teste.md']
+    - action: 'Reexecutar CodeRabbit vs main na branch do epic quando o serviço TRPC responder.'
+      refs: []
+
+auto_decisions:
+  - 'YOLO: elicit=true nas tasks → skip; decisões neste arquivo.'
+  - 'Status ready-for-review tratado como InReview para a transição canônica.'
+  - 'AC1 PASS (doc completo). AC2–AC6 CONCERNS/WAIVED-live (roteiro + BLOCKED_LIVE; não FAIL). AC7 skip documentado → não FAIL.'
+  - 'Nenhuma evidência live inventada. Tabela Evidência para @qa vazia — correto.'
+  - 'CodeRabbit self-healing não executado: skip documentado + QA não modifica source (NÃO implemente).'
+  - 'CONCERNS → Status InReview → Done (política review-story). Live VPS continua fora desta story como trabalho ops/PO.'
+  - 'Epic DoD atualizado com honestidade unit vs live (pedido explícito da missão; não é File List da story).'
