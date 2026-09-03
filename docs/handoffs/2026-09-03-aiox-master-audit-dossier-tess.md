@@ -15,7 +15,7 @@
 |---|---|
 | Branch | `feature/tess-commit-honesty` alinhada com `origin/feature/tess-commit-honesty` |
 | Código Story 13 no VPS | `07f59cb` — `fix: harden Nightwatch verification scope [Story 13]` |
-| Docs pós-deploy no remote | `ca1b4af` — `docs: record Story 13 deploy at 07f59cb` (HEAD local/remoto) |
+| Docs pós-deploy no remote | `80cb950` — baseline final da patrulha (registro inicial `ca1b4af`, auditoria `b796b44`) |
 | Publicado anterior | `0b39035` — Story 12 (CANCEL lean + timeout) + smoke `0007`/`8440` |
 | Locais **ainda não publicados** | **311** entradas fora da fatia 13 (resume-ia, AIOX/skills, admin, ops, KB, infra). **Particionar.** Não tratar o tree como release |
 | Pronto para deploy do resto? | **Não.** Só a fatia 13 subiu. Demais workstreams continuam locais |
@@ -24,7 +24,7 @@
 
 ```text
 VPS / origin ── 07f59cb ── Story 13 LIVE (Nightwatch p0_timeout + verify/orphans scoped)
-docs remote ── ca1b4af ── registro pós-deploy (branch alinhada)
+docs remote ── 80cb950 ── baseline final da patrulha (branch alinhada)
 anterior ───── 0b39035 ── Story 12 no ar + smoke 0007/8440 (honesty 1–12)
 working tree ─ 311 entradas fora da 13 (resume-ia, AIOX, admin, ops, KB, infra)
 ```
@@ -451,7 +451,7 @@ Baseline ~19:11:20Z (60 min; 15/180 iguais em stuck): `p0_stuck=20`, demais P0 =
 
 ### Estado já respondido (não reabrir sem evidência nova)
 
-1. VPS / código live = **`07f59cb`**. Docs remote = **`ca1b4af`**. Branch alinhada. Hashes dos módulos 13 conferidos.
+1. VPS / código live = **`07f59cb`**. Docs remote = **`80cb950`** (registro deploy `ca1b4af`, auditoria `b796b44`). Branch alinhada. Hashes dos módulos 13 conferidos.
 2. Config: **`BOT_ACCEPT_ALL=false`**, WHITELIST, allow só last4 **`0007`**, **`8440` ausente**, `global=true` só técnico. **Não alterar.**
 3. Story 13 **já live**. Auditoria agora é de padrões + residuais; **não** republicar a 13. As outras **311** mudanças **não** sobem juntas.
 4. Smoke WhatsApp mutável da 13 **não** ocorreu. Validação = health + `patrol_live` ~19:11:20Z.
