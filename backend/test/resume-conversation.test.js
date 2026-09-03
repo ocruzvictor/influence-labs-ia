@@ -23,6 +23,7 @@ let audits = [];
 let tessCalls = 0;
 let kapsoCalls = 0;
 let markHandledCalls = 0;
+let invalidateCacheCalls = 0;
 let operatorTurnResult = { text: 'Olá! Posso te ajudar a agendar seu horário?', handoffHuman: null };
 let kapsoShouldFail = false;
 let tessShouldFail = false;
@@ -43,6 +44,7 @@ function setupMocks() {
   tessCalls = 0;
   kapsoCalls = 0;
   markHandledCalls = 0;
+  invalidateCacheCalls = 0;
   operatorTurnResult = { text: 'Olá! Posso te ajudar a agendar seu horário?', handoffHuman: null };
   kapsoShouldFail = false;
   tessShouldFail = false;
@@ -83,6 +85,7 @@ function setupMocks() {
         if (mode === 'block') return { silent: true, reason: 'mode=block' };
         return { silent: false, reason: 'allow' };
       },
+      invalidateCache: () => { invalidateCacheCalls += 1; },
     },
   };
 
@@ -156,6 +159,16 @@ async function mockQuery(sql, params) {
     return { rows: [] };
   }
 
+  if (sql.includes('UPDATE bot_whitelist')) {
+    const phone = params[0];
+    const mode = whitelist.get(phone);
+    if (sql.includes("mode='human_only'") && mode === 'human_only') {
+      whitelist.set(phone, 'allow');
+      return { rows: [], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+  }
+
   if (sql.includes('UPDATE bot_thread_state')) {
     const phone = params[params.length - 1];
     const row = threadStore.get(phone) || { phone };
@@ -225,6 +238,7 @@ function makeDeps(overrides = {}) {
       },
       getKapsoPhoneNumberId: () => 'pnid-test',
       markHumanHandled: async () => { markHandledCalls += 1; },
+      invalidateCache: () => { invalidateCacheCalls += 1; },
       envAcceptAll: false,
       envAllowedPhones: [],
       ...overrides,
@@ -436,10 +450,12 @@ test('nota curta não limpa silêncio (sem INSERT)', async () => {
   assert.equal(before, after);
 });
 
-test('zero UPDATE bot_whitelist no módulo', () => {
+test('whitelist UPDATE só WHERE mode=human_only; block intocado', () => {
   const fs = require('fs');
   const src = fs.readFileSync(require.resolve('../lib/resume-conversation.js'), 'utf8');
-  assert.doesNotMatch(src, /UPDATE\s+bot_whitelist/i);
+  assert.match(src, /UPDATE\s+bot_whitelist\s+SET\s+mode='allow'\s+WHERE\s+phone=\$1\s+AND\s+mode='human_only'/i);
+  assert.doesNotMatch(src, /UPDATE\s+bot_whitelist[^;]*WHERE\s+phone=\$1(?![^;]*mode='human_only')/i);
+  assert.doesNotMatch(src, /DELETE\s+FROM\s+bot_whitelist/i);
 });
 
 test('validateResumeInput: nota >500 → 400 invalid_note', async () => {
@@ -558,4 +574,156 @@ test('resume route auth mirror: 401 sem X-Admin-Token válido', () => {
   assert.equal(isResumeUnauthorized('secret', 'wrong'), true);
   assert.equal(isResumeUnauthorized('secret', 'secret'), false);
   assert.equal(isResumeUnauthorized('', 'secret'), true);
+});
+
+const FORCE_NOTE = 'Retoma. Agenda o teste de mecha — obrigatorio, independente da venda consultiva.';
+
+test('validateResumeInput: force inválido → 400 invalid_force', async () => {
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: 'true' }, deps);
+  assert.equal(r.httpStatus, 400);
+  assert.equal(r.body.error, 'invalid_force');
+});
+
+test('validateResumeInput: force omitido/null → false', () => {
+  const { validateResumeInput } = require('../lib/resume-conversation');
+  assert.equal(validateResumeInput('5511999999999', FORCE_NOTE).force, false);
+  assert.equal(validateResumeInput('5511999999999', FORCE_NOTE, 'cli', null).force, false);
+});
+
+test('force=false already_active no-op (AC2)', async () => {
+  seedUserInbound('5511999999999');
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: false }, deps);
+  assert.equal(r.httpStatus, 200);
+  assert.equal(r.body.status, 'already_active');
+  assert.equal(tessCalls, 0);
+  assert.equal(invalidateCacheCalls, 0);
+});
+
+test('force=true already_active + janela aberta → sent (AC3)', async () => {
+  seedUserInbound('5511999999999');
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: true }, deps);
+  assert.equal(r.httpStatus, 200);
+  assert.equal(r.body.status, 'sent');
+  assert.ok(tessCalls >= 1);
+  assert.ok(kapsoCalls >= 1);
+  const sentEvt = events.find((e) => e.event === 'resume.sent');
+  assert.equal(sentEvt.payload.force, true);
+  assert.equal(sentEvt.payload.kind, 'expired');
+});
+
+test('force=true already_active + janela fechada → window_closed (AC4)', async () => {
+  seedUserInbound('5511999999999', { ageMs: -25 * 60 * 60 * 1000 });
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: true }, deps);
+  assert.equal(r.httpStatus, 200);
+  assert.equal(r.body.status, 'window_closed');
+  assert.equal(tessCalls, 0);
+  assert.equal(kapsoCalls, 0);
+});
+
+test('force=true already_active + janela fechada + human_only → clear whitelist (AC4/AC6)', async () => {
+  whitelist.set('5511999999999', 'human_only');
+  seedUserInbound('5511999999999', { ageMs: -25 * 60 * 60 * 1000 });
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: true }, deps);
+  assert.equal(r.httpStatus, 200);
+  assert.equal(r.body.status, 'window_closed');
+  assert.equal(whitelist.get('5511999999999'), 'allow');
+  assert.ok(invalidateCacheCalls >= 1);
+  const evt = events.find((e) => e.event === 'resume.window_closed');
+  assert.equal(evt.payload.cleared_human_only, true);
+  assert.equal(evt.payload.kind, 'unpause');
+});
+
+test('human_only + force=false → 409 (AC5)', async () => {
+  whitelist.set('5511999999999', 'human_only');
+  seedUserInbound('5511999999999');
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: false }, deps);
+  assert.equal(r.httpStatus, 409);
+  assert.equal(r.body.error, 'human_only');
+  assert.equal(whitelist.get('5511999999999'), 'human_only');
+});
+
+test('human_only + force=true + janela aberta → sent + whitelist allow (AC6)', async () => {
+  whitelist.set('5511999999999', 'human_only');
+  seedUserInbound('5511999999999');
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: true }, deps);
+  assert.equal(r.httpStatus, 200);
+  assert.equal(r.body.status, 'sent');
+  assert.equal(whitelist.get('5511999999999'), 'allow');
+  assert.ok(invalidateCacheCalls >= 1);
+  const sentEvt = events.find((e) => e.event === 'resume.sent');
+  assert.equal(sentEvt.payload.kind, 'unpause');
+  assert.equal(sentEvt.payload.cleared_human_only, true);
+});
+
+test('block + force=true → 409 blocked (AC7)', async () => {
+  whitelist.set('5511999999999', 'block');
+  seedUserInbound('5511999999999');
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: true }, deps);
+  assert.equal(r.httpStatus, 409);
+  assert.equal(r.body.error, 'blocked');
+  assert.equal(whitelist.get('5511999999999'), 'block');
+});
+
+test('actor whatsapp + force true + already_active → already_active (AC8)', async () => {
+  seedUserInbound('5511999999999');
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', {
+    note: FORCE_NOTE,
+    actor: 'whatsapp',
+    force: true,
+  }, deps);
+  assert.equal(r.httpStatus, 200);
+  assert.equal(r.body.status, 'already_active');
+  assert.equal(tessCalls, 0);
+});
+
+test('tess fail + human_only + force → 422, ainda human_only (AC9)', async () => {
+  tessShouldFail = true;
+  whitelist.set('5511999999999', 'human_only');
+  seedUserInbound('5511999999999');
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: true }, deps);
+  assert.equal(r.httpStatus, 422);
+  assert.equal(r.body.error, 'tess_failed');
+  assert.equal(whitelist.get('5511999999999'), 'human_only');
+  assert.equal(invalidateCacheCalls, 0);
+});
+
+test('cache already_active force=false NÃO serve POST force=true (AC9)', async () => {
+  seedUserInbound('5511999999999');
+  const { resumeConversation, deps } = makeDeps();
+  const r1 = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: false }, deps);
+  assert.equal(r1.body.status, 'already_active');
+  const r2 = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: true }, deps);
+  assert.equal(r2.httpStatus, 200);
+  assert.equal(r2.body.status, 'sent');
+  assert.ok(tessCalls >= 1);
+});
+
+test('force=true + silêncio ativo → kind handoff_silence (AC3)', async () => {
+  seedSilenced('5511999999999');
+  seedUserInbound('5511999999999');
+  const { resumeConversation, deps } = makeDeps();
+  const r = await resumeConversation('5511999999999', { note: FORCE_NOTE, force: true }, deps);
+  assert.equal(r.httpStatus, 200);
+  assert.equal(r.body.status, 'sent');
+  const sentEvt = events.find((e) => e.event === 'resume.sent');
+  assert.equal(sentEvt.payload.kind, 'handoff_silence');
+});
+
+test('idempotência inclui force na chave', () => {
+  const { idempotencyKey } = require('../lib/resume-conversation');
+  const k0 = idempotencyKey('5511999999999', FORCE_NOTE, false);
+  const k1 = idempotencyKey('5511999999999', FORCE_NOTE, true);
+  assert.notEqual(k0, k1);
+  assert.match(k0, /:0$/);
+  assert.match(k1, /:1$/);
 });

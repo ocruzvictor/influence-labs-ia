@@ -1,0 +1,80 @@
+schema: 1
+story: 'resume-ia.6'
+story_title: 'CLI/API force no POST resume — pós-TTL + clear human_only'
+gate: PASS
+status_reason: 'AC1–AC11 implementados no SOT: force default false, actor whatsapp ignora force, clear só WHERE mode=human_only após sent/window_closed, block intocado, chave de idempotência inclui force, dual cache no clear. Fatia 40/40 passa. Zero infra/migrations/018*. CodeRabbit SKIP graceful (tool bloqueado), não FAIL.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:resume@f68450cb,server@d550d59e,test@da2a6c4a,story@ec8d600b,HEAD:8b404654'
+updated: '2026-09-02T03:40:00Z'
+qg_iteration: 1
+previous_gate: null
+top_issues:
+  - id: CODERABBIT-SKIP
+    severity: low
+    suggested_owner: qa
+    finding: 'CodeRabbit CLI presente (~/.local/bin/coderabbit) mas --prompt-only -t uncommitted foi bloqueado (rede/terceiros). Mesmo padrão graceful_degradation da story 5 (TRPC/tool).'
+    suggested_action: 'Reexecutar vs main na branch do epic quando o serviço/aprovação de rede responder. Não bloqueia Done.'
+  - id: TEST-001
+    severity: low
+    suggested_owner: dev
+    finding: 'Matriz force cobre AC2–AC9 nos caminhos primários; células secundárias sem teste dedicado (whatsapp+human_only 409, human_spoke+force=true, kapso 503+human_only sem clear). Código cobre os três.'
+    suggested_action: 'Opcional na story 8/regressão: três asserts extras. Não bloqueia Done.'
+waiver: { active: false }
+
+quality_score: 100
+expires: '2026-09-16T03:40:00Z'
+
+evidence:
+  tests_reviewed: 40
+  tests_passed: 40
+  tests_failed: 0
+  test_command: 'node --test backend/test/resume-conversation.test.js'
+  risks_identified: 2
+  coderabbit: 'SKIP — CLI  presente; invocação --prompt-only bloqueada (rede/terceiros). [AUTO-DECISION] não FAIL; graceful_degradation like story 5; QA não auto-fixa source.'
+  product_gates:
+    force_parse_boolean_strict: PASS
+    already_active_force_false_noop: PASS
+    force_true_sent_or_window_closed: PASS
+    human_only_409_unless_force: PASS
+    clear_human_only_where_mode: PASS
+    block_untouched: PASS
+    actor_whatsapp_ignores_force: PASS
+    no_clear_on_422: PASS
+    idempotency_key_includes_force: PASS
+    dual_cache_on_clear: PASS
+    zero_migration_018: PASS
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'X-Admin-Token inalterado. force boolean strict (string → 400 invalid_force). actor whatsapp força effectiveForce=false. UPDATE whitelist sempre AND mode=human_only. Audit usa note_hash.'
+  performance:
+    status: PASS
+    notes: 'Idempotência 15s com chave phone:noteHash:0|1. Cache whitelist 5s invalidado só no clear.'
+  reliability:
+    status: PASS
+    notes: 'Clear só após sent ou persist window_closed. 422 tess e 503 kapso retornam antes de clearHumanOnly. Cache already_active force=false não serve force=true. Race FOR UPDATE pré-TESS é residual story 2 (WONT_FIX), não introduzido aqui.'
+  maintainability:
+    status: PASS
+    notes: 'SOT resume-conversation.js + parse em server.js. invalidateCache via deps com fallback require bot-state. Zero schema 018.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Testes opcionais: actor=whatsapp + human_only + force true → 409; human_spoke + force true → 409; kapso 503 + human_only permanece human_only.'
+      refs: ['backend/test/resume-conversation.test.js']
+    - action: 'Reexecutar CodeRabbit vs main na branch do epic quando TRPC/rede responder.'
+      refs: []
+    - action: 'Residual story 2: serializar resume por phone sem FOR UPDATE durante TESS+Kapso.'
+      refs: ['backend/lib/resume-conversation.js']
+
+auto_decisions:
+  - 'YOLO: elicit=true nas tasks → skip; decisões neste arquivo.'
+  - 'Status ready-for-review tratado como InReview para a transição canônica (padrão stories 1–5).'
+  - 'CodeRabbit self-healing não executado: tool bloqueado / graceful_degradation; QA não modifica source.'
+  - 'TEST-001 células secundárias = low, não medium: código + testes primários AC2–AC9 suficientes para PASS.'
+  - 'REL-001 lock longo (story 2) não reaberto como issue desta story.'
+  - 'PASS → Status InReview → Done (política review-story).'

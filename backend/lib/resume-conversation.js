@@ -1,8 +1,9 @@
 /**
- * resume-conversation — POST /admin/conversations/:phone/resume (story resume-ia-2).
+ * resume-conversation — POST /admin/conversations/:phone/resume (story resume-ia-2/6).
  *
  * Fonte da verdade: limpa silêncio handoff, injeta ORIENTACAO_OPERADOR, envia TESS+Kapso
- * na janela 24h. Nunca muta bot_whitelist. Nunca persiste nota como role=user da cliente.
+ * na janela 24h. Muta bot_whitelist SOMENTE mode='human_only' após sucesso (sent/window_closed).
+ * Nunca persiste nota como role=user da cliente.
  */
 
 const crypto = require('crypto');
@@ -38,12 +39,12 @@ function hashNote(note) {
   return crypto.createHash('sha256').update(normalizeNote(note)).digest('hex').slice(0, 32);
 }
 
-function idempotencyKey(phone, note) {
-  return `${phone}:${hashNote(note)}`;
+function idempotencyKey(phone, note, force = false) {
+  return `${phone}:${hashNote(note)}:${force ? '1' : '0'}`;
 }
 
-function getCachedIdempotentResult(phone, note) {
-  const key = idempotencyKey(phone, note);
+function getCachedIdempotentResult(phone, note, force = false) {
+  const key = idempotencyKey(phone, note, force);
   const entry = idempotencyCache.get(key);
   if (!entry) return null;
   if (Date.now() - entry.at > IDEMPOTENCY_TTL_MS) {
@@ -58,18 +59,19 @@ function shouldCacheIdempotentResult(result) {
     && ['sent', 'window_closed', 'already_active'].includes(result?.body?.status);
 }
 
-function cacheIdempotentResult(phone, note, result) {
+function cacheIdempotentResult(phone, note, force, result) {
   if (!shouldCacheIdempotentResult(result)) return;
-  idempotencyCache.set(idempotencyKey(phone, note), { result, at: Date.now() });
+  idempotencyCache.set(idempotencyKey(phone, note, force), { result, at: Date.now() });
 }
 
 /**
  * @param {string} phone
  * @param {string} note
  * @param {string} [actor]
- * @returns {{ ok: true, phone: string, note: string, actor: string } | { ok: false, status: number, error: string }}
+ * @param {boolean|undefined|null} [force]
+ * @returns {{ ok: true, phone: string, note: string, actor: string, force: boolean } | { ok: false, status: number, error: string }}
  */
-function validateResumeInput(phone, note, actor = 'cli') {
+function validateResumeInput(phone, note, actor = 'cli', force) {
   const digits = digitsOnly(phone);
   if (!digits || digits.length < 10 || digits.length > 15) {
     return { ok: false, status: 400, error: 'invalid_phone' };
@@ -85,7 +87,47 @@ function validateResumeInput(phone, note, actor = 'cli') {
     return { ok: false, status: 400, error: 'invalid_actor' };
   }
 
-  return { ok: true, phone: digits, note: normalized, actor: safeActor };
+  let safeForce = false;
+  if (force === undefined || force === null || force === false) {
+    safeForce = false;
+  } else if (force === true) {
+    safeForce = true;
+  } else {
+    return { ok: false, status: 400, error: 'invalid_force' };
+  }
+
+  return { ok: true, phone: digits, note: normalized, actor: safeActor, force: safeForce };
+}
+
+/**
+ * @param {{ silenced: boolean, wasHumanOnly: boolean }} ctx
+ * @returns {'handoff_silence'|'unpause'|'expired'}
+ */
+function resolveResumeKind({ silenced, wasHumanOnly }) {
+  if (silenced) return 'handoff_silence';
+  if (wasHumanOnly) return 'unpause';
+  return 'expired';
+}
+
+/**
+ * Limpa human_only da whitelist após sucesso de retomada.
+ *
+ * @param {object} db
+ * @param {string} phone
+ * @param {object} deps
+ * @returns {Promise<boolean>} true se UPDATE afetou row human_only
+ */
+async function clearHumanOnly(db, phone, deps) {
+  const result = await db.query(
+    `UPDATE bot_whitelist SET mode='allow' WHERE phone=$1 AND mode='human_only'`,
+    [phone],
+  );
+  const cleared = (result?.rowCount ?? 0) > 0;
+  const invalidateBotStateCache = deps.invalidateCache
+    || require('./bot-state').invalidateCache;
+  invalidateBotStateCache();
+  invalidatePhoneCache(phone);
+  return cleared;
 }
 
 /**
@@ -274,11 +316,11 @@ async function persistPendingResumeNote(db, phone, {
 
 /**
  * @param {string} phone
- * @param {{ note: string, actor?: string }} opts
+ * @param {{ note: string, actor?: string, force?: boolean }} opts
  * @param {object} deps
  * @returns {Promise<{ httpStatus: number, body: object }>}
  */
-async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
+async function resumeConversation(phone, { note, actor = 'cli', force = false }, deps) {
   const {
     db,
     getBotState,
@@ -292,22 +334,28 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
     envAllowedPhones = [],
   } = deps;
 
-  const validated = validateResumeInput(phone, note, actor);
+  const validated = validateResumeInput(phone, note, actor, force);
   if (!validated.ok) {
     return { httpStatus: validated.status, body: { error: validated.error } };
   }
 
   const { phone: digits, note: normalizedNote, actor: safeActor } = validated;
+  const effectiveForce = safeActor === 'whatsapp' ? false : validated.force;
   const noteHash = hashNote(normalizedNote);
 
-  const cached = getCachedIdempotentResult(digits, normalizedNote);
+  const cached = getCachedIdempotentResult(digits, normalizedNote, effectiveForce);
   if (cached) return cached;
 
   await emitOperationalEvent(db, {
     event: 'resume.requested',
     clientPhone: digits,
     motivo: `actor=${safeActor}`,
-    payload: { actor: safeActor, note_hash: noteHash, note_length: normalizedNote.length },
+    payload: {
+      actor: safeActor,
+      note_hash: noteHash,
+      note_length: normalizedNote.length,
+      force: effectiveForce,
+    },
   });
 
   const botState = await getBotState();
@@ -315,13 +363,15 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
     acceptAll: envAcceptAll,
     allowedPhones: envAllowedPhones,
   });
-  if (access.reason === 'mode=human_only') {
+  const wasHumanOnly = access.reason === 'mode=human_only';
+
+  if (wasHumanOnly && !effectiveForce) {
     const out = { httpStatus: 409, body: { error: 'human_only' } };
     await emitOperationalEvent(db, {
       event: 'resume.failed',
       clientPhone: digits,
       motivo: 'human_only',
-      payload: { actor: safeActor, note_hash: noteHash },
+      payload: { actor: safeActor, note_hash: noteHash, force: effectiveForce },
     });
     return out;
   }
@@ -331,7 +381,7 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
       event: 'resume.failed',
       clientPhone: digits,
       motivo: 'blocked',
-      payload: { actor: safeActor, note_hash: noteHash },
+      payload: { actor: safeActor, note_hash: noteHash, force: effectiveForce },
     });
     return out;
   }
@@ -353,7 +403,7 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
 
       const silenced = isSilencedActive(existing?.silenced_until);
       const pendingNote = getValidPendingNote(existing);
-      if (!silenced && !pendingNote) {
+      if (!silenced && !pendingNote && !effectiveForce) {
         const err = new Error('already_active');
         err.code = 'already_active';
         throw err;
@@ -368,7 +418,7 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
         event: 'resume.failed',
         clientPhone: digits,
         motivo: 'human_spoke_recently',
-        payload: { actor: safeActor, note_hash: noteHash },
+        payload: { actor: safeActor, note_hash: noteHash, force: effectiveForce },
       });
       return out;
     }
@@ -379,9 +429,14 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
         userId: null,
         targetType: 'conversation',
         targetId: digits,
-        payload: { actor: safeActor, result: 'already_active', note_hash: noteHash },
+        payload: {
+          actor: safeActor,
+          result: 'already_active',
+          note_hash: noteHash,
+          force: effectiveForce,
+        },
       });
-      cacheIdempotentResult(digits, normalizedNote, out);
+      cacheIdempotentResult(digits, normalizedNote, effectiveForce, out);
       return out;
     }
     console.error('[resume] transaction pre-check failed:', err.message);
@@ -392,8 +447,9 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
   const expiresAt = new Date(Date.now() + PENDING_NOTE_TTL_MS);
   const pendingNote = getValidPendingNote(threadRow);
   const silenced = isSilencedActive(threadRow?.silenced_until);
+  const resumeKind = resolveResumeKind({ silenced, wasHumanOnly });
   const outboundSinceResume = await hadAssistantOutboundSince(db, digits, threadRow?.last_resume_at);
-  const canProactiveSend = windowOpen && (silenced || !pendingNote || !outboundSinceResume);
+  const canProactiveSend = windowOpen && (silenced || !pendingNote || !outboundSinceResume || effectiveForce);
 
   if (!canProactiveSend) {
     await persistPendingResumeNote(db, digits, {
@@ -404,21 +460,40 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
       resultStatus: 'window_closed',
     });
 
+    let clearedHumanOnly = false;
+    if (wasHumanOnly) {
+      clearedHumanOnly = await clearHumanOnly(db, digits, deps);
+    }
+
     const out = { httpStatus: 200, body: { status: 'window_closed' } };
     await emitOperationalEvent(db, {
       event: 'resume.window_closed',
       clientPhone: digits,
       motivo: `actor=${safeActor}`,
-      payload: { actor: safeActor, note_hash: noteHash, note_length: normalizedNote.length },
+      payload: {
+        actor: safeActor,
+        note_hash: noteHash,
+        note_length: normalizedNote.length,
+        force: effectiveForce,
+        kind: resumeKind,
+        cleared_human_only: clearedHumanOnly,
+      },
     });
     await logAudit(db, {
       action: 'conversation.resume',
       userId: null,
       targetType: 'conversation',
       targetId: digits,
-      payload: { actor: safeActor, result: 'window_closed', note_hash: noteHash },
+      payload: {
+        actor: safeActor,
+        result: 'window_closed',
+        note_hash: noteHash,
+        force: effectiveForce,
+        kind: resumeKind,
+        cleared_human_only: clearedHumanOnly,
+      },
     });
-    cacheIdempotentResult(digits, normalizedNote, out);
+    cacheIdempotentResult(digits, normalizedNote, effectiveForce, out);
     return out;
   }
 
@@ -457,7 +532,7 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
       event: 'resume.failed',
       clientPhone: digits,
       motivo: 'tess_failed',
-      payload: { actor: safeActor, note_hash: noteHash },
+      payload: { actor: safeActor, note_hash: noteHash, force: effectiveForce },
     });
     return out;
   }
@@ -470,7 +545,7 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
       event: 'resume.failed',
       clientPhone: digits,
       motivo: 'tess_failed',
-      payload: { actor: safeActor, note_hash: noteHash },
+      payload: { actor: safeActor, note_hash: noteHash, force: effectiveForce },
     });
     return out;
   }
@@ -487,7 +562,7 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
       event: 'resume.failed',
       clientPhone: digits,
       motivo: 'tess_rehandoff',
-      payload: { actor: safeActor, note_hash: noteHash, handoff: turnResult.handoffHuman.motivo },
+      payload: { actor: safeActor, note_hash: noteHash, force: effectiveForce, handoff: turnResult.handoffHuman.motivo },
     });
     return out;
   }
@@ -504,7 +579,7 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
       event: 'resume.failed',
       clientPhone: digits,
       motivo: 'note_leak',
-      payload: { actor: safeActor, note_hash: noteHash },
+      payload: { actor: safeActor, note_hash: noteHash, force: effectiveForce },
     });
     return out;
   }
@@ -521,13 +596,18 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
       event: 'resume.failed',
       clientPhone: digits,
       motivo: 'kapso_send_failed',
-      payload: { actor: safeActor, note_hash: noteHash },
+      payload: { actor: safeActor, note_hash: noteHash, force: effectiveForce },
     });
     return out;
   }
 
   if (turnResult.persistAssistant) {
     await turnResult.persistAssistant(digits, turnResult.text);
+  }
+
+  let clearedHumanOnly = false;
+  if (wasHumanOnly) {
+    clearedHumanOnly = await clearHumanOnly(db, digits, deps);
   }
 
   invalidatePhoneCache(digits);
@@ -544,16 +624,30 @@ async function resumeConversation(phone, { note, actor = 'cli' }, deps) {
     event: 'resume.sent',
     clientPhone: digits,
     motivo: `actor=${safeActor}`,
-    payload: { actor: safeActor, note_hash: noteHash, source: 'operator_resume' },
+    payload: {
+      actor: safeActor,
+      note_hash: noteHash,
+      source: 'operator_resume',
+      force: effectiveForce,
+      kind: resumeKind,
+      cleared_human_only: clearedHumanOnly,
+    },
   });
   await logAudit(db, {
     action: 'conversation.resume',
     userId: null,
     targetType: 'conversation',
     targetId: digits,
-    payload: { actor: safeActor, result: 'sent', note_hash: noteHash },
+    payload: {
+      actor: safeActor,
+      result: 'sent',
+      note_hash: noteHash,
+      force: effectiveForce,
+      kind: resumeKind,
+      cleared_human_only: clearedHumanOnly,
+    },
   });
-  cacheIdempotentResult(digits, normalizedNote, out);
+  cacheIdempotentResult(digits, normalizedNote, effectiveForce, out);
   return out;
 }
 
@@ -567,6 +661,7 @@ module.exports = {
   resetIdempotencyCacheForTests,
   normalizeNote,
   hashNote,
+  idempotencyKey,
   validateResumeInput,
   hasNoteLeak,
   is24hWindowOpen,
@@ -576,5 +671,7 @@ module.exports = {
   getValidPendingNote,
   hadAssistantOutboundSince,
   shouldCacheIdempotentResult,
+  resolveResumeKind,
+  clearHumanOnly,
   resumeConversation,
 };
