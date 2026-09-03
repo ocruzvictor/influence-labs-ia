@@ -601,7 +601,7 @@ async function runMorningTriage({ sendKapsoMessage, kapsoPhoneNumberId, isDryRun
 let lastTriageDay = null;
 function startScheduler({ sendKapsoMessage, getKapsoPhoneNumberId }) {
   console.log('[supervisor] scheduler iniciado (verifica 7h ter-sab horario salao)');
-  setInterval(async () => {
+  const schedulerTimer = setInterval(async () => {
     const { hour, minute, weekday } = getSalonTimeParts();
     if (hour !== 7 || minute > 5) return; // janela 7:00-7:05
     if (weekday === 0 || weekday === 1) return; // domingo e segunda nao rodam
@@ -615,6 +615,8 @@ function startScheduler({ sendKapsoMessage, getKapsoPhoneNumberId }) {
       console.error('[supervisor] erro no run automatico:', err.message);
     }
   }, 60_000);
+  schedulerTimer.unref();
+  return schedulerTimer;
 }
 
 module.exports = {

@@ -1,6 +1,6 @@
 # EPIC: Commit e fala da Tess são a mesma fonte (I1/I2/I3)
 
-**Status:** Code Done (1–11 unit) · publicado no VPS 2026-09-03 · smoke restrito ao allowlist `0007`
+**Status:** Code Done (1–12 unit) · correção 12 local não publicada · VPS restrito ao allowlist `0007`
 **Criado em:** 2026-09-03  
 **Rev. 1:** 2026-09-03 — @pm `*create-epic` YOLO; stories detalhadas = @sm  
 **Rev. 2:** 2026-09-03 — @sm `*draft` stories 8–11 (Orion smoke `0007`)
@@ -42,6 +42,7 @@ No caminho de agenda (cadastro, CREATE, reschedule, empty-TESS), o **commit Trin
 - **B2 (P0, story 9)** — cancel tag só `trinks_id` de `AGENDAMENTOS FUTUROS`. **0 PATCH** no SKU (`14232906`).
 - **B3 (P0, story 10)** — `hasAbortDismissSignal` **e** booking novo na mesma frase → SCHEDULING, não FAQ `abort_draft`.
 - **B4 (P1, story 11, depois de 8+9)** — “Pode cancelar esse que a gente acabou de marcar” → CANCEL, não FAQ.
+- **P0 timeout (story 12)** — CANCEL de alta confiança não carrega FULL; timeout da TESS gera resposta honesta, sem mutação ou silêncio automático.
 
 ## OUT
 
@@ -77,8 +78,9 @@ No caminho de agenda (cadastro, CREATE, reschedule, empty-TESS), o **commit Trin
 | 9 | [Cancel só `trinks_id` — 0 PATCH SKU](../salon-whatsapp-tess-commit-9-cancel-sku-id.md) | P0 B2 | — | 5 | Done | Gate PASS (`tess-commit.9`) |
 | 10 | [Abort + booking novo → SCHEDULING](../salon-whatsapp-tess-commit-10-abort-draft-scheduling.md) | P0 B3 | — | 5 | Done | Gate PASS (`tess-commit.10`) |
 | 11 | [“Pode cancelar esse…” → CANCEL](../salon-whatsapp-tess-commit-11-cancel-intent-faq.md) | P1 B4 | #8 + #9 | 3 | Done | Gate PASS (`tess-commit.11`) |
+| 12 | [CANCEL enxuto + fallback de timeout](../salon-whatsapp-tess-commit-12-cancel-timeout-fallback.md) | P0 | — | 5 | Done (unit) | Gate PASS (`tess-commit.12`); smoke live pendente |
 
-**Soma:** 57 pts (39 + 18). Ordem: **(1 ∥ 2 ∥ 3 ∥ 4) → (5 ∥ 6)** · **7 ∥ 1** · **(8 ∥ 9 ∥ 10) → 11**.
+**Soma:** 62 pts (39 + 18 + 5). Ordem: **(1 ∥ 2 ∥ 3 ∥ 4) → (5 ∥ 6)** · **7 ∥ 1** · **(8 ∥ 9 ∥ 10) → 11** · **12**.
 Stories **8–11 Done** — @dev implementou e @qa aprovou em 2026-09-03 (SOT Orion `0007`). File List / Dev Agent Record preenchidos. Executor @dev Composer · gate @qa PASS. Deploy **não** é DoD e permanece fora desta wave.
 
 ### PO validation — 2026-09-03
@@ -113,7 +115,9 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 - [x] **B2 (story 9):** tag `{agendamento_id: 14232906}` + futuro `trinks_id` → **0 PATCH** no SKU. Cancel só `trinks_id` de `AGENDAMENTOS FUTUROS`.
 - [x] **B3 (story 10):** “Esquece isso então. Agora só um corte…” → SCHEDULING, não FAQ `abort_draft`.
 - [x] **B4 (story 11, P1 depois 8+9):** “Pode cancelar esse que a gente acabou de marcar” → CANCEL, não FAQ.
+- [x] **P0 (story 12):** CANCEL high em modo FULL não carrega grade; timeout TESS gera fallback honesto + `tess.timeout`, sem mutação ou silêncio automático.
 - [x] `@sm` stories 8–11 no disco; File List / Dev Agent Record preenchidos pelo @dev (2026-09-03). Gate @qa **PASS**; stories 8–11 Done.
+- [x] Story 12 implementada e testada no unit gate; validação live continua pendente antes de qualquer abertura a clientes.
 - [ ] Deploy VPS / rsync / ACK Supervisor no `nightwatch-log` **não** são DoD desta entrega (Aria §5 itens 1–3 continuam gate de **próximo** deploy, outro rito). Live `0007` **não** fecha DoD; se live, **outro slot**, não 03/09 10:30 André.
 
 ## Decisões
@@ -151,10 +155,12 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 - 2026-09-03 — Orion/Dex: implementou stories 8–11 no repo. Status ready-for-review. Unit classe `0007` (guards + cancel-sku + intent) PASS. Sem rsync. Sem git commit. Sem Hostinger. Sem replay `0101`. Live ≠ 03/09 10:30 André. Gate @qa pendente. Deploy **não** é DoD.
 - 2026-09-03 — @qa (Quinn): re-gate stories 8–11 **PASS**. Fatia 144/144, backend 502/502, prompts 79/79; CodeRabbit CLI 0 findings após correções de outbound parcial e prioridade B3. Stories 8–11 → Done. Repo não está conectado a uma organização CodeRabbit, então a revisão usou a franquia CLI gratuita. Deploy/rsync continuam fora.
 - 2026-09-03 — @devops (Gage): publicou `de044a7` + `a413e16` em `origin/feature/tess-commit-honesty`; primeiro worktree crashou por dependências runtime não versionadas, rollback restaurou `706e6e7`, e o segundo deploy autocontido entrou no ar às `14:51:59Z`. Health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589; `bot_toggles.global=false`, sem `.env`/POST/PATCH/WhatsApp. CodeRabbit no segundo commit: 0 critical, 4 major e 2 minor advisory, registrados para follow-up.
+- 2026-09-03 — Orion: abriu story 12 após o smoke `0007` revelar timeout de CANCEL em contexto FULL. Correção planejada: perfil CANCEL enxuto + fallback honesto com `tess.timeout`; customer-wide permanece bloqueado.
+- 2026-09-03 — @dev/@qa: story 12 implementada no working tree. Gate `tess-commit.12` **PASS**: 103/103 focados, 512/512 backend, 79/79 prompts, lint/typecheck PASS e CodeRabbit 0 findings. Patch ainda não publicado; smoke live continua pendente.
 
 ---
 
-**Handoff concluído:** Quinn aprovou stories **8–11**. Fatia: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`. Unit gate: **144/144** focused, **502/502** backend, **79/79** prompts. Publicação autorizada pelo @devops em `a413e16`: health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589. Smoke restrito ativado: `global=true` como chave técnica, `BOT_ACCEPT_ALL=false`, somente `0007` em `allow`; demais números silenciosos. CodeRabbit do commit de dependências: **0 critical, 4 major, 2 minor advisory**; report versionado no repo. Sem Hostinger. Sem replay `0101`. Live seguinte = outro slot, não 03/09 10:30 André. Deploy continua não sendo o DoD unitário das stories.
+**Handoff concluído:** Quinn aprovou stories **8–12** no unit gate. Fatia 8–11: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`; story 12: `tess-context-profiles.test.js`, `tess-context-assembler.test.js`, `tess-timeout.test.js`, `server-tess-timeout.test.js`. Gate story 12: **103/103** focados, **512/512** backend, **79/79** prompts, lint/typecheck PASS e CodeRabbit 0 findings. Publicação anterior em `a413e16` permanece no VPS com health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589. Smoke restrito: `global=true` como chave técnica, `BOT_ACCEPT_ALL=false`, somente `0007` em `allow`; demais números silenciosos. A correção 12 ainda não foi publicada; sem abertura a clientes, sem Hostinger, sem replay `0101`, e live seguinte = outro slot, não 03/09 10:30 André.
 
 ---
 

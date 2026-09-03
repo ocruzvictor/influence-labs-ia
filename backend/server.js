@@ -37,6 +37,11 @@ const {
 } = require('./lib/tess-premium-sanitize');
 const { summarizeFailedTessResponse } = require('./lib/tess-errors');
 const {
+  isTessTimeoutError,
+  createTessTimeoutResult,
+  createTessTimeoutEvent,
+} = require('./lib/tess-timeout');
+const {
   createIdempotencyKey,
   decideCreateIdempotency,
   forgetCreateKeyForAppointment,
@@ -73,6 +78,7 @@ const TESS_TOKEN = process.env.TESS_API_TOKEN;
 const TESS_AGENT_ID = String(process.env.TESS_AGENT_ID || '46589');
 const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
 const TESS_URL = process.env.TESS_API_URL || `${TESS_API_BASE}/agents/${TESS_AGENT_ID}/execute`;
+const TESS_REQUEST_TIMEOUT_MS = 25_000;
 // x-workspace-id obrigatório 01/09/2026. 403 em 2026-03-09 foi workspace de demo (1269475),
 // não a key do 46589. Prod: TESS_WORKSPACE_ID (Victor 2026-08-28: 1458234).
 
@@ -1047,7 +1053,7 @@ async function callTESS(messages, rootId) {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(TESS_REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -1387,26 +1393,54 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     contextProfile = assembledCtx.contextProfile;
     emitContextBytesLog(assembledCtx, sessionId, TESS_CONTEXT_CONFIG, false);
 
-    tessRaw = await callTESS([
-      { role: 'user', content: assembledCtx.userMessageWithContext },
-    ], state.rootId);
+    try {
+      tessRaw = await callTESS([
+        { role: 'user', content: assembledCtx.userMessageWithContext },
+      ], state.rootId);
 
-    tessText = extractTESSResponse(tessRaw);
-    const premiumResult = await sanitizePremiumResponse({
-      tessText,
-      sessionId,
-      retryCall: async () => {
-        const retryRaw = await callTESS([
-          { role: 'user', content: assembledCtx.userMessageWithContext },
-          { role: 'assistant', content: tessText },
-          { role: 'user', content: RETRY_USER_MESSAGE },
-        ], state.rootId);
-        const retryRoot = extractTESSRootId(retryRaw);
-        if (retryRoot) state.rootId = retryRoot;
-        return extractTESSResponse(retryRaw);
-      },
-    });
-    tessText = premiumResult.text;
+      tessText = extractTESSResponse(tessRaw);
+      const premiumResult = await sanitizePremiumResponse({
+        tessText,
+        sessionId,
+        retryCall: async () => {
+          const retryRaw = await callTESS([
+            { role: 'user', content: assembledCtx.userMessageWithContext },
+            { role: 'assistant', content: tessText },
+            { role: 'user', content: RETRY_USER_MESSAGE },
+          ], state.rootId);
+          const retryRoot = extractTESSRootId(retryRaw);
+          if (retryRoot) state.rootId = retryRoot;
+          return extractTESSResponse(retryRaw);
+        },
+      });
+      tessText = premiumResult.text;
+    } catch (err) {
+      if (!isTessTimeoutError(err)) throw err;
+      const timeoutResult = createTessTimeoutResult(intentResult.intent);
+      console.error(`[${sessionId}] TESS timeout during ${intentResult.intent}:`, err.message);
+      emitOperationalEvent(db, createTessTimeoutEvent({
+        clientPhone: phone,
+        kapsoConversationId,
+        intent: intentResult.intent || null,
+        contextProfile,
+        timeoutMs: TESS_REQUEST_TIMEOUT_MS,
+      })).catch(() => {});
+      if (phone) {
+        saveConversationTurns(phone, [
+          { role: 'user', content: messageText },
+          { role: 'assistant', content: timeoutResult.response, agent: 'tess-timeout' },
+        ]).catch((saveErr) => console.error('[DB] Save TESS timeout turns error:', saveErr.message));
+      }
+      state.history.push({ role: 'assistant', content: timeoutResult.response });
+      state.turn += 1;
+      state.lastAccess = Date.now();
+      if (state.turn === 1 && state.persistedMemory) {
+        state.persistedMemory = { client: state.persistedMemory.client || null, history: [] };
+      }
+      sessionState.set(sessionId, state);
+      evictOldSessions();
+      return timeoutResult;
+    }
     tessCredits = extractTessCredits(tessRaw);
     logTessTurnTelemetry({
       sessionId,
@@ -3025,7 +3059,11 @@ async function checkTrinksQuota() {
     console.warn('[trinks-quota] sem TRINKS_ALERT_PHONES ou phone_number_id — alerta só no log');
   }
 }
-setInterval(() => { checkTrinksQuota().catch(e => console.error('[trinks-quota] check erro:', e.message)); }, TRINKS_QUOTA_CHECK_MS);
+const trinksQuotaTimer = setInterval(
+  () => { checkTrinksQuota().catch(e => console.error('[trinks-quota] check erro:', e.message)); },
+  TRINKS_QUOTA_CHECK_MS,
+);
+trinksQuotaTimer.unref();
 
 // --- Monitor de créditos TESS (story tess-context-on-demand) ---
 // Alerta no WhatsApp quando o remaining da CARTEIRA cai — não bloqueia callTESS.
@@ -3116,12 +3154,17 @@ async function checkTessCredits() {
     console.warn('[tess-credits] sem TESS_ALERT_PHONES (ou fallback) ou phone_number_id — alerta só no log');
   }
 }
-setInterval(() => { checkTessCredits().catch(e => console.error('[tess-credits] check erro:', e.message)); }, TESS_CREDIT_CHECK_MS);
+const tessCreditTimer = setInterval(
+  () => { checkTessCredits().catch(e => console.error('[tess-credits] check erro:', e.message)); },
+  TESS_CREDIT_CHECK_MS,
+);
+tessCreditTimer.unref();
 
-setInterval(() => {
+const trinksConsumptionTimer = setInterval(() => {
   trinksApi.refreshConsumption()
     .catch(e => console.error('[trinks-consumption] refresh erro:', e.message));
 }, 6 * 60 * 60 * 1000);
+trinksConsumptionTimer.unref();
 
 // Health check
 app.get('/health', async (req, res) => {
@@ -3418,4 +3461,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app };
+module.exports = { app, processMessage };

@@ -21,6 +21,18 @@ describe('buildContextProfile', () => {
     assert.equal(p.fetchCatalog, true);
   });
 
+  test('mode=full + CANCEL high → CANCEL enxuto', () => {
+    const p = buildContextProfile(
+      { intent: INTENTS.CANCEL, confidence: 'high' },
+      { effectiveMode: 'full', slotContextDays: 10 },
+    );
+    assert.equal(p.profile, PROFILES.CANCEL);
+    assert.equal(p.fetchSlots, false);
+    assert.equal(p.fetchCatalog, false);
+    assert.equal(p.fetchProfessionals, false);
+    assert.equal(p.fetchFutureBookings, true);
+  });
+
   test('scoped TRIVIAL → MIN zero fetch', () => {
     const p = buildContextProfile(
       { intent: INTENTS.TRIVIAL, confidence: 'high' },

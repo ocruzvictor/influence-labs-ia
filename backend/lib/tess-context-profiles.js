@@ -23,6 +23,21 @@ function buildContextProfile(intentResult, opts = {}) {
   const slotContextDays = Math.max(1, Number(opts.slotContextDays) || 10);
   const requestedDate = opts.requestedDate || null;
 
+  if (intent === INTENTS.CANCEL && confidence === 'high') {
+    return {
+      profile: PROFILES.CANCEL,
+      fetchSlots: false,
+      fetchCatalog: false,
+      fetchProfessionals: false,
+      fetchHabilitacao: false,
+      fetchFutureBookings: true,
+      slotDays: 0,
+      includeSaturdays: false,
+      filterCatalog: false,
+      explicitDateOnly: false,
+    };
+  }
+
   if (effectiveMode === 'full' || confidence !== 'high' || intent === INTENTS.UNCERTAIN) {
     return {
       profile: PROFILES.FULL,

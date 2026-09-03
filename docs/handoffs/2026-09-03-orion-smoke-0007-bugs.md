@@ -99,3 +99,12 @@ Cancelamos `526039154` às 09:30 via PATCH `agent_mutation_cancel` **204** (ops,
 - Os 8 `allow` anteriores foram mudados para `block`; o fallback `BOT_ALLOWED_PHONES` também contém somente o telefone terminado em `0007`. Nenhum outro telefone deve receber resposta.
 - Backend recriado e validado: HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589. Nginx recebeu reload; `.env` original foi preservado em `/opt/influence-labs/infra/.env.pre-0007-20260903T151136Z`.
 - Até este registro, nenhum inbound/outbound WhatsApp, POST/PATCH Trinks ou exercício de agenda foi executado. Roteiro permitido: outro slot; não repetir 03/09 10:30 André nem replay `0101`.
+
+## P0 follow-up — timeout de CANCEL em contexto FULL
+
+- Story de correção: [salon-whatsapp-tess-commit-12-cancel-timeout-fallback](../stories/salon-whatsapp-tess-commit-12-cancel-timeout-fallback.md).
+- Causa confirmada: `CANCEL` high era desviado para `FULL` quando `TESS_CONTEXT_MODE=full`; a grade, catálogo e profissionais chegaram a ~91k caracteres / ~22k tokens e `callTESS` expirou em 25s.
+- Efeito observado: o ACK do webhook já tinha sido enviado; sem resposta TESS não houve tag, `tags.parsed`, PATCH Trinks ou outbound. A thread não ficou `silenced_until`; foi silêncio aparente por exceção não tratada no caminho assíncrono.
+- Critérios P0: CANCEL high usa perfil enxuto com reservas futuras; timeout/abort emite `tess.timeout`, envia copy honesta, não afirma cancelamento, não muta Trinks e não marca `human-handled`.
+- Estado desta correção: implementação local concluída e gate unitário **PASS** — 103/103 focados, 512/512 backend, 79/79 prompts, lint/typecheck PASS e CodeRabbit 0 findings. A correção ainda não foi publicada; nenhuma nova mensagem WhatsApp, POST/PATCH Trinks, Hostinger ou `rsync`.
+- Decisão operacional: manter somente o allowlist `0007` e não abrir para clientes até os gates automatizados e o smoke controlado passarem.

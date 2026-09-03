@@ -1,0 +1,57 @@
+schema: 1
+story: 'tess-commit.12'
+story_title: 'CANCEL enxuto + fallback honesto de timeout TESS'
+gate: PASS
+status_reason: 'CANCEL high em modo full usa somente reservas futuras; processMessage captura TimeoutError, persiste user+assistant, emite tess.timeout e devolve fallback sem mutação ou silêncio automático.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:story-12-timeout-fallback@bee5cf5'
+updated: '2026-09-03T16:58:40Z'
+top_issues: []
+waiver: { active: false }
+
+quality_score: 100
+expires: '2026-09-17T16:58:40Z'
+
+evidence:
+  tests_reviewed: 103
+  tests_passed: 103
+  tests_failed: 0
+  focused_slice: 'booking-guards + cancel-sku + tess-context-intent + tess-context-profiles + tess-context-assembler + tess-empty-handoff + tess-timeout + server-tess-timeout'
+  repository_prompt_tests: '79/79'
+  backend_suite: '512/512'
+  lint: 'PASS'
+  typecheck: 'PASS'
+  syntax: 'PASS'
+  whitespace: 'PASS'
+  coderabbit: 'PASS — CLI 0.7.5, doctor 9/9, revisão final uncommitted com arquivos não rastreados do backend após ajuste do fixture, 0 findings'
+  timeout_path: 'PASS — TimeoutError simulado em processMessage; fallback CANCEL, tess.timeout, user+assistant persistidos, sem tags.parsed/booking.cancelled/Trinks/bot_thread_state UPDATE'
+  cancel_context: 'PASS — profile CANCEL, fetchSlots/catalog/professionals false, future bookings only; payload local ~496 tokens no fixture'
+  regressions: 'PASS — FULL permanece para UNCERTAIN/SCHEDULING; B1/B2/B3/B4, tess.empty, C1/C2/C3 e 8397 intactos'
+  smoke_live: 'PENDING — patch local ainda não publicado; manter allowlist 0007'
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Fallback não inclui conteúdo do cliente no evento; sem POST/PATCH Trinks, replay 0101 ou alteração de allowlist.'
+  performance:
+    status: PASS
+    notes: 'CANCEL high não carrega grade; o fixture de processMessage gerou contexto de aproximadamente 496 tokens.'
+  reliability:
+    status: PASS
+    notes: 'Timeout não escapa para o handler: processMessage retorna responses enviáveis, preserva sessão e não silencia automaticamente.'
+  maintainability:
+    status: PASS
+    notes: 'Detecção/copy/evento isolados em tess-timeout.js; perfil e boundary de processMessage cobertos por testes.'
+
+recommendations:
+  immediate:
+    - action: 'Publicar a correção somente após autorização operacional e repetir smoke restrito no 0007 em outro slot.'
+      refs: ['docs/handoffs/2026-09-03-orion-smoke-0007-bugs.md']
+  future:
+    - action: 'Completar B3 live escolhendo um horário oferecido; manter BOT_ACCEPT_ALL=false e abertura gradual por allowlist.'
+      refs: ['docs/ops/nightwatch-log.md']
+
+auto_decisions:
+  - 'Unit gate PASS não equivale a customer release; smoke live permanece pendente.'
+  - 'CANCEL high é exceção explícita ao fallback FULL; SCHEDULING/UNCERTAIN preservam FULL.'
+  - 'CodeRabbit usou a franquia CLI gratuita porque o repositório não está conectado a uma organização.'

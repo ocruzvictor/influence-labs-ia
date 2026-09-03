@@ -104,3 +104,11 @@ Mensagem B3 recebida: “Esquece isso então. Agora quero só um corte no sábad
 
 `tags.parsed`: `creates=0`, `cancels=0`, `reschedules=0`; nenhum POST/PATCH Trinks foi executado porque o cliente ainda não escolheu horário. B3 fica **PASS na etapa de classificação/roteamento**; criação completa só ocorre se Victor escolher uma das opções.
 
+## 2026-09-03 ~16:59 UTC — correção local do P0 de timeout
+
+Story 12 implementada no working tree: `CANCEL` high em modo `full` agora carrega somente reservas futuras; timeout/abort TESS retorna copy honesta, persiste o turno, emite `tess.timeout` e não executa mutação nem silêncio automático.
+
+Gate @qa **PASS**: 103/103 focados, 512/512 backend, 79/79 prompts, lint/typecheck/sintaxe/whitespace PASS. CodeRabbit CLI 0.7.5: doctor 9/9 e review do backend com arquivos não rastreados: **0 findings**. Relatório: `docs/qa/coderabbit-reports/epic-tess-commit-honesty-timeout-2026-09-03.jsonl`.
+
+Esta correção ainda é local e não foi publicada no VPS. Não houve nova mensagem WhatsApp, POST/PATCH Trinks, replay `0101`, exercício 03/09 10:30 André ou abertura para clientes. Próximo passo live, se autorizado, permanece smoke restrito no `0007` em outro slot e conclusão do B3.
+
