@@ -143,3 +143,11 @@ Cancelamos `526039154` às 09:30 via PATCH `agent_mutation_cancel` **204** (ops,
 - O ledger de mutações registra apenas metadata whitelisted (`client_phone` normalizado e `kapso_conversation_id` opcional); erro de transporte não adiciona PII. Saídas do Nightwatch continuam last4/snippets redigidos e read-only.
 - Evidência: 39/39 testes focados, 531/531 backend, 79/79 prompts, lint/typecheck/syntax/diff PASS e CodeRabbit 0 findings.
 - Nenhum deploy, push, Hostinger, `rsync`, alteração de allowlist, chamada Trinks real ou abertura customer-wide foi executado. `tess.context_bytes` permanece follow-up fora desta story.
+
+## Publicação Story 13 (2026-09-03 ~19:04 UTC)
+
+- Commit publicado: `07f59cb` (`fix: harden Nightwatch verification scope [Story 13]`) em `origin/feature/tess-commit-honesty`.
+- Worktree VPS atualizado para `07f59cb`; backend reconstruído (`build --no-cache` + `up -d backend`); nginx reload.
+- Validação: HTTP **200**, `status=ok`, `trinks_ping=ok`, TESS **46589**; hashes dos módulos Story 13 conferindo; `patrol_live` com `signals.p0_timeout`.
+- Configuração preservada: `BOT_ACCEPT_ALL=false`, WHITELIST, `bot_toggles.global=true`, único allow last4 **`0007`**; **`8440` ausente**.
+- Nenhum smoke WhatsApp, POST/PATCH Trinks ou abertura customer-wide nesta execução.

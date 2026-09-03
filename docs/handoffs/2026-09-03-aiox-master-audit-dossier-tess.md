@@ -14,11 +14,11 @@
 | Campo | Valor conhecido nesta sessão |
 |---|---|
 | Branch | `feature/tess-commit-honesty` (tracking `origin/feature/tess-commit-honesty`) |
-| Último commit conhecido no HEAD local | `8efea3c` — `docs: record Story 12 deploy at 0b39035` |
-| Estado **publicado** conhecido no VPS | `0b39035` — `fix: CANCEL timeout fallback with lean profile [Story 12]` |
-| Alterações locais **ainda não publicadas** | Story 13 (Nightwatch: `tess.timeout` → `p0_timeout`, verify/listOrphans client-scoped, metadata whitelist). Código em `backend/lib/nightwatch-ops.js`, `backend/lib/trinks-api.js`, `backend/server.js` + testes/docs |
-| Working tree | **321 alterações** (modificados + untracked) de **várias ondas** (honesty 8–13, resume-ia, AIOX/skills, admin, ops, KB, infra). **Particionar.** Não tratar o tree como um único release |
-| Pronto para deploy? | **Não.** Story 13 tem gate unitário PASS e **não** foi publicada. O tree mistura workstreams. Publicar só fatia autorizada, após pré-check de diff |
+| Último commit publicado (Story 13) | `07f59cb` — `fix: harden Nightwatch verification scope [Story 13]` |
+| Estado **publicado** conhecido no VPS | `07f59cb` — Story 13 Nightwatch (timeout P0, verify client-scoped, metadata whitelist) |
+| Alterações locais **ainda não publicadas** | Outras ondas fora da fatia 13 (resume-ia, AIOX/skills, admin, ops, KB, infra). **Particionar.** |
+| Working tree | Centenas de alterações locais fora da fatia 13; não tratar o tree como um único release |
+| Pronto para deploy? | **Story 13 publicada** em 2026-09-03 ~19:04 UTC. Demais workstreams continuam fora |
 
 ### Publicado (`0b39035`, Story 12) versus local (Story 13+)
 

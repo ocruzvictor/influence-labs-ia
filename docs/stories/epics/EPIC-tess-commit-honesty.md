@@ -169,6 +169,7 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 - 2026-09-03 — Nightwatch: smoke pós-publicação `0007` (17:17–17:28 UTC) **PASS** em outro slot: B3 teve SCHEDULING + POST 201; CANCEL usou perfil CANCEL, PATCH 204 e não teve `tess.timeout`; novo CREATE 201 após cancel confirmou B1. Piloto permanece restrito por allowlist.
 - 2026-09-03 — Nightwatch: smoke de cliente novo `8440` (18:08–18:15 UTC) **PASS**: POST `/clientes` 201, POST `/agendamentos` 201, `booking.created`, cancelamento 204 e `booking.cancelled`; zero 400 `TipoId`, timeout ou silêncio. Allow temporário removido após a coleta; atendimento geral continua bloqueado.
 - 2026-09-03 — @dev/@qa: story 13 `tess-commit.13` concluída e gate formal **PASS** (AC1–AC12): 39/39 focados Nightwatch+Trinks, 531/531 backend, 79/79 prompts, lint/typecheck/syntax/diff PASS e CodeRabbit 0 findings. Escopo limitado a observabilidade LGPD-safe/read-only; sem deploy, push, Hostinger/rsync, allowlist ou abertura customer-wide.
+- 2026-09-03 — @devops (Gage): publicou `07f59cb` no worktree VPS; health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589, allowlist `0007`-only preservada; `patrol_live` com `p0_timeout` no live. Sem smoke WhatsApp nesta execução.
 
 ---
 

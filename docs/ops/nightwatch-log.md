@@ -162,3 +162,13 @@ Story [tess-commit.13](../stories/salon-whatsapp-nightwatch-monitoring-scope.md)
 - Gates: 39/39 focados, 531/531 backend, 79/79 prompts, lint/typecheck/syntax/diff PASS; CodeRabbit CLI 0 findings.
 - Nenhuma alteração operacional foi feita: sem deploy/push, Hostinger, `rsync`, mutação Trinks, allowlist ou abertura customer-wide. `tess.context_bytes` segue como follow-up.
 
+## 2026-09-03 ~19:04 UTC — publicação Story 13
+
+Commit `07f59cb` publicado em `origin/feature/tess-commit-honesty` e aplicado ao worktree VPS `/opt/influence-labs/worktrees/tess-commit-honesty`. Backend sincronizado do worktree para o contexto Docker e reconstruído com `docker compose build --no-cache backend` + `up -d backend`; nginx recebeu reload.
+
+Health interno/público **200**, `status=ok`, `trinks_ping=ok`, TESS **46589**. Hashes conferindo (`server.js`, `nightwatch-ops.js`, `trinks-api.js`). `patrol_live` expõe `signals.p0_timeout` no live.
+
+Configuração preservada: `BOT_ACCEPT_ALL=false`, modo **WHITELIST**, `bot_toggles.global=true` (chave técnica), único `allow` last4 **`0007`**; **`8440` ausente**. Sem alteração de `.env`, Postgres/volumes, prompt ou allowlist.
+
+Nenhuma mensagem WhatsApp, POST/PATCH Trinks ou smoke mutável foi executado nesta publicação. Validação read-only: health + `patrol_live` ( `p0_timeout=0`, chave presente).
+

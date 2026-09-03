@@ -4,9 +4,9 @@ story_title: 'Nightwatch confiável por timeout e escopo de cliente'
 gate: PASS
 status_reason: 'AC1–AC12 atendidos: timeout P0 separado, patrol global e provas de commit/órfãos escopadas ao telefone completo, com metadata mínima, saída LGPD-safe e operação read-only.'
 reviewer: 'Quinn (Test Architect)'
-reviewed_revision: 'working-tree:70b6b6c9564ba667e267aaa7bf7215e3b57b93f2'
-deployed_revision: 'N/A — deploy fora do escopo'
-updated: '2026-09-03T18:46:00Z'
+reviewed_revision: '07f59cbf4b8b43c92687acb7ab2f4618fcd64631'
+deployed_revision: '07f59cbf4b8b43c92687acb7ab2f4618fcd64631'
+updated: '2026-09-03T19:05:00Z'
 top_issues: []
 waiver: { active: false }
 

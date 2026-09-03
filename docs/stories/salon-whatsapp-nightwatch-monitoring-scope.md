@@ -168,6 +168,7 @@ O ledger `trinks_api_requests` já possui `metadata JSONB`; a correção deve us
 - 2026-09-03 — @dev/Dex: implementação AC1–AC12 (timeout P0, verify client-scoped, órfãos por telefone completo, metadata whitelist, testes); Quality Gate @qa pending.
 - 2026-09-03 — @dev/Dex: correções pós-reprovação @qa — janela temporal em `resolveLast4ToPhone`/`getThread`; `verifyCommit` ignora `assistantText` externo; metadata de erro sem PII em `agent_mutation_*`; testes SQL-aware reforçados.
 - 2026-09-03 — @qa/Quinn: gate final PASS — 39/39 focados, 531/531 backend, 79/79 raiz, lint/typecheck PASS, CodeRabbit 0 findings; AC1–AC12 aprovados.
+- 2026-09-03 — @devops/Gage: publicação `07f59cb` no worktree VPS; health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589; allowlist `0007`-only preservada; sem smoke WhatsApp nesta execução.
 
 ## Dev Agent Record
 
@@ -200,4 +201,4 @@ O ledger `trinks_api_requests` já possui `metadata JSONB`; a correção deve us
 - [x] CodeRabbit sem findings
 - [x] Confirmação de escopo negativo/read-only
 
-**Resultado:** **PASS** — AC1–AC12 atendidos; 39/39 focados, 531/531 backend, 79/79 raiz, lint/typecheck PASS e CodeRabbit 0 findings. Deploy e abertura customer-wide permanecem fora desta story.
+**Resultado:** **PASS** — AC1–AC12 atendidos; 39/39 focados, 531/531 backend, 79/79 raiz, lint/typecheck PASS e CodeRabbit 0 findings. Publicado em `07f59cb` (2026-09-03 ~19:04 UTC); abertura customer-wide permanece fora desta story.
