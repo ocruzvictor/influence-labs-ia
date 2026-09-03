@@ -5,7 +5,7 @@
 **Quando:** 2026-09-03  
 **Propósito:** dar à próxima sessão um mapa autocontido para procurar **padrões de falha** e propor **controles preventivos/preditivos**. Este arquivo substitui a leitura da conversa.
 
-**Não é autorização de deploy.** Não é PRD. Não fecha DoD do epic. Recomendações da §8 são **PROPOSTA**.
+**Não é autorização de novo deploy.** Story 13 já está live. Não é PRD. Não fecha DoD do epic (deploy não é DoD). Recomendações da §8 são **PROPOSTA**.
 
 ---
 
@@ -13,49 +13,55 @@
 
 | Campo | Valor conhecido nesta sessão |
 |---|---|
-| Branch | `feature/tess-commit-honesty` (tracking `origin/feature/tess-commit-honesty`) |
-| Último commit publicado (Story 13) | `07f59cb` — `fix: harden Nightwatch verification scope [Story 13]` |
-| Estado **publicado** conhecido no VPS | `07f59cb` — Story 13 Nightwatch (timeout P0, verify client-scoped, metadata whitelist) |
-| Alterações locais **ainda não publicadas** | Outras ondas fora da fatia 13 (resume-ia, AIOX/skills, admin, ops, KB, infra). **Particionar.** |
-| Working tree | Centenas de alterações locais fora da fatia 13; não tratar o tree como um único release |
-| Pronto para deploy? | **Story 13 publicada** em 2026-09-03 ~19:04 UTC. Demais workstreams continuam fora |
+| Branch | `feature/tess-commit-honesty` alinhada com `origin/feature/tess-commit-honesty` |
+| Código Story 13 no VPS | `07f59cb` — `fix: harden Nightwatch verification scope [Story 13]` |
+| Docs pós-deploy no remote | `ca1b4af` — `docs: record Story 13 deploy at 07f59cb` (HEAD local/remoto) |
+| Publicado anterior | `0b39035` — Story 12 (CANCEL lean + timeout) + smoke `0007`/`8440` |
+| Locais **ainda não publicados** | **311** entradas fora da fatia 13 (resume-ia, AIOX/skills, admin, ops, KB, infra). **Particionar.** Não tratar o tree como release |
+| Pronto para deploy do resto? | **Não.** Só a fatia 13 subiu. Demais workstreams continuam locais |
 
-### Publicado (`0b39035`, Story 12) versus local (Story 13+)
+### Publicado versus local
 
 ```text
-origin/VPS conhecido ── 0b39035 ── Story 12 no ar + smoke 0007/8440 PASS
-HEAD local ─────────── 8efea3c ── docs do deploy 12
-working tree ───────── Story 13 + dezenas de ondas não relacionadas
+VPS / origin ── 07f59cb ── Story 13 LIVE (Nightwatch p0_timeout + verify/orphans scoped)
+docs remote ── ca1b4af ── registro pós-deploy (branch alinhada)
+anterior ───── 0b39035 ── Story 12 no ar + smoke 0007/8440 (honesty 1–12)
+working tree ─ 311 entradas fora da 13 (resume-ia, AIOX, admin, ops, KB, infra)
 ```
 
-- **No ar:** honesty 1–12 (TipoId, sanitize C3, reschedule SKU, empty-handoff, createKeys, cancel-SKU, abort+booking, cancel-intent, CANCEL lean + timeout fallback).
-- **Só no working tree:** monitoramento Nightwatch da Story 13. Sem push, sem rebuild VPS, sem alteração de allowlist nesta wave de monitoramento.
-- **Fora desta fatia:** 300+ arquivos de AIOX, resume-ia, frontend admin, n8n/chatwoot pausados, skills, prompts archive. **Não empacotar juntos.**
+- **No ar (1–13):** TipoId, sanitize C3, reschedule SKU, empty-handoff, createKeys, cancel-SKU, abort+booking, cancel-intent, CANCEL lean + timeout, Nightwatch `p0_timeout` / verify client-scoped / metadata whitelist.
+- **Só no working tree:** outras ondas. **Não empacotar** com a 13 (já publicada).
+- **Validação desta publicação:** health + `patrol_live` read-only. **Sem** smoke WhatsApp mutável, **sem** POST/PATCH/PUT Trinks nesta execução.
 
-[AUTO-DECISION] gotchas.json ausente → skip; SOT = handoff Orion + epic + gate 13 + código lido.
+[AUTO-DECISION] gotchas.json ausente → skip; SOT = fatos de publicação confirmados + handoff Orion + epic + gate 13.
 
 ---
 
 ## 2. Executive summary
 
-A Tess 46589 já **fala o que a Trinks gravou** nos smokes restritos de hoje (CREATE/CANCEL/cliente novo). O risco residual não é mais o bug B1–B4 isolado: é **observabilidade incompleta no live**, **contexto FULL grande em UNCERTAIN**, e um **working tree misturado** que pode publicar o pedaço errado.
+A Tess 46589 já **fala o que a Trinks gravou** nos smokes restritos de hoje (CREATE/CANCEL/cliente novo, Story 12). A Story 13 (Nightwatch) está **publicada e live** em `07f59cb`: `patrol_live` expõe `signals.p0_timeout` (valor **0** na janela consultada). Residuais: **contexto FULL grande em UNCERTAIN**, `tess.context_bytes` só log, outbox/trace/`catch` genérico, **smoke WhatsApp da 13 ainda não feito**, e **311** alterações locais que não devem subir juntas.
 
-### Gates desta sessão (Story 13 — local)
+### Gates — testes locais versus validação live
 
-| Gate | Resultado | Onde |
+| Camada | Resultado | Onde / o que prova |
 |---|---|---|
-| Testes focados Nightwatch + Trinks | **39/39 PASS** | `backend/test/nightwatch-ops.test.js`, `backend/test/trinks-api.test.js` |
-| Suíte backend | **531/531 PASS** | `npm test --prefix backend` |
-| Prompts / raiz | **79/79 PASS** | `npm test` |
-| lint / typecheck / syntax / diff | **PASS** | `npm run lint`, `npm run typecheck`, `node --check`, diff de escopo negativo |
-| CodeRabbit CLI | **0 findings** | revisão final do backend da Story 13 |
-| Gate formal | **PASS** | `docs/qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml` (`deployed_revision: N/A`) |
+| Testes focados Nightwatch + Trinks | **39/39 PASS** (local) | `backend/test/nightwatch-ops.test.js`, `backend/test/trinks-api.test.js` |
+| Suíte backend | **531/531 PASS** (local) | `npm test --prefix backend` |
+| Prompts / raiz | **79/79 PASS** (local) | `npm test` |
+| lint / typecheck / syntax / diff | **PASS** (local) | `npm run lint`, `npm run typecheck`, `node --check`, diff de escopo negativo |
+| CodeRabbit CLI | **0 findings** (local) | revisão final do backend da Story 13 |
+| Gate formal | **PASS** | `docs/qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml` — `deployed_revision: 07f59cb` |
+| Health live | HTTP **200** interno e público | `status=ok`, `trinks_ping=ok`, TESS **46589** |
+| Nightwatch live | `patrol_live` read-only | chave `signals.p0_timeout` presente; `p0_timeout=0` na janela |
+| Smoke WhatsApp da 13 | **não executado** | não alegar I1/I2 live desta publicação |
 
-Story 12 (já publicada): 103/103 focados, 512/512 backend, 79/79 prompts, CodeRabbit 0, smoke `0007` PASS.
+Story 12 (já no ar antes): 103/103 focados, 512/512 backend, 79/79 prompts, CodeRabbit 0, smoke `0007`/`8440` PASS.
 
-### Publicação VPS
+### Publicação VPS (concluída ~19:04 UTC)
 
-**Pendente nesta sessão.** Story 13 **não** está no container. Health/smoke atuais validam `0b39035`, não o Nightwatch novo.
+**Feita.** Código live = `07f59cb`. Docs = `ca1b4af`. Branch/remote alinhados. Allowlist **não** alterada. Sem Hostinger. Sem rsync da máquina local.
+
+**Desvio operacional:** o runbook desta sessão pedia “sem rsync”. A publicação usou `git fetch`/`reset` no worktree VPS e **`rsync` somente dentro do VPS** (worktree → contexto Docker), depois `docker compose build --no-cache backend`, `up -d backend` e nginx reload. Registrar o fato; na próxima operação preferir cópia sem rsync ou documentar o rsync interno como passo explícito do rito.
 
 ### Configuração live conhecida (após smokes 0007 / 8440)
 
@@ -111,7 +117,7 @@ WhatsApp ──► Kapso ──► Nginx ──► Express (CommonJS) ──► 
 | `bot_whitelist` | `allow` / `block` / `human_only` |
 | `bot_thread_state` | `silenced_until` (handoff / business_app) |
 | `bot_operational_events` | `tags.parsed`, `booking.*`, `guard.blocked`, `tess.empty`, `tess.timeout`, `handoff.human` |
-| `trinks_api_requests` | Ledger HTTP; metadata whitelist só em `agent_mutation_*` (Story 13, **local**) |
+| `trinks_api_requests` | Ledger HTTP; metadata whitelist só em `agent_mutation_*` (Story 13, **live** em `07f59cb`) |
 | `trinks_appointments` / `trinks_slots` / `trinks_clients` | Snapshot; **não** substitui a API no commit |
 | `trinks_webhook_events` | SNS/webhook Trinks → markSlot (C2) |
 
@@ -209,12 +215,12 @@ flowchart TD
 5. **Estado** — `sessionState` em memória (`createKeys`) + `bot_thread_state` + snapshot. Cancel **ops** não vê o Set.
 6. **Intent** — `backend/lib/tess-context-intent.js`. B3: abort+pedido novo → `SCHEDULING`. B4: cancel com futuro → `CANCEL`.
 7. **Contexto** — CANCEL high **não** carrega grade mesmo em `TESS_CONTEXT_MODE=full`. `UNCERTAIN`/`SCHEDULING` em full ainda podem ir a ~90k chars.
-8. **Timeout** — `tess.timeout` + copy; **0** mutação; **não** `human-handled`. Publicado em `0b39035`. Sinal Nightwatch `p0_timeout` é **local** (Story 13).
+8. **Timeout** — `tess.timeout` + copy; **0** mutação; **não** `human-handled`. Evento desde Story 12 (`0b39035`). Sinal Nightwatch `p0_timeout` está **live** (`07f59cb`); janela consultada = 0.
 9. **Parser** — tags nunca vão ao cliente; 2-phase só afirma depois do 2xx (`selectOutboundBlocks`).
 10. **Guards** — snapshot/local **antes** da API. Idempotência CREATE consulta appointment **ativo**, não só `createKeys`.
-11. **Trinks 2xx** — única fonte de sucesso. Ledger `origin=agent_mutation_*`.
-12. **Outbound** — Kapso separado do ACK. Se TESS/catch falhar após ACK → silêncio aparente (mitigado para timeout; outros erros do `catch` de ~2763 ainda só logam).
-13. **Nightwatch** — read-only; last4 na saída; correlação interna por telefone completo **só no código local** da Story 13.
+11. **Trinks 2xx** — única fonte de sucesso. Ledger `origin=agent_mutation_*` com metadata whitelist no live.
+12. **Outbound** — Kapso separado do ACK. Se TESS/catch falhar após ACK → silêncio aparente (mitigado para timeout; outros erros do `catch` de ~2763 ainda só logam — residual).
+13. **Nightwatch** — read-only **live**; last4 na saída; correlação interna por telefone completo; `patrol_live` expõe `signals.p0_timeout`. Residuais: `tess.context_bytes` só stdout, UNCERTAIN/FULL grande, outbox, `trace_id` vazio, catch genérico, smoke mutável da 13.
 
 ---
 
@@ -228,7 +234,7 @@ flowchart TD
 | O que oferecer / o que bloquear? | Snapshot local (`trinks_slots`, `trinks_appointments`) + guards | Grade “lembrada” pela Tess |
 | O cliente ouviu sucesso? | Outbound Kapso **depois** do 2xx (2-phase) | Texto da Tess antes do commit |
 | O bot deve responder? | `bot_toggles` + `bot_whitelist` + `bot_thread_state` | `BOT_ACCEPT_ALL` sozinho |
-| Houve timeout / órfão / leak? | `bot_operational_events` + ledger | last4 global sem escopo (bug da Story 13 no live atual) |
+| Houve timeout / órfão / leak? | `bot_operational_events` + ledger + Nightwatch scoped (live `07f59cb`) | last4 global sem resolução (bug **corrigido e publicado**; smoke mutável da 13 ainda não revalidou) |
 
 ### Invariantes
 
@@ -258,7 +264,7 @@ Smoke `8440` (temporário, removido): GET 200 → POST cliente 201 → POST agen
 
 ### RESCHEDULE
 
-PUT só no `bookingId` + SKU do Rosa. Divergência (Barba no snapshot, Corte no texto) → 0 PUT + recusa. `booking.rescheduled` **só** no 2xx do SKU certo. Nightwatch local passa a contar isso como outcome de órfão.
+PUT só no `bookingId` + SKU do Rosa. Divergência (Barba no snapshot, Corte no texto) → 0 PUT + recusa. `booking.rescheduled` **só** no 2xx do SKU certo. Nightwatch **live** conta isso como outcome de órfão.
 
 ### FAQ / handoff
 
@@ -268,7 +274,7 @@ FAQ / preço / abort puro **sem** pedido novo → sem grade. `HANDOFF_HUMAN` / `
 
 ## 6. Matriz de incidentes / padrões (hoje)
 
-Status: **local** = corrigido no working tree ou já commitado no branch; **live** = exercitado no VPS após `0b39035`. Story 13 = local **não** live.
+Status: **live** = no VPS em `07f59cb` (13) ou `0b39035` (12) + smoke quando citado. **local** = só working tree / ainda sem smoke desta publicação. Story 13 = **publicada**; sem smoke WhatsApp nesta execução.
 
 | ID | Sintoma | Causa | Correção / status | Regressão / alerta |
 |---|---|---|---|---|
@@ -276,10 +282,10 @@ Status: **local** = corrigido no working tree ou já commitado no branch; **live
 | **B2** | Cancel usou SKU `14232906` → `cancel.not_owned` | Tag `agendamento_id` = serviço, não booking | `resolveCancelAgendamentoId`. Story 9 **código + live PASS** | Unit tag SKU + 1 futuro. Alerta: `cancel.not_owned` com `requestedId` ∈ catálogo |
 | **B3** | “Esquece… agora só um corte” → FAQ + `dado_indisponivel` + silêncio 6h | `abort_draft` ganhou de booking na mesma frase | `hasAbortDismissSignal` + booking novo → `SCHEDULING`. Story 10 **código + live PASS** | Unit texto 09:48. Alerta: intent FAQ + `handoff.human` `dado_indisponivel` no mesmo turno de pedido de corte |
 | **B4** | “Pode cancelar esse que a gente acabou de marcar” → FAQ | Intent FAQ quando `future_bookings=0` (efeito B1) + texto de cancel | Story 11: sinal de cancel → `CANCEL` mesmo sem futuro. **código + live PASS** (depende de 8+9) | Alerta: `hasCancelSignal` + intent FAQ |
-| **Timeout CANCEL FULL** | Pedido de cancel correto; ACK ok; 0 tag, 0 PATCH, 0 outbound | `TESS_CONTEXT_MODE=full` carregou ~91k/22k tokens; `callTESS` 25s; catch só logava | Perfil CANCEL lean + `tess.timeout` + copy. Story 12 **`0b39035` + smoke PASS** (~6k chars, ~7,2s). **Não** houve timeout no smoke de validação | Alerta: `tess.timeout` (live já emite evento; patrol `p0_timeout` só após publicar 13). Não aumentar timeout Nginx como “fix” |
+| **Timeout CANCEL FULL** | Pedido de cancel correto; ACK ok; 0 tag, 0 PATCH, 0 outbound | `TESS_CONTEXT_MODE=full` carregou ~91k/22k tokens; `callTESS` 25s; catch só logava | Perfil CANCEL lean + `tess.timeout` + copy. Story 12 **`0b39035` + smoke PASS** (~6k chars, ~7,2s). **Não** houve timeout no smoke de validação | Alerta: `tess.timeout` + patrol `p0_timeout` (**live**). Janela consultada pós-13 = 0. Não aumentar timeout Nginx como “fix” |
 | **TipoId cliente novo** | POST `/clientes` 400 `'Tipo Id' must not be empty`; CREATE morre; turno seguinte “já confirmamos” | Payload sem `TipoId` | `TELEFONE_TIPO_ID.WHATSAPP=6`. Story 1 **código**. Smoke `8440` **PASS** (não replay `0101`) | Alerta: HTTP 400 TipoId no ledger `agent_mutation_create_client` |
-| **`tess.timeout` ausente no patrol** | Timeout P0 invisível; peer não aciona | `patrolLive` olhava `tess.empty` em `p0_leaks`, não timeout | Story 13: `WATCH_EVENTS` + `signals.p0_timeout` + `activate-peer`. **Gate PASS, não publicado** | Após deploy 13: qualquer `tess.timeout` na janela deve aparecer em patrol. Hoje o live **não** tem esse sinal |
-| **verify / listOrphans last4 global** | 2xx de outro cliente “prova” I1; órfão escondido por last4 colidido; reschedule virava órfão | `verifyCommit(last4)` lia mutações globais; órfãos por last4; `booking.rescheduled` fora de `OUTCOME_EVENTS` | Story 13: resolve 1 telefone na janela; `ambiguous_last4` fail-closed; órfãos por telefone completo; reschedule é outcome. **não publicado** | Alerta: `verdict=CONCERNS` `ambiguous_last4`. Testar dois last4 iguais em staging. Live atual **ainda** pode falso PASS |
+| **`tess.timeout` ausente no patrol** | Timeout P0 invisível; peer não aciona | `patrolLive` olhava `tess.empty` em `p0_leaks`, não timeout | Story 13: `WATCH_EVENTS` + `signals.p0_timeout` + `activate-peer`. **`07f59cb` live**; `patrol_live` expõe a chave; valor 0 na janela | Qualquer `tess.timeout` novo deve incrementá-la. Smoke mutável que force timeout **ainda não** rodou nesta publicação |
+| **verify / listOrphans last4 global** | 2xx de outro cliente “prova” I1; órfão escondido por last4 colidido; reschedule virava órfão | `verifyCommit(last4)` lia mutações globais; órfãos por last4; `booking.rescheduled` fora de `OUTCOME_EVENTS` | Story 13 **publicada**: resolve 1 telefone na janela; `ambiguous_last4` fail-closed; órfãos por telefone completo; reschedule é outcome | Alerta: `verdict=CONCERNS` `ambiguous_last4`. Prova live de colisão/órfão **não** foi feita nesta publicação (só health + patrol) |
 
 Padrão transversal: **boca e commit em fontes diferentes** + **ACK cedo** + **contexto irrestrito** + **correlação por last4**. C1/C2/C3 (profsPayload, markSlot, sanitize `Confirmado,`) não reincidiram.
 
@@ -287,7 +293,7 @@ Padrão transversal: **boca e commit em fontes diferentes** + **ACK cedo** + **c
 
 ## 7. Controles implementados versus gaps
 
-### Já no código **e** no live (`0b39035` e anteriores)
+### Já no código **e** no live (`07f59cb` inclui 1–13)
 
 | Controle | Stories | Efeito |
 |---|---|---|
@@ -302,27 +308,28 @@ Padrão transversal: **boca e commit em fontes diferentes** + **ACK cedo** + **c
 | Abort + booking → SCHEDULING | 10 | B3 |
 | Cancel recente → CANCEL | 11 | B4 |
 | CANCEL lean + fallback timeout | 12 | Sem silêncio no timeout de cancel |
+| Nightwatch `p0_timeout` + verify/orphans scoped + metadata whitelist | 13 | Patrol vê timeout; prova I1/órfão por cliente; ledger sem PII extra. **Live em `07f59cb`**. Smoke WhatsApp desta fatia **não** rodou |
 
 Prompt I.8/I.12: diff no repo (Story 5); **cola no dashboard = Victor**, fora do DoD de código.
 
-### Story 13 — **corrigido no working tree, não publicado**
+### Story 13 — publicada (`07f59cb`); histórico: era só local até ~19:04 UTC
 
-| Controle | Live hoje | Após publicar 13 |
+| Controle | Antes desta publicação | Live agora |
 |---|---|---|
-| `tess.timeout` → `p0_timeout` | Evento existe (12); patrol **não** trata | Peer aciona |
-| `verifyCommit` client-scoped + janela | last4/global — falso PASS possível | 1 telefone ou `ambiguous_last4` |
-| `listOrphans` por telefone + reschedule | last4; PUT 204 podia órfão | Correlação correta |
-| Metadata `agent_mutation_*` whitelist | Pode persistir mais que o combinado | Só `client_phone` + `kapso_conversation_id` opcional; erro sem PII |
+| `tess.timeout` → `p0_timeout` | Evento existia (12); patrol não tratava | `patrol_live` expõe a chave; janela consultada = 0 |
+| `verifyCommit` client-scoped + janela | last4/global — falso PASS possível | Código live: 1 telefone ou `ambiguous_last4` (sem smoke de colisão) |
+| `listOrphans` por telefone + reschedule | last4; PUT 204 podia órfão | Código live correlaciona por telefone completo |
+| Metadata `agent_mutation_*` whitelist | Podia persistir mais que o combinado | Só `client_phone` + `kapso_conversation_id` opcional; erro sem PII |
 
 ### Residuais explícitos (não são “pronto”)
 
-1. **`tess.context_bytes`** — só `console.log` em `backend/lib/tess-context-bytes.js`. **Fora** da Story 13. Sem evento em `bot_operational_events`, sem alerta Nightwatch. Follow-up de monitoramento.
-2. **UNCERTAIN/FULL grande** — smoke `8440` confirmação ~89k chars / ~12,4s. P0 de CANCEL **não** cobre isso. Tratar como **sinal**, não como PASS de escala.
-3. **Smoke pós-publicação da Story 13** — obrigatório e ainda não feito. Gate unitário ≠ live.
+1. **`tess.context_bytes`** — só `console.log` em `backend/lib/tess-context-bytes.js`. **Fora** da Story 13. Sem evento em `bot_operational_events`, sem alerta Nightwatch. Follow-up.
+2. **UNCERTAIN/FULL grande** — smoke `8440` confirmação ~89k chars / ~12,4s. P0 de CANCEL **não** cobre isso. Sinal, não PASS de escala.
+3. **Smoke WhatsApp pós-publicação da 13** — **não executado**. Health + patrol ≠ prova I1/I2 mutável.
 4. **Outbound sem outbox** — ACK já foi; se Kapso send falhar, não há retry durável.
 5. **`conversation_history.trace_id`** — coluna existe (`infra/schema.sql`); inbound não amarra request/turn ponta a ponta.
 6. **Catch genérico do webhook** (~2763) — não-timeout ainda pode virar silêncio sem evento.
-7. **Working tree 321** — risco de publicar AIOX/resume-ia/admin junto com Nightwatch.
+7. **Working tree 311** — risco de publicar AIOX/resume-ia/admin **depois** da 13; não empacotar.
 
 ---
 
@@ -339,8 +346,8 @@ Não são requisitos aprovados. Não abrir story só porque estão aqui. Cada um
 | **P-SYNTH** | Synthetic allowlist (last4 de teste, slots que não são 03/09 10:30 André, sem `0101`): CREATE→cancel→re-CREATE, cancel SKU, abort+booking, cliente novo, CANCEL em full | Smoke humano não escala | QA + ops |
 | **P-IDEM** | Idempotência durável (Postgres) alinhada ao snapshot ativo; não só Set de sessão | Cancel ops não vê memória | Técnica |
 | **P-SNAP** | Contrato de frescura do snapshot vs API; webhook/markSlot e worker como SLO de consistência | I3 nasce de slot stale | Dados + negócio |
-| **P-REL** | Release/rollback por **fatia** (hash de módulos + health + allowlist intacta); proibir “rsync do tree”; Hostinger fora do rito Tess | 321 arquivos; crash `MODULE_NOT_FOUND` no primeiro publish do dia | DevOps |
-| **P-PRIV** | Privacy-by-design: last4 na saída; telefone completo só SQL interno; metadata whitelist; sem PII em erro de transporte; retenção do ledger | Story 13 já no código local; live ainda não | Segurança / LGPD |
+| **P-REL** | Release/rollback por **fatia** (hash + health + allowlist intacta); **evitar rsync** (mesmo interno VPS) ou torná-lo passo explícito do rito; Hostinger fora; não rsync da máquina local | 311 arquivos locais; `MODULE_NOT_FOUND` no 1º publish do dia; desvio rsync interno na 13 | DevOps |
+| **P-PRIV** | Privacy-by-design: last4 na saída; telefone completo só SQL interno; metadata whitelist; sem PII em erro; retenção do ledger | Controles da 13 **já live**; ampliar retenção/orçamento ainda é proposta | Segurança / LGPD |
 
 Trade-off: orçamento de contexto vs. oferta rica (I3). Fail-closed de last4 vs. “verify sempre PASS”. Outbox vs. duplicar mensagem. **Squad escolhe; Architect não fecha.**
 
@@ -348,20 +355,20 @@ Trade-off: orçamento de contexto vs. oferta rica (I3). Fail-closed de last4 vs.
 
 ## 9. Runbook de auditoria e publicação
 
-Sem Hostinger. Sem `rsync`. Sem colar prompt. Sem POST/PATCH Trinks no lugar do cliente. last4 only.
+Sem Hostinger. Sem rsync da **máquina local**. Sem colar prompt. Sem POST/PATCH/PUT Trinks no lugar do cliente. last4 only. Story 13 **já publicada**; este runbook registra o que ocorreu e o que falta.
 
-### 9.1 Pré-check de diff / escopo
+### 9.1 Pré-check de diff / escopo (próxima fatia)
 
 ```text
 git status -sb
-git log --oneline -8
-git rev-parse HEAD                    # esperado: 8efea3c se o tree não commitou 13
-git diff 0b39035 --stat -- backend/lib/nightwatch-ops.js backend/lib/trinks-api.js backend/server.js backend/test/nightwatch-ops.test.js backend/test/trinks-api.test.js
+git log --oneline -8                  # HEAD esperado: ca1b4af (docs) sobre 07f59cb
+git rev-parse HEAD
+git diff 07f59cb --stat               # o que ainda NÃO é a 13 — não misturar
 ```
 
-Aceitar na fatia 13 só o File List da story. Rejeitar se o stage trouxer `.agents/`, resume-ia, admin, AIOX, n8n, KB, prompts archive.
+Rejeitar stage com `.agents/`, resume-ia, admin, AIOX, n8n, KB, prompts archive. As **311** entradas locais **não** entram em novo release.
 
-### 9.2 Gates (já corridos na Story 13; reexecutar se o diff mudar)
+### 9.2 Gates locais (já corridos na 13)
 
 ```text
 node --test backend/test/nightwatch-ops.test.js backend/test/trinks-api.test.js
@@ -371,71 +378,83 @@ npm run lint
 npm run typecheck
 ```
 
-CodeRabbit no **diff da fatia**, não nos 321 arquivos. Gate: `docs/qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml`.
+CodeRabbit no **diff da fatia**, não nas 311 entradas. Gate: `docs/qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml` (`deployed_revision: 07f59cb`).
 
-### 9.3 Commit / push
+### 9.3 Commit / push da 13 — **concluído**
 
-Exclusivo **@devops**. Conventional commit + Story 13. Push `feature/tess-commit-honesty`. Architect/Dev **não** pusham.
+`07f59cb` + `ca1b4af` em `origin/feature/tess-commit-honesty`. Próximo push = @devops com ACK. Architect/Dev **não** pusham.
 
-### 9.4 Deploy VPS (rito já usado hoje — conceitual)
+### 9.4 Deploy VPS da 13 — **concluído** (~19:04 UTC)
 
-Worktree no host da API (padrão conhecido: `/opt/influence-labs/worktrees/tess-commit-honesty`). Copiar contexto Docker **atualizado**, `docker compose build --no-cache backend` + `up -d` **só** `backend`. Nginx: **reload**, não restart da stack. Sem `rsync`. Sem Hostinger MCP.
+1. `git fetch` / `reset` no worktree `/opt/influence-labs/worktrees/tess-commit-honesty` → `07f59cb`.
+2. **Desvio:** `rsync` **somente dentro do VPS** (worktree → contexto Docker). Não houve rsync da máquina local nem Hostinger. O runbook da sessão pedia “sem rsync”; **não esconder**. Próxima operação: evitar rsync ou documentá-lo como passo do rito.
+3. `docker compose build --no-cache backend` + `up -d backend`. Nginx **reload**, sem restart da stack.
+4. Hashes: `server.js`, `nightwatch-ops.js`, `trinks-api.js` conferindo.
 
-Primeiro publish do dia quebrou por `MODULE_NOT_FOUND` (`tess-context-slots`). Rollback foi checkout saudável + rebuild. Conferir SHA256 dos módulos da fatia no container vs. commit.
+Histórico do dia: 1º publish honesty quebrou com `MODULE_NOT_FOUND` (`tess-context-slots`); rollback + `a413e16`.
 
-### 9.5 Health
+### 9.5 Health — **validado nesta publicação**
 
-| Check | Caminho |
+| Check | Resultado conhecido |
 |---|---|
-| Interno | `GET` backend `:3001/health` |
-| Público | `https://api.studiotirra.com.br/health` |
-| Esperado | HTTP 200, `status=ok`, `trinks_ping=ok`, `tess.agent_id=46589` |
-| Modo | `accept_all=false`, `mode=WHITELIST` |
+| Interno `:3001/health` | HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 |
+| Público `https://api.studiotirra.com.br/health` | idem |
+| Modo | `BOT_ACCEPT_ALL=false`, `WHITELIST`, `global=true` técnico, allow só `0007`, `8440` ausente |
 
-Não logar tokens. last4 only.
+Não logar tokens. last4 only. **Não alterar** essa config.
 
-### 9.6 Smoke pós-publicação
+### 9.6 Smoke WhatsApp — **não executado** nesta publicação
+
+Não alegar PASS de CREATE/CANCEL da 13. Se a sessão nova autorizar smoke:
 
 - Somente last4 **`0007`**. Outro slot. **Proibido:** 03/09 10:30 André, replay `0101`, `BOT_ACCEPT_ALL=true`.
-- Exercitar o que a 13 muda: forçar/observar `tess.timeout` → patrol `p0_timeout`; `verify_commit` no last4 do fio (não em last4 alheio); órfão não some por outro telefone com o mesmo last4.
-- Se precisar cliente novo: allow **temporário** + remoção (padrão `8440`).
+- Observar `tess.timeout` → `p0_timeout`; `verify_commit` no last4 do fio; órfão não some por last4 alheio.
+- Cliente novo: allow temporário + remoção (padrão `8440`).
 
-### 9.7 Rollback
+Validação feita: health + `patrol_live` (`signals.p0_timeout` presente, valor 0). Sem POST/PATCH/PUT Trinks nesta execução.
 
-Rebuild do backend no commit anterior conhecido saudável (`0b39035` se só a 13 quebrar). Não mexer `.env`, volume Postgres, `bot_toggles`, `bot_whitelist`. Health 200 + allowlist `0007` intacta = rollback ok. Registrar em `docs/ops/nightwatch-log.md`.
+### 9.7 Rollback (se a 13 quebrar)
 
-### 9.8 Auditoria sem publicar
+Rebuild no commit anterior saudável da honesty: `0b39035` (Story 12). Não mexer `.env`, volume, `bot_toggles`, `bot_whitelist`. Health 200 + allow `0007` = rollback ok. Registrar em `docs/ops/nightwatch-log.md`.
 
-MCP: `patrol_live`, `get_thread`, `verify_commit`, `list_orphans` em `https://api.studiotirra.com.br/mcp` (Bearer; não colar token). Saber que **verify/orphans no live ainda são o código velho** até a 13 subir.
+### 9.8 Auditoria no live atual
+
+MCP: `patrol_live`, `get_thread`, `verify_commit`, `list_orphans` em `https://api.studiotirra.com.br/mcp` (Bearer; não colar token). O código Nightwatch **é** o da 13. `p0_timeout=0` na janela lida não prova ausência futura de timeout.
 
 ---
 
 ## 10. Handoff checklist — `@aiox-master`
 
-### A sessão nova deve responder
+### Estado já respondido (não reabrir sem evidência nova)
 
-1. O VPS ainda está em **`0b39035`**? Hash dos módulos 13 = working tree ou ainda 12?
-2. Live ainda é **`BOT_ACCEPT_ALL=false` + allow só `0007`**? `8440` sumiu? `global=true` só técnico?
-3. Publicar **somente** Story 13, ou a auditoria é só de padrões (sem deploy)?
-4. Como particionar as **321** alterações? O que é honesty vs. resume-ia vs. AIOX vs. ruído?
-5. Squads: um técnico (tracing, outbox, budget, SLO) e um de negócio (I1/I2/I3, synthetic, floor), ou um único wave?
-6. Alguma **PROPOSTA** da §8 vira story, ou ficam no radar?
-7. Quem cola prompt 46589 se I.8/I.12 ainda ensinarem afirmar na tag? (Victor; não o master.)
-8. Critério para **sair** do piloto `0007` — não é “gates verdes”.
+1. VPS / código live = **`07f59cb`**. Docs remote = **`ca1b4af`**. Branch alinhada. Hashes dos módulos 13 conferidos.
+2. Config: **`BOT_ACCEPT_ALL=false`**, WHITELIST, allow só last4 **`0007`**, **`8440` ausente**, `global=true` só técnico. **Não alterar.**
+3. Story 13 **já live**. Auditoria agora é de padrões + residuais; **não** republicar a 13. As outras **311** mudanças **não** sobem juntas.
+4. Smoke WhatsApp **não** rodou nesta publicação. Validação = health + `patrol_live` (`p0_timeout` presente, valor 0).
+5. Desvio: rsync **interno** VPS (worktree → Docker). Sem rsync local, sem Hostinger. Evitar na próxima ou tornar explícito.
+
+### A sessão nova ainda deve responder
+
+1. Autorizar smoke mutável `0007` da 13 (timeout/verify/órfão), ou ficar só em read-only?
+2. Como particionar as **311** entradas? Honesty residual vs. resume-ia vs. AIOX vs. ruído?
+3. Squads: um técnico (tracing, outbox, budget, SLO) e um de negócio (I1/I2/I3, synthetic, floor), ou um único wave?
+4. Alguma **PROPOSTA** da §8 vira story, ou ficam no radar?
+5. Quem cola prompt 46589 se I.8/I.12 ainda ensinarem afirmar na tag? (Victor; não o master.)
+6. Critério para **sair** do piloto `0007` — não é “gates verdes” nem “13 no ar”.
 
 ### Limites explícitos desta sessão / deste dossiê
 
-- **Não** Hostinger, **não** `rsync`, **não** religar n8n/Chatwoot.
-- **Não** `BOT_ACCEPT_ALL=true` / customer-wide.
+- **Não** Hostinger. **Não** rsync da máquina local. **Não** religar n8n/Chatwoot. Rsync interno VPS = desvio já ocorrido; não repetir sem registro.
+- **Não** `BOT_ACCEPT_ALL=true` / customer-wide. **Não** alterar allowlist `0007`.
 - **Não** replay `0101`. **Não** slot 03/09 10:30 André.
-- **Não** POST/PATCH Trinks no lugar do cliente.
+- **Não** POST/PATCH/PUT Trinks no lugar do cliente (a publicação da 13 também não fez).
 - **Não** commit/push/deploy por Architect (este dossiê). Push = @devops com ACK.
 - **Não** inventar `TipoId`. Valor vivo = `6` (contrato enumerado Trinks).
-- **Não** tratar Story 13 como publicada. **Não** tratar 321 arquivos como release.
-- **Não** promover §8 a requisito.
+- **Não** tratar as 311 entradas como release. Story 13 **já** está publicada.
+- **Não** promover §8 a requisito. **Não** alegar smoke WhatsApp da 13.
 - **Não** PII completa; last4 only; sem tokens, sem `.env` real.
 - Epic honesty: DoD de **unit**. Deploy **não** fecha o epic (`EPIC-tess-commit-honesty.md`).
-- Supervisor 46590 e resume-ia Wave0 **fora** deste dossiê, salvo se contaminarem o diff da 13.
+- Supervisor 46590 e resume-ia Wave0 **fora**, salvo se contaminarem um próximo diff.
 
 ### SOT para colar na sessão
 
@@ -452,8 +471,8 @@ MCP: `patrol_live`, `get_thread`, `verify_commit`, `list_orphans` em `https://ap
 
 ---
 
-*[AUTO-DECISION] YOLO: elicitation pulada; dossiê escrito só com artefatos locais (reason: spawn mandou inspecionar disco e entregar um arquivo).*  
-*[AUTO-DECISION] 321 = `git status --short \| wc -l` no momento da redação; recontar antes de particionar o release.*  
-*[AUTO-DECISION] Propostas §8 não viram AC (reason: usuário pediu PROPOSTA, não backlog).*
+*[AUTO-DECISION] YOLO: dossiê atualizado só com fatos de publicação confirmados (reason: spawn pediu correção pós-live, sem outros arquivos).*
+*[AUTO-DECISION] 311 = `git status --short \| wc -l` no momento desta revisão; recontar antes de particionar o próximo release.*
+*[AUTO-DECISION] Propostas §8 permanecem PROPOSTA (reason: usuário pediu não inventar requisito).*
 
 — Aria, arquitetando o futuro

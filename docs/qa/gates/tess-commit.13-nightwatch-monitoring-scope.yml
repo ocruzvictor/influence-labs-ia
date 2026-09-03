@@ -11,7 +11,7 @@ top_issues: []
 waiver: { active: false }
 
 quality_score: 100
-expires: '2026-09-17T18:46:00Z'
+expires: '2026-09-17T19:05:00Z'
 
 evidence:
   tests_reviewed: 39
@@ -53,6 +53,6 @@ recommendations:
       refs: ['docs/ops/nightwatch-log.md']
 
 auto_decisions:
-  - 'Unit/regression PASS não equivale a deploy; deployed_revision permanece N/A.'
+  - 'deployed_revision=07f59cb publicado no VPS em 2026-09-03 ~19:04 UTC; docs de registro em ca1b4af.'
   - 'tess.context_bytes permanece follow-up e não integra o escopo deste gate.'
-  - 'Deploy, allowlist, Hostinger, rsync e abertura customer-wide permanecem fora do escopo.'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, alteração de allowlist, abertura customer-wide nem smoke WhatsApp mutável.'

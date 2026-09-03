@@ -7,7 +7,8 @@
 **Rev. 3:** 2026-09-03 — Orion/Dex implementou 8–11 no repo (unit); Quinn gate **PASS**
 **Rev. 4:** 2026-09-03 — re-gate pós-CodeRabbit: 144/144 focused, 502/502 backend, 79/79 prompts; CodeRabbit **0 findings**
 **Rev. 5:** 2026-09-03 — @devops publicou `a413e16` com dependências runtime autocontidas; health VPS **200/ok**; smoke posterior restrito ao allowlist `0007`
-**Rev. 6:** 2026-09-03 — story 13 Nightwatch registrada como Done; gate @qa **PASS**; sem deploy, push ou alteração operacional
+**Rev. 6:** 2026-09-03 — story 13 Nightwatch registrada como Done; gate @qa **PASS** (unit); deploy pendente na redação
+**Rev. 7:** 2026-09-03 — story 13 **live** em `07f59cb`; docs pós-deploy `ca1b4af`; smoke WhatsApp da 13 **não** executado; customer-wide bloqueado
 **Owner:** @pm  
 **Handoff SOT (1–7):** [docs/handoffs/2026-09-02-aria-rca-correcao.md](../../handoffs/2026-09-02-aria-rca-correcao.md) (Aria rev. 3)
 
@@ -80,14 +81,14 @@ No caminho de agenda (cadastro, CREATE, reschedule, empty-TESS), o **commit Trin
 | 10 | [Abort + booking novo → SCHEDULING](../salon-whatsapp-tess-commit-10-abort-draft-scheduling.md) | P0 B3 | — | 5 | Done | Gate PASS (`tess-commit.10`) |
 | 11 | [“Pode cancelar esse…” → CANCEL](../salon-whatsapp-tess-commit-11-cancel-intent-faq.md) | P1 B4 | #8 + #9 | 3 | Done | Gate PASS (`tess-commit.11`) |
 | 12 | [CANCEL enxuto + fallback de timeout](../salon-whatsapp-tess-commit-12-cancel-timeout-fallback.md) | P0 | — | 5 | Done | `0b39035` + smoke `0007` PASS |
-| 13 | [Nightwatch confiável por timeout e escopo de cliente](../salon-whatsapp-nightwatch-monitoring-scope.md) | P0 confiabilidade | — | — | Done | Gate PASS ([`tess-commit.13`](../../qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml)) |
+| 13 | [Nightwatch confiável por timeout e escopo de cliente](../salon-whatsapp-nightwatch-monitoring-scope.md) | P0 confiabilidade | — | — | Done | **`07f59cb` live** · gate PASS · smoke WhatsApp **não** executado |
 
 **Soma estimada:** 62 pts nas stories 1–12 (39 + 18 + 5); story 13 sem estimativa (`—`). Ordem: **(1 ∥ 2 ∥ 3 ∥ 4) → (5 ∥ 6)** · **7 ∥ 1** · **(8 ∥ 9 ∥ 10) → 11** · **12 → 13**.
 Stories **8–11 Done** — @dev implementou e @qa aprovou em 2026-09-03 (SOT Orion `0007`). File List / Dev Agent Record preenchidos. Executor @dev Composer · gate @qa PASS. Deploy **não** é DoD e permanece fora desta wave.
 
 **Validação story 13:** AC1–AC12 aprovados; 39/39 focados Nightwatch+Trinks, 531/531 backend, 79/79 prompts, lint/typecheck/syntax/diff PASS e CodeRabbit 0 findings. `tess.timeout` passa a `p0_timeout` separado; `patrolLive` continua global; `verifyCommit`/`listOrphans` correlacionam internamente por telefone completo e janela temporal, com fail-closed `ambiguous_last4`; metadata whitelisted, saída LGPD-safe e operação read-only.
 
-**Gate e limites operacionais:** o gate [`tess-commit.13`](../../qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml) não autoriza deploy, push, Hostinger/rsync, alteração de allowlist nem abertura customer-wide. `tess.context_bytes` e mudanças de display em `getThread`/`listStuckThreads` permanecem fora; não houve alteração operacional.
+**Gate e limites operacionais:** o gate [`tess-commit.13`](../../qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml) registra `deployed_revision: 07f59cb` (publicado ~19:04 UTC). Continua **sem** autorizar `BOT_ACCEPT_ALL`, alteração de allowlist ou abertura customer-wide; smoke WhatsApp da 13 **não** foi executado. `tess.context_bytes` e mudanças de display em `getThread`/`listStuckThreads` permanecem fora.
 
 ### PO validation — 2026-09-03
 
@@ -125,7 +126,7 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 - [x] **P0 (story 12):** CANCEL high em modo FULL não carrega grade; timeout TESS gera fallback honesto + `tess.timeout`, sem mutação ou silêncio automático.
 - [x] `@sm` stories 8–11 no disco; File List / Dev Agent Record preenchidos pelo @dev (2026-09-03). Gate @qa **PASS**; stories 8–11 Done.
 - [x] Story 12 implementada, testada e validada no smoke restrito `0007`; abertura customer-wide continua bloqueada.
-- [x] **Story 13:** AC1–AC12 e gate @qa **PASS**; `p0_timeout` separado, patrol global preservado, correlação client-scoped/temporal fail-closed, metadata whitelisted e superfícies LGPD-safe/read-only. Sem deploy, push ou alteração operacional.
+- [x] **Story 13:** AC1–AC12 e gate @qa **PASS**; **`07f59cb` live** (docs `ca1b4af`); `p0_timeout` separado, patrol global preservado, correlação client-scoped/temporal fail-closed, metadata whitelisted e superfícies LGPD-safe/read-only. Allowlist `0007`-only preservada; smoke WhatsApp **não** executado; customer-wide bloqueado.
 - [ ] Deploy VPS / rsync / ACK Supervisor no `nightwatch-log` **não** são DoD desta entrega (Aria §5 itens 1–3 continuam gate de **próximo** deploy, outro rito). Live `0007` **não** fecha DoD; se live, **outro slot**, não 03/09 10:30 André.
 
 ## Decisões
@@ -170,10 +171,11 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 - 2026-09-03 — Nightwatch: smoke de cliente novo `8440` (18:08–18:15 UTC) **PASS**: POST `/clientes` 201, POST `/agendamentos` 201, `booking.created`, cancelamento 204 e `booking.cancelled`; zero 400 `TipoId`, timeout ou silêncio. Allow temporário removido após a coleta; atendimento geral continua bloqueado.
 - 2026-09-03 — @dev/@qa: story 13 `tess-commit.13` concluída e gate formal **PASS** (AC1–AC12): 39/39 focados Nightwatch+Trinks, 531/531 backend, 79/79 prompts, lint/typecheck/syntax/diff PASS e CodeRabbit 0 findings. Escopo limitado a observabilidade LGPD-safe/read-only; sem deploy, push, Hostinger/rsync, allowlist ou abertura customer-wide.
 - 2026-09-03 — @devops (Gage): publicou `07f59cb` no worktree VPS; health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589, allowlist `0007`-only preservada; `patrol_live` com `p0_timeout` no live. Sem smoke WhatsApp nesta execução.
+- 2026-09-03 — @devops (Gage): docs pós-deploy `ca1b4af` + registro auditável final no epic/gate/dossiê; smoke WhatsApp da 13 continua pendente; customer-wide bloqueado.
 
 ---
 
-**Handoff concluído:** Quinn aprovou stories **8–12** no unit gate. Fatia 8–11: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`; story 12: `tess-context-profiles.test.js`, `tess-context-cancel-full.test.js`, `tess-timeout.test.js`, `server-tess-timeout.test.js`. Gate story 12: **103/103** focados, **512/512** backend, **79/79** prompts, lint/typecheck PASS e CodeRabbit 0 findings. A correção `0b39035` foi publicada no worktree VPS e validada com health interno/público HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 e hashes dos módulos conferindo. Smoke restrito `0007` (17:17–17:28 UTC) **PASS**: B1/B2/B3/B4/P0 exercitados sem timeout, 5xx ou silêncio; `BOT_ACCEPT_ALL=false`, somente `0007` em `allow`, demais números silenciosos. Piloto continua restrito, sem Hostinger, sem replay `0101`, e sem 03/09 10:30 André.
+**Handoff concluído:** Quinn aprovou stories **8–13** no unit gate. Fatia 8–11: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`; story 12: `tess-context-profiles.test.js`, `tess-context-cancel-full.test.js`, `tess-timeout.test.js`, `server-tess-timeout.test.js`; story 13: `nightwatch-ops.test.js`, `trinks-api.test.js`. Gate story 12: **103/103** focados, **512/512** backend, **79/79** prompts. Gate story 13: **39/39** focados, **531/531** backend, **79/79** prompts. Código live: **`07f59cb`** (Story 13 Nightwatch); docs remote: **`ca1b4af`**. Smoke restrito `0007` (Story 12, 17:17–17:28 UTC) **PASS**; smoke WhatsApp da Story 13 **não** executado. `BOT_ACCEPT_ALL=false`, somente `0007` em `allow`; customer-wide bloqueado.
 
 ---
 
