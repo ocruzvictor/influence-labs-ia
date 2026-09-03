@@ -31,7 +31,7 @@ working tree ─ 311 entradas fora da 13 (resume-ia, AIOX, admin, ops, KB, infra
 
 - **No ar (1–13):** TipoId, sanitize C3, reschedule SKU, empty-handoff, createKeys, cancel-SKU, abort+booking, cancel-intent, CANCEL lean + timeout, Nightwatch `p0_timeout` / verify client-scoped / metadata whitelist.
 - **Só no working tree:** outras ondas. **Não empacotar** com a 13 (já publicada).
-- **Validação desta publicação:** health + `patrol_live` read-only. **Sem** smoke WhatsApp mutável, **sem** POST/PATCH/PUT Trinks nesta execução.
+- **Validação desta publicação:** health + `patrol_live` read-only (~19:11:20Z). **Sem** smoke WhatsApp mutável da Story 13, **sem** POST/PATCH/PUT Trinks nesta execução.
 
 [AUTO-DECISION] gotchas.json ausente → skip; SOT = fatos de publicação confirmados + handoff Orion + epic + gate 13.
 
@@ -39,7 +39,7 @@ working tree ─ 311 entradas fora da 13 (resume-ia, AIOX, admin, ops, KB, infra
 
 ## 2. Executive summary
 
-A Tess 46589 já **fala o que a Trinks gravou** nos smokes restritos de hoje (CREATE/CANCEL/cliente novo, Story 12). A Story 13 (Nightwatch) está **publicada e live** em `07f59cb`: `patrol_live` expõe `signals.p0_timeout` (valor **0** na janela consultada). Residuais: **contexto FULL grande em UNCERTAIN**, `tess.context_bytes` só log, outbox/trace/`catch` genérico, **smoke WhatsApp da 13 ainda não feito**, e **311** alterações locais que não devem subir juntas.
+A Tess 46589 já **fala o que a Trinks gravou** nos smokes restritos de hoje (CREATE/CANCEL/cliente novo, Story 12). A Story 13 (Nightwatch) está **publicada e live** em `07f59cb`. Patrulha read-only ~19:11:20Z: `p0_timeout=0`, `p0_orphans=0`, `p0_leaks=0`, `p0_mutation_fail=0`; `next_action=activate-peer` veio **só** de `p0_stuck=20` (baseline histórico, não regressão evidenciada da 13). **Smoke WhatsApp mutável da 13 não ocorreu.** Residuais: UNCERTAIN/FULL grande, `tess.context_bytes` só log, outbox/trace/`catch` genérico, **311** alterações locais, e o lookback fixo de stuck (§2.1 / **P-STUCK**).
 
 ### Gates — testes locais versus validação live
 
@@ -52,7 +52,7 @@ A Tess 46589 já **fala o que a Trinks gravou** nos smokes restritos de hoje (CR
 | CodeRabbit CLI | **0 findings** (local) | revisão final do backend da Story 13 |
 | Gate formal | **PASS** | `docs/qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml` — `deployed_revision: 07f59cb` |
 | Health live | HTTP **200** interno e público | `status=ok`, `trinks_ping=ok`, TESS **46589** |
-| Nightwatch live | `patrol_live` read-only | chave `signals.p0_timeout` presente; `p0_timeout=0` na janela |
+| Nightwatch live | `patrol_live` read-only ~19:11:20Z | `p0_timeout=0`; `p0_stuck=20` → `activate-peer`; ver §2.1 |
 | Smoke WhatsApp da 13 | **não executado** | não alegar I1/I2 live desta publicação |
 
 Story 12 (já no ar antes): 103/103 focados, 512/512 backend, 79/79 prompts, CodeRabbit 0, smoke `0007`/`8440` PASS.
@@ -71,9 +71,29 @@ Story 12 (já no ar antes): 103/103 focados, 512/512 backend, 79/79 prompts, Cod
 | Modo técnico | allowlist / `WHITELIST` | `bot_toggles.global=true` é só a chave técnica; **não** significa customer-wide |
 | Allow | somente last4 **`0007`** | `bot_whitelist.mode='allow'`; fallback `BOT_ALLOWED_PHONES` também `0007`-only |
 | `8440` | removido após smoke de cliente novo | Não deve reaparecer sem autorização explícita |
-| Customer-wide | **bloqueado** | Não ligar `BOT_ACCEPT_ALL=true` |
+| Customer-wide | **bloqueado** | Não ligar `BOT_ACCEPT_ALL=true`. Antes de abrir: triar baseline `p0_stuck=20` (§2.1) |
 
 **Exigir verificação before/after** de `BOT_ACCEPT_ALL`, `bot_toggles.global`, linhas `allow` (last4) e health interno/público. O cache de whitelist no backend é **5s** (`backend/lib/bot-state.js`).
+
+### 2.1 Patrulha read-only pós-publicação (~19:11:20Z)
+
+Consulta MCP `patrol_live`. **Não** é smoke WhatsApp. **Não** houve POST/PATCH/PUT Trinks nesta execução.
+
+| Sinal | 60 min (e 15 / 180) | Leitura |
+|---|---|---|
+| `generated_at` | ~2026-09-03T19:11:20Z | janela pedida 60 min; 15 e 180 repetiram o mesmo `p0_stuck` |
+| `p0_stuck` | **20** | única causa de `next_action=activate-peer` nesta janela |
+| `p0_orphans` | 0 | sem tag órfã no lookback de eventos |
+| `p0_mutation_fail` | 0 | sem `agent_mutation` ≥400 |
+| `p0_leaks` | 0 | sem `tags.leaked` / `tess.empty` |
+| `p0_timeout` | **0** | chave da Story 13 presente e zerada |
+| `next_action` | `activate-peer` | código: `stuck.length \|\| orphans.length \|\| failedMutations.length \|\| p0Timeout` |
+
+Os 20 stuck têm **última mensagem de user antes** do backend Story 13 iniciar (~19:03:50Z). last4 **`0007` não aparece**. Pós-deploy: **zero** eventos operacionais novos e **nenhuma regressão evidenciada**.
+
+`listStuckThreads` (`backend/lib/nightwatch-ops.js`) usa lookback **fixo de 12h** (default; `patrolLive` chama sem `minutes`) **independentemente** de `window_min`, e **não** filtra allowlist / `human_only` / `silenced_until`. Por isso o alerta pode permanecer aceso com fio histórico (piloto fechado, handoff, takeover). Isso **não** é AC da Story 13 nem bug comprovado dela — follow-up **P-STUCK** (§8).
+
+Para **abertura customer-wide**, triar esse baseline (fechar, silenciar ou classificar os 20) é necessário; senão `activate-peer` fica **permanentemente** ligado e mascara timeout/órfão/leak novos.
 
 ---
 
@@ -200,9 +220,9 @@ flowchart TD
   OUT[sendKapsoMessage outbound] --> NW
   subgraph OBS["Nightwatch read-only — /mcp"]
     NW[patrolLive / verifyCommit / listOrphans]
-    NW --> P0{"p0_timeout ou p0_leaks?"}
+    NW --> P0{"stuck OR orphans OR mutation_fail OR p0_timeout?"}
     P0 -->|sim| PEER[next_action activate-peer]
-    P0 -->|não| OK[janela limpa]
+    P0 -->|não| OK[standby]
   end
 ```
 
@@ -220,7 +240,7 @@ flowchart TD
 10. **Guards** — snapshot/local **antes** da API. Idempotência CREATE consulta appointment **ativo**, não só `createKeys`.
 11. **Trinks 2xx** — única fonte de sucesso. Ledger `origin=agent_mutation_*` com metadata whitelist no live.
 12. **Outbound** — Kapso separado do ACK. Se TESS/catch falhar após ACK → silêncio aparente (mitigado para timeout; outros erros do `catch` de ~2763 ainda só logam — residual).
-13. **Nightwatch** — read-only **live**; last4 na saída; correlação interna por telefone completo; `patrol_live` expõe `signals.p0_timeout`. Residuais: `tess.context_bytes` só stdout, UNCERTAIN/FULL grande, outbox, `trace_id` vazio, catch genérico, smoke mutável da 13.
+13. **Nightwatch** — read-only **live**; last4 na saída; correlação interna por telefone completo; `patrol_live` expõe `signals.p0_timeout`. Patrulha ~19:11:20Z: `activate-peer` veio **só** de `p0_stuck=20` (12h fixas, sem filtro allow/silence). Residuais: `tess.context_bytes` só stdout, UNCERTAIN/FULL grande, outbox, `trace_id` vazio, catch genérico, **smoke mutável da 13 não ocorreu**.
 
 ---
 
@@ -330,6 +350,7 @@ Prompt I.8/I.12: diff no repo (Story 5); **cola no dashboard = Victor**, fora do
 5. **`conversation_history.trace_id`** — coluna existe (`infra/schema.sql`); inbound não amarra request/turn ponta a ponta.
 6. **Catch genérico do webhook** (~2763) — não-timeout ainda pode virar silêncio sem evento.
 7. **Working tree 311** — risco de publicar AIOX/resume-ia/admin **depois** da 13; não empacotar.
+8. **`p0_stuck` histórico (baseline ~19:11:20Z)** — 20 fios com último user **antes** de ~19:03:50Z; `0007` ausente; lookback 12h independente de `window_min`; sem filtro allowlist/`human_only`/silenced. **Não** é regressão evidenciada da 13. Triagem obrigatória antes de customer-wide, senão `activate-peer` fica sempre aceso. **P-STUCK** = PROPOSTA, não AC.
 
 ---
 
@@ -348,6 +369,7 @@ Não são requisitos aprovados. Não abrir story só porque estão aqui. Cada um
 | **P-SNAP** | Contrato de frescura do snapshot vs API; webhook/markSlot e worker como SLO de consistência | I3 nasce de slot stale | Dados + negócio |
 | **P-REL** | Release/rollback por **fatia** (hash + health + allowlist intacta); **evitar rsync** (mesmo interno VPS) ou torná-lo passo explícito do rito; Hostinger fora; não rsync da máquina local | 311 arquivos locais; `MODULE_NOT_FOUND` no 1º publish do dia; desvio rsync interno na 13 | DevOps |
 | **P-PRIV** | Privacy-by-design: last4 na saída; telefone completo só SQL interno; metadata whitelist; sem PII em erro; retenção do ledger | Controles da 13 **já live**; ampliar retenção/orçamento ainda é proposta | Segurança / LGPD |
+| **P-STUCK** | Alinhar stuck ao `window_min` e/ou filtrar allowlist / `human_only` / `silenced_until`; triar o baseline de 20 antes de customer-wide | `listStuckThreads` = 12h fixas sem filtro; patrulha 19:11:20Z deu `activate-peer` só por histórico | Ops / observabilidade |
 
 Trade-off: orçamento de contexto vs. oferta rica (I3). Fail-closed de last4 vs. “verify sempre PASS”. Outbox vs. duplicar mensagem. **Squad escolhe; Architect não fecha.**
 
@@ -411,7 +433,7 @@ Não alegar PASS de CREATE/CANCEL da 13. Se a sessão nova autorizar smoke:
 - Observar `tess.timeout` → `p0_timeout`; `verify_commit` no last4 do fio; órfão não some por last4 alheio.
 - Cliente novo: allow temporário + remoção (padrão `8440`).
 
-Validação feita: health + `patrol_live` (`signals.p0_timeout` presente, valor 0). Sem POST/PATCH/PUT Trinks nesta execução.
+Validação feita: health + `patrol_live` ~19:11:20Z (`p0_timeout=0`; `p0_stuck=20` histórico → `activate-peer`). Sem POST/PATCH/PUT Trinks. **Smoke WhatsApp mutável da 13 não ocorreu.**
 
 ### 9.7 Rollback (se a 13 quebrar)
 
@@ -419,7 +441,9 @@ Rebuild no commit anterior saudável da honesty: `0b39035` (Story 12). Não mexe
 
 ### 9.8 Auditoria no live atual
 
-MCP: `patrol_live`, `get_thread`, `verify_commit`, `list_orphans` em `https://api.studiotirra.com.br/mcp` (Bearer; não colar token). O código Nightwatch **é** o da 13. `p0_timeout=0` na janela lida não prova ausência futura de timeout.
+MCP: `patrol_live`, `get_thread`, `verify_commit`, `list_orphans` em `https://api.studiotirra.com.br/mcp` (Bearer; não colar token). O código Nightwatch **é** o da 13.
+
+Baseline ~19:11:20Z (60 min; 15/180 iguais em stuck): `p0_stuck=20`, demais P0 = 0, `next_action=activate-peer` **somente** por stuck. `listStuckThreads` ignora `window_min` (12h) e não filtra allow/silence — não tratar os 20 como incidente novo da 13. `p0_timeout=0` não prova ausência futura de timeout. Sem smoke mutável da 13.
 
 ---
 
@@ -430,17 +454,19 @@ MCP: `patrol_live`, `get_thread`, `verify_commit`, `list_orphans` em `https://ap
 1. VPS / código live = **`07f59cb`**. Docs remote = **`ca1b4af`**. Branch alinhada. Hashes dos módulos 13 conferidos.
 2. Config: **`BOT_ACCEPT_ALL=false`**, WHITELIST, allow só last4 **`0007`**, **`8440` ausente**, `global=true` só técnico. **Não alterar.**
 3. Story 13 **já live**. Auditoria agora é de padrões + residuais; **não** republicar a 13. As outras **311** mudanças **não** sobem juntas.
-4. Smoke WhatsApp **não** rodou nesta publicação. Validação = health + `patrol_live` (`p0_timeout` presente, valor 0).
-5. Desvio: rsync **interno** VPS (worktree → Docker). Sem rsync local, sem Hostinger. Evitar na próxima ou tornar explícito.
+4. Smoke WhatsApp mutável da 13 **não** ocorreu. Validação = health + `patrol_live` ~19:11:20Z.
+5. Patrulha: `p0_timeout=0` / orphans / leaks / mutation_fail = 0; `activate-peer` **só** por `p0_stuck=20` (último user **antes** de ~19:03:50Z; `0007` ausente; zero eventos pós-deploy). **Não** é regressão evidenciada da 13.
+6. Desvio: rsync **interno** VPS (worktree → Docker). Sem rsync local, sem Hostinger. Evitar na próxima ou tornar explícito.
 
 ### A sessão nova ainda deve responder
 
 1. Autorizar smoke mutável `0007` da 13 (timeout/verify/órfão), ou ficar só em read-only?
-2. Como particionar as **311** entradas? Honesty residual vs. resume-ia vs. AIOX vs. ruído?
-3. Squads: um técnico (tracing, outbox, budget, SLO) e um de negócio (I1/I2/I3, synthetic, floor), ou um único wave?
-4. Alguma **PROPOSTA** da §8 vira story, ou ficam no radar?
-5. Quem cola prompt 46589 se I.8/I.12 ainda ensinarem afirmar na tag? (Victor; não o master.)
-6. Critério para **sair** do piloto `0007` — não é “gates verdes” nem “13 no ar”.
+2. Triar o baseline de 20 stuck (**P-STUCK**) antes de qualquer customer-wide, para o alerta não ficar permanente?
+3. Como particionar as **311** entradas? Honesty residual vs. resume-ia vs. AIOX vs. ruído?
+4. Squads: um técnico (tracing, outbox, budget, SLO, stuck) e um de negócio (I1/I2/I3, synthetic, floor), ou um único wave?
+5. Alguma **PROPOSTA** da §8 (incl. **P-STUCK**) vira story, ou ficam no radar?
+6. Quem cola prompt 46589 se I.8/I.12 ainda ensinarem afirmar na tag? (Victor; não o master.)
+7. Critério para **sair** do piloto `0007` — não é “gates verdes”, “13 no ar” nem `p0_timeout=0`.
 
 ### Limites explícitos desta sessão / deste dossiê
 
@@ -451,7 +477,7 @@ MCP: `patrol_live`, `get_thread`, `verify_commit`, `list_orphans` em `https://ap
 - **Não** commit/push/deploy por Architect (este dossiê). Push = @devops com ACK.
 - **Não** inventar `TipoId`. Valor vivo = `6` (contrato enumerado Trinks).
 - **Não** tratar as 311 entradas como release. Story 13 **já** está publicada.
-- **Não** promover §8 a requisito. **Não** alegar smoke WhatsApp da 13.
+- **Não** promover §8 (incl. **P-STUCK**) a requisito. **Não** alegar smoke WhatsApp da 13. **Não** tratar `p0_stuck=20` como bug comprovado da 13.
 - **Não** PII completa; last4 only; sem tokens, sem `.env` real.
 - Epic honesty: DoD de **unit**. Deploy **não** fecha o epic (`EPIC-tess-commit-honesty.md`).
 - Supervisor 46590 e resume-ia Wave0 **fora**, salvo se contaminarem um próximo diff.
@@ -471,8 +497,9 @@ MCP: `patrol_live`, `get_thread`, `verify_commit`, `list_orphans` em `https://ap
 
 ---
 
-*[AUTO-DECISION] YOLO: dossiê atualizado só com fatos de publicação confirmados (reason: spawn pediu correção pós-live, sem outros arquivos).*
-*[AUTO-DECISION] 311 = `git status --short \| wc -l` no momento desta revisão; recontar antes de particionar o próximo release.*
+*[AUTO-DECISION] YOLO: patrulha ~19:11:20Z incorporada sem outros arquivos (reason: spawn limitou o diff ao dossiê).*
+*[AUTO-DECISION] P-STUCK = PROPOSTA, não AC nem bug da 13 (reason: lookback 12h + fios pré-19:03:50Z; usuário pediu essa marcação).*
+*[AUTO-DECISION] 311 = `git status --short \| wc -l` no momento da revisão anterior; recontar antes do próximo release.*
 *[AUTO-DECISION] Propostas §8 permanecem PROPOSTA (reason: usuário pediu não inventar requisito).*
 
 — Aria, arquitetando o futuro

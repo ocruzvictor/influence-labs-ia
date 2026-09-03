@@ -172,3 +172,11 @@ Configuração preservada: `BOT_ACCEPT_ALL=false`, modo **WHITELIST**, `bot_togg
 
 Nenhuma mensagem WhatsApp, POST/PATCH Trinks ou smoke mutável foi executado nesta publicação. Validação read-only: health + `patrol_live` ( `p0_timeout=0`, chave presente).
 
+## 2026-09-03 ~19:11 UTC — baseline da patrulha pós-publicação
+
+- Health interno/público permaneceu HTTP **200**, `status=ok`, `trinks_ping=ok`, TESS **46589**, modo **WHITELIST**, `BOT_ACCEPT_ALL=false` e allow único last4 **`0007`**.
+- `patrol_live` em janela de 60 min (mesmo resultado em 15/180): `p0_stuck=20`, `p0_orphans=0`, `p0_mutation_fail=0`, `p0_leaks=0`, `p0_timeout=0`; `next_action=activate-peer`.
+- `activate-peer` veio exclusivamente de `p0_stuck`; os 20 fios tinham última mensagem anterior ao início do backend Story 13 (~19:03:50Z), e `0007` não aparece na lista. Não há evidência de regressão pós-deploy.
+- Não houve evento operacional pós-deploy na janela. O smoke WhatsApp mutável da Story 13 continua não executado.
+- **Follow-up PROPOSTO (P-STUCK):** triar os 20 fios históricos e avaliar lookback/filtro de allowlist, `human_only` e silêncio em `listStuckThreads`; enquanto isso, `activate-peer` deve ser lido como baseline histórico, não como timeout.
+
