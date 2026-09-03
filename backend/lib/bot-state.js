@@ -62,4 +62,43 @@ async function getBotState() {
   return value;
 }
 
-module.exports = { getBotState, invalidateCache, CACHE_TTL_MS };
+/**
+ * Decide se o bot deve ficar silencioso para este telefone.
+ * Denylist (`block` / `human_only`) vale mesmo com BOT_ACCEPT_ALL=true.
+ *
+ * @param {string} sessionPhone dígitos only
+ * @param {{ whitelist: Map<string, string> | null }} botState
+ * @param {{ acceptAll: boolean, allowedPhones: string[] }} env
+ * @returns {{ silent: boolean, reason: string }}
+ */
+function resolvePhoneAccess(sessionPhone, botState, { acceptAll, allowedPhones } = {}) {
+  const whitelist = botState && botState.whitelist;
+
+  if (whitelist && whitelist.size > 0) {
+    const mode = whitelist.get(sessionPhone);
+    if (mode === 'block' || mode === 'human_only') {
+      return { silent: true, reason: `mode=${mode}` };
+    }
+  }
+
+  if (acceptAll) {
+    return { silent: false, reason: 'accept_all' };
+  }
+
+  if (whitelist && whitelist.size > 0) {
+    if (whitelist.get(sessionPhone) !== 'allow') {
+      return { silent: true, reason: 'not_allowlisted' };
+    }
+    return { silent: false, reason: 'allow' };
+  }
+
+  if (!allowedPhones || allowedPhones.length === 0) {
+    return { silent: true, reason: 'empty_whitelist' };
+  }
+  if (!allowedPhones.includes(sessionPhone)) {
+    return { silent: true, reason: 'env_not_allowlisted' };
+  }
+  return { silent: false, reason: 'env_allow' };
+}
+
+module.exports = { getBotState, invalidateCache, resolvePhoneAccess, CACHE_TTL_MS };

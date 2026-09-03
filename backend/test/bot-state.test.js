@@ -133,3 +133,39 @@ test('7. CACHE_TTL_MS exportado igual a 5000ms', () => {
   const { CACHE_TTL_MS } = require('../lib/bot-state');
   assert.equal(CACHE_TTL_MS, 5_000);
 });
+
+test('8. OPEN + mode=block silencia o telefone (denylist em accept-all)', () => {
+  setupMockDb({ togglesRows: [], whitelistRows: [] });
+  const { resolvePhoneAccess } = require('../lib/bot-state');
+  const whitelist = new Map([
+    ['5511964540007', 'allow'],
+    ['5511995095131', 'block'],
+  ]);
+  const blocked = resolvePhoneAccess('5511995095131', { whitelist }, { acceptAll: true, allowedPhones: [] });
+  assert.deepEqual(blocked, { silent: true, reason: 'mode=block' });
+  const other = resolvePhoneAccess('5511888888888', { whitelist }, { acceptAll: true, allowedPhones: [] });
+  assert.deepEqual(other, { silent: false, reason: 'accept_all' });
+});
+
+test('9. OPEN + mode=human_only silencia; allow passa', () => {
+  setupMockDb({ togglesRows: [], whitelistRows: [] });
+  const { resolvePhoneAccess } = require('../lib/bot-state');
+  const whitelist = new Map([
+    ['5511964540007', 'allow'],
+    ['5511995095131', 'human_only'],
+  ]);
+  const humanOnly = resolvePhoneAccess('5511995095131', { whitelist }, { acceptAll: true, allowedPhones: [] });
+  assert.deepEqual(humanOnly, { silent: true, reason: 'mode=human_only' });
+  const allowed = resolvePhoneAccess('5511964540007', { whitelist }, { acceptAll: true, allowedPhones: [] });
+  assert.deepEqual(allowed, { silent: false, reason: 'accept_all' });
+});
+
+test('10. WHITELIST: ausente silencia; allow passa', () => {
+  setupMockDb({ togglesRows: [], whitelistRows: [] });
+  const { resolvePhoneAccess } = require('../lib/bot-state');
+  const whitelist = new Map([['5511964540007', 'allow']]);
+  const missing = resolvePhoneAccess('5511888888888', { whitelist }, { acceptAll: false, allowedPhones: [] });
+  assert.deepEqual(missing, { silent: true, reason: 'not_allowlisted' });
+  const allowed = resolvePhoneAccess('5511964540007', { whitelist }, { acceptAll: false, allowedPhones: [] });
+  assert.deepEqual(allowed, { silent: false, reason: 'allow' });
+});
