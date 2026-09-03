@@ -90,3 +90,17 @@ Victor autorizou a ativação restrita para o teste. `bot_toggles.global=true` a
 
 Backend recriado sem build de código, health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589; nginx recebeu reload para atualizar upstream. Nenhuma mensagem WhatsApp, mutação Trinks ou outro smoke foi executado. Backup do `.env` no VPS: `/opt/influence-labs/infra/.env.pre-0007-20260903T151136Z`.
 
+## 2026-09-03 ~16:09 UTC — smoke `0007` B1/B2 (B3 não exercitado)
+
+last4 `0007`. B2/B4 PASS: “Pode cancelar esse que a gente acabou de marcar” → intent CANCEL + PATCH 204 `526180491`. B1 PASS: mesmo corte Erick 14:30 após cancel → POST 201 `526185055` + 2-phase honesta.
+
+Último “Pode cancelar esse também” → intent CANCEL, mas `TESS_CONTEXT_MODE=full` mandou perfil FULL (~91k / 22k tokens, grade de horários inclusa). TESS abortou por timeout. Sem tags.parsed, sem PATCH, sem outbound. Thread **não** está `silenced_until`. Victor cancelou `526185055` manualmente. B3 não rodou.
+
+P0 follow-up: CANCEL em modo `full` não pode carregar a grade inteira (timeout = silêncio aparente).
+
+## 2026-09-03 ~16:17 UTC — smoke `0007` B3
+
+Mensagem B3 recebida: “Esquece isso então. Agora quero só um corte no sábado, 05/09, de tarde, com Erick.” A Tess entrou no fluxo de agendamento e ofereceu `15:00`/`15:30`; não respondeu FAQ, não emitiu `dado_indisponivel`, não gerou `handoff.human` e a thread não está silenciada.
+
+`tags.parsed`: `creates=0`, `cancels=0`, `reschedules=0`; nenhum POST/PATCH Trinks foi executado porque o cliente ainda não escolheu horário. B3 fica **PASS na etapa de classificação/roteamento**; criação completa só ocorre se Victor escolher uma das opções.
+
