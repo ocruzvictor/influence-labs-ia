@@ -1,0 +1,35 @@
+{
+  "story": "docs/stories/salon-whatsapp-tess-commit-1-tipoid-cliente.md",
+  "date": "2026-09-03",
+  "agent": "po",
+  "mode": "yolo",
+  "verdict": "CONCERNS",
+  "score": 6,
+  "confidence": "High",
+  "status_transition": "HALT — expected Draft, found Ready; kept Ready",
+  "mechanical_fixes": [
+    "AC2 clarified without adding scope",
+    "Change Log 0.1.1",
+    "Epic validation annotation"
+  ],
+  "critical": [
+    "The authoritative value for Telefones[].TipoId is absent from the repository and SOT. AC3-AC5 cannot be completed honestly until official Trinks evidence supplies it."
+  ],
+  "should_fix": [
+    "Do not use an invented integer, null, or undefined merely to make the payload key present.",
+    "quality_gate @qa is coherent with the epic but outside the validator's stale Bob allowlist."
+  ],
+  "anti_hallucination": "CONCERNS — repository search confirms no TipoId enum; only the production 400 evidence and the missing-field requirement are sourced.",
+  "coderabbit": "PASS — Integration/API, @dev light, Pre-Commit and scoped focus areas present.",
+  "checklist": {
+    "template": "PASS_WITH_LEGACY_STATUS_VOCABULARY",
+    "executor_assignment": "PASS_WITH_STALE_VALIDATOR_CONCERN",
+    "source_tree": "PASS",
+    "ac_coverage": "BLOCKED_BY_MISSING_CONTRACT_VALUE",
+    "testing": "PARTIAL",
+    "security": "N/A",
+    "task_sequence": "PASS",
+    "implementation_readiness": "CONCERNS"
+  },
+  "handoff": "Obtain authoritative Trinks TipoId value, then revalidate before @dev implementation."
+}

@@ -1,0 +1,52 @@
+consumed: false
+from_agent: aios-master
+last_command: audit-consolidated
+status: waiting_orion_ack
+verdict: FAIL_I1_I2
+canvas: canvases/tess-versao-nova-rca.canvas.tsx
+created_at: "2026-09-03T02:50:00Z"
+incident: tess-46589-nova-versao-errou
+squads:
+  - tess-nightwatch
+  - aiox-core-personas
+model_routing:
+  planning: cursor-grok-4.6-high-fast
+  planning_coop: gpt-5.6-sol-medium
+  execution: composer-2.5-fast
+  execution_fallback: gpt-5.6-luna-medium
+  rule: persona_plus_motor_never_raw_model
+called:
+  - persona: Nox
+    file: squads/tess-nightwatch/agents/nightwatch-supervisor.md
+    task: patrol-live
+    model: cursor-grok-4.6-high-fast
+  - persona: Mira
+    file: squads/tess-nightwatch/agents/floor-quality.md
+    task: audit-floor-quality
+    model: cursor-grok-4.6-high-fast
+  - persona: Quinn-Watch
+    file: squads/tess-nightwatch/agents/quality-sentinel.md
+    task: verify-trinks-commit
+    model: cursor-grok-4.6-high-fast
+  - persona: Dex-Night
+    file: squads/tess-nightwatch/agents/patch-dev.md
+    task: live-evidence-only
+    model: composer-2.5-fast
+    constraint: no_patch
+  - persona: Aria
+    file: .aios-core/development/agents/architect.md
+    task: rca-plus-correction-plan
+    model: cursor-grok-4.6-high-fast
+  - persona: Atlas
+    file: .aios-core/development/agents/analyst.md
+    task: business-error-pattern
+    model: gpt-5.6-sol-medium
+standby:
+  - prompt-engineering-squad (se Mira marcar prompt_drift como causa dominante)
+  - Dex-Night *patch-booking-path (só após Orion + Quinn ACK)
+forbidden_this_wave:
+  - POST/PATCH Trinks
+  - colar prompt TESS 46589
+  - git push
+  - resume de cliente
+  - rsync/rebuild

@@ -227,3 +227,13 @@ test('reads and upserts appointments using the existing snapshot table', async (
   assert.equal(db.calls[2].params[0], '40');
   assert.equal(db.calls[2].params[16], '{"id":40}');
 });
+
+test('markSlotWindowAvailable cobre a janela da duração, não só o start', async () => {
+  const db = mockDb([{ rows: [{ professional_id: '827204' }] }]);
+  const store = createTrinksLocalStore(db);
+  await store.markSlotWindowAvailable('827204', '2026-09-05T13:00:00-03:00', 60, false);
+  assert.match(db.calls[0].sql, /starts_at >= \$2/);
+  assert.match(db.calls[0].sql, /starts_at < \$3/);
+  assert.equal(db.calls[0].params[0], '827204');
+  assert.equal(db.calls[0].params[3], false);
+});

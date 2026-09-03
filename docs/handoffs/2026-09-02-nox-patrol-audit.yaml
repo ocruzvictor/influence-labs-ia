@@ -1,0 +1,415 @@
+consumed: false
+from_agent: nightwatch-supervisor
+persona: Nox
+last_command: patrol-live
+created_at: "2026-09-03T02:52:00Z"
+incident: tess-46589-nova-versao-errou
+window:
+  primary_since: "2026-09-02T15:02:37Z"
+  primary_source: "docker inspect backend StartedAt"
+  primary_until: "2026-09-03T02:50:00Z"
+  fallback_if_missing: "2026-09-02T13:54:00Z"
+  secondary_open_since: "2026-09-01T21:44:00Z"
+health:
+  status: ok
+  agent_id: "46589"
+  accept_all: true
+  mode: OPEN
+  trinks_ping: ok
+  trinks_ping_latency_ms: 1003
+  tess_credits:
+    day: "2026-09-02"
+    used: 6496.35
+    local_used: 5662.79
+    calls: 234
+    budget: 1000
+    pct: 6.496
+    remaining: null
+    remaining_source: local_budget
+    note: "C2 — nao e P0; recarga 300 se remaining<=30"
+  last_inbound_health: "2026-09-02T17:40:52Z"
+  last_inbound_health_stale: true
+  observed_last_inbound: "2026-09-03T02:15:06Z"
+  note: "whatsapp_window.last_inbound_at nao viu 0101"
+
+counts_primary:
+  tags_parsed: 139
+  guard_blocked: 11
+  handoff_human: 7
+  booking_created: 2
+  booking_cancelled: 1
+  booking_failed: 1
+  booking_dropped: 0
+  tess_empty: 1
+  tess_failed_event: 0
+  tags_leaked: 0
+  resume_failed: 0
+  orphans_event: 1
+  agent_mutation_ok: 3
+  agent_mutation_http_ge_400: 1
+
+counts_secondary_open:
+  tags_parsed: 266
+  handoff_human: 14
+  guard_blocked: 13
+  resume_failed: 3
+  tess_empty: 2
+  booking_created: 2
+  booking_failed: 1
+  orphans_event: 9
+  orphans_pre_deploy: ["8027", "8528", "7247", "3300", "2513", "0160"]
+  orphans_new_version: ["2185"]
+
+patrol_report:
+  p0:
+    - phone_last4: "0101"
+      event: booking.failed
+      timestamp_utc: "2026-09-03T02:13:03.759Z"
+      invariant_broken: I2
+      code: tess_empty_full
+      taxonomy_also: [false_confirm]
+      next_action: activate-dev
+      evidence:
+        phone_last4: "0101"
+        event: booking.failed
+        timestamp_utc: "2026-09-03T02:13:03.759Z"
+        invariant_broken: I2
+      detail: >
+        1 SKU Corte Feminino + Giovanna 827192 + 14:30 2026-09-03 + Ok do cliente.
+        GET cliente miss. POST /clientes origin=agent_mutation_create_client HTTP 400
+        "Telefones[0].TipoId: Tipo Id must not be empty". Sem POST /agendamentos.
+        2-phase honesto ("problema tecnico"). Depois TESS falou "o corte que ja confirmamos"
+        (I1). "Outro dia" → UNCERTAIN FULL ~94k. "Quarta a tarde" → tess.empty status=failed
+        credits=0. Fallback tess-fallback enviado. Sem handoff.human, sem bot_thread_state.
+    - phone_last4: "0101"
+      event: tess.empty
+      timestamp_utc: "2026-09-03T02:15:14.929Z"
+      invariant_broken: null
+      code: tess_empty_full
+      next_action: notify-human
+      evidence:
+        phone_last4: "0101"
+        event: tess.empty
+        timestamp_utc: "2026-09-03T02:15:14.929Z"
+        invariant_broken: null
+      detail: >
+        TESS 46589 response status=failed credits=0 intent=SCHEDULING. Kapso 200 fallback.
+        Last role=assistant tess-fallback (nao stuck user-last). Humano prometido e nao
+        acionado. Sem resume nesta auditoria.
+    - phone_last4: "9605"
+      event: false_confirm
+      timestamp_utc: "2026-09-02T21:43:16.215Z"
+      invariant_broken: I1
+      code: false_confirm
+      next_action: notify-human
+      evidence:
+        phone_last4: "9605"
+        event: false_confirm
+        timestamp_utc: "2026-09-02T21:43:16.215Z"
+        invariant_broken: I1
+      detail: >
+        Tres CREATE parseados 21:40/21:41/21:42 → guard.blocked janela (manicure Fefe 03/09 09:00).
+        Sem booking.created. WhatsApp "Tudo certo com a manicure amanha as 9h com a Fefe".
+        Last assistant "Ate amanha". Cliente saiu achando que estava marcado.
+    - phone_last4: "5718"
+      event: false_confirm
+      timestamp_utc: "2026-09-02T16:19:11.613Z"
+      invariant_broken: I1
+      code: false_confirm
+      next_action: notify-human
+      evidence:
+        phone_last4: "5718"
+        event: false_confirm
+        timestamp_utc: "2026-09-02T16:19:11.613Z"
+        invariant_broken: I1
+      detail: >
+        creates=2. booking.created trinksId 525828063 so Corte de franja. guard.blocked
+        janela no 2o SKU (escova). 2-phase: Prontinho franja + "nao fecha" escova.
+        TESS depois: "agendamento esta ... Corte de franja + Escova" e "Fica sim 15:30
+        franja + Escova". Combo ainda mente o 2o SKU. Last=assistente apos Obrigada.
+    - phone_last4: "2185"
+      event: tags.parsed
+      timestamp_utc: "2026-09-02T20:00:44.004Z"
+      invariant_broken: I1
+      code: tag_orphan
+      next_action: activate-dev
+      evidence:
+        phone_last4: "2185"
+        event: tags.parsed
+        timestamp_utc: "2026-09-02T20:00:44.004Z"
+        invariant_broken: I1
+      detail: >
+        Orfao por taxonomia (reschedules=1 sem created/failed/blocked/dropped ±120s).
+        PUT /agendamentos/:id agent_mutation_reschedule HTTP 204 20:00:44.850Z.
+        2-phase "Pronto, reagendei pra 04/09/2026 as 15:00". I1 cliente PASSA via HTTP.
+        Gap: nao emite booking.rescheduled. Nao rescue.
+    - phone_last4: "7163"
+      event: thread_stuck
+      timestamp_utc: "2026-09-02T16:46:20.186Z"
+      invariant_broken: null
+      code: tag_orphan
+      next_action: notify-human
+      evidence:
+        phone_last4: "7163"
+        event: thread_stuck
+        timestamp_utc: "2026-09-02T16:46:20.186Z"
+        invariant_broken: null
+      detail: >
+        CREATE 09:30 → guard.blocked incompatible Jackie/Retoque. User "melhor as 13h"
+        → handoff conflito_habilitacao_profissional 16:45:37Z. User "Confirma" 16:46
+        sem assistant. Silence expirou 22:45:37Z. Sem resume nesta auditoria.
+    - phone_last4: "5668"
+      event: invented_slot
+      timestamp_utc: "2026-09-02T21:09:56.556Z"
+      invariant_broken: I3
+      code: invented_slot
+      next_action: notify-human
+      evidence:
+        phone_last4: "5668"
+        event: invented_slot
+        timestamp_utc: "2026-09-02T21:09:56.556Z"
+        invariant_broken: I3
+      detail: >
+        "Sexta 16:30 tenho disponibilidade" com Giovanna → CREATE 21:19:02 guard.blocked
+        janela "inicio nao esta na grade livre". Depois ofereceu 17:30 quinta como se
+        "ja confirmamos" sem POST. Handoff encaixe 21:22:38Z. Silence ainda ativo ate
+        2026-09-03T03:22:38Z. User mandou ficha (passive) 22:15. Nao resume.
+  p1:
+    - phone_last4: "0101"
+      event: greeting_full
+      timestamp_utc: "2026-09-03T02:13:38.719Z"
+      invariant_broken: null
+      code: greeting_full
+      detail: "Outro dia classificado UNCERTAIN FULL ~94531 chars / 23633 tok."
+    - phone_last4: "5958"
+      event: greeting_full
+      timestamp_utc: "2026-09-02T17:23:06.768Z"
+      invariant_broken: null
+      code: greeting_full
+      detail: >
+        "Sim, quero" UNCERTAIN FULL ~90k. Proximo inbound 17:29 timeout Kapso sem fallback.
+        17:59 whitelist human_only (Pausado drill-down). Nao resume.
+    - phone_last4: "3848"
+      event: handoff.human
+      timestamp_utc: "2026-09-02T17:17:40.093Z"
+      invariant_broken: I2
+      code: combo_handoff
+      detail: "multi_servico; resume admin 17:36 sent; CREATE 17:37 guard janela; handoff cliente_pediu_humano."
+    - phone_last4: "8134"
+      event: handoff.human
+      timestamp_utc: "2026-09-02T15:23:04.956Z"
+      invariant_broken: I2
+      code: slots_withheld
+      detail: "dado_indisponivel. Last user Ok obrigada. P3 follow."
+    - phone_last4: "8397"
+      event: booking.cancelled
+      timestamp_utc: "2026-09-02T19:52:43.634Z"
+      invariant_broken: I2
+      code: combo_handoff
+      detail: "cancels=1 outcome=none successCount=0. 2-phase honesto pediu recepcao."
+    - phone_last4: "8741"
+      event: guard.blocked
+      timestamp_utc: "2026-09-02T19:33:22.750Z"
+      invariant_broken: I2
+      code: combo_handoff
+      detail: >
+        2 cortes Erick. POST 201 so adulto 14:00 12/09 (525930541). 2o SKU janela blocked.
+        Retry 19:42 creates=2 ambos blocked. Last=2-phase honesto.
+    - phone_last4: "4749"
+      event: guard.blocked
+      timestamp_utc: "2026-09-02T21:19:59.205Z"
+      invariant_broken: I3
+      code: duration_mismatch
+      detail: "14h sab Tiago — janela continua 30min < duracao 60min. 2-phase honesto + TESS Perfeito."
+  p2:
+    - code: credits_over
+      event: tess_credits
+      timestamp_utc: "2026-09-03T02:49:25Z"
+      detail: "used 6496 vs budget 1000. Nao P0 (plano C2)."
+    - code: duplicate_inbound
+      event: conversation_history
+      timestamp_utc: "2026-09-02T15:02:37Z"
+      detail: "passive + save ainda em todo fio da janela nova."
+  threads_stuck:
+    - last4: "7163"
+      user_last_utc: "2026-09-02T16:46:20Z"
+      waiting_min: 604
+      class: P0
+      note: "Confirma pos-handoff. Silence expirou. notify-human."
+    - last4: "5668"
+      user_last_utc: "2026-09-02T22:15:28Z"
+      waiting_min: 274
+      class: P0
+      note: "Ficha em silencio handoff encaixe ainda ativo ate 03:22Z. notify-human. Nao resume."
+    - last4: "5958"
+      user_last_utc: "2026-09-02T18:33:20Z"
+      waiting_min: 497
+      class: P3
+      note: "human_only 17:59 drill-down. Timeout 17:29 foi o gap; agora pausa humana."
+    - last4: "0101"
+      user_last_utc: "2026-09-03T02:15:06Z"
+      waiting_min: 0
+      class: P0
+      note: "Last=assistant tess-fallback. Nao user-stuck. notify-human assim mesmo."
+    - last4: "7434"
+      user_last_utc: "2026-09-02T11:23:38Z"
+      waiting_min: 926
+      class: P3
+      note: "Wave0 pre-15:02. Recorrencia. Nao e falha da versao nova."
+    - last4: "5389"
+      user_last_utc: "2026-09-02T11:56:58Z"
+      class: P3
+      note: "Pre-deploy / silence expirado. Nao resume."
+    - last4: "4700"
+      user_last_utc: "2026-09-02T13:13:57Z"
+      class: P3
+      note: "Pre-deploy. Nao resume."
+    - last4: "2513"
+      user_last_utc: "2026-09-02T14:04:09Z"
+      class: P3
+      note: "Pre-deploy Marcel. Nao POST 13:30."
+    - last4: "8134"
+      user_last_utc: "2026-09-02T15:24:07Z"
+      class: P3
+      note: "Ok obrigada pos-handoff."
+    - last4: "8995"
+      user_last_utc: "2026-09-02T16:38:32Z"
+      class: P3
+      note: "cliente_pediu_humano."
+    - last4: "3848"
+      user_last_utc: "2026-09-02T17:40:51Z"
+      class: P3
+      note: "Obrigada pos-handoff."
+    - last4: "8454"
+      user_last_utc: "2026-09-02T12:06:30Z"
+      class: P3
+      note: "salvou contato."
+    - last4: "7247"
+      user_last_utc: "2026-09-02T12:06:37Z"
+      class: P3
+      note: "Pre-deploy I1 historico. Nao resume."
+  trinks_mutations:
+    window_since: "2026-09-02T15:02:37Z"
+    rows:
+      - method: POST
+        endpoint: /agendamentos
+        origin: agent_mutation_create
+        http_status: 201
+        requested_at: "2026-09-02T16:19:05.429Z"
+        last4: "5718"
+      - method: POST
+        endpoint: /agendamentos
+        origin: agent_mutation_create
+        http_status: 201
+        requested_at: "2026-09-02T19:33:21.863Z"
+        last4: "8741"
+      - method: PUT
+        endpoint: /agendamentos/:id
+        origin: agent_mutation_reschedule
+        http_status: 204
+        requested_at: "2026-09-02T20:00:44.850Z"
+        last4: "2185"
+      - method: POST
+        endpoint: /clientes
+        origin: agent_mutation_create_client
+        http_status: 400
+        requested_at: "2026-09-03T02:13:03.552Z"
+        last4: "0101"
+        error: "Telefones[0].TipoId must not be empty"
+    http_ge_400: 1
+  tess_credits:
+    used: 6496.35
+    budget: 1000
+    pct: 6.496
+    p0: false
+
+causa_candidata:
+  - id: H1
+    confidence: high
+    hypothesis: >
+      createClientInTrinks manda telefones:[{ddd,numero}] sem TipoId. Cliente novo
+      (0101, GET miss) nao consegue nascer na Trinks → CREATE de agenda nunca dispara.
+      I2 quebra no caminho feliz (SKU+slot+prof+Ok).
+    evidence:
+      - "log 02:13:03Z cliente nao encontrado + Booking creation FAILED TipoId"
+      - "trinks_api_requests POST /clientes 400 origin=agent_mutation_create_client"
+      - "server.js createClientInTrinks payload sem tipoId (confirmado no repo)"
+      - "booking.created desta janela so em clientes ja existentes (5718, 8741)"
+  - id: H2
+    confidence: high
+    hypothesis: >
+      Depois de booking.failed / guard.blocked, o contexto TESS ainda trata o pedido
+      como confirmado. Sanitize 2-phase e honesto; a fala seguinte da IA nao e.
+      I1 ainda quebra na versao nova (9605, 5718, 0101).
+    evidence:
+      - "0101 02:13:46Z 'o corte que ja confirmamos' sem booking.created"
+      - "9605 21:43:16Z 'Tudo certo com a manicure' apos 3x janela blocked"
+      - "5718 16:19:11Z 'franja + Escova' com so 1 POST"
+  - id: H3
+    confidence: medium
+    hypothesis: >
+      Relogio oferecido sem estar na grade (I3) e combo 2 SKU no mesmo inicio
+      ainda geram janela-block + copy mentirosa ou handoff. Nao e o erro das 02:13,
+      mas e o padrao que mais se repetiu das 15:02 as 22:00.
+    evidence:
+      - "5668 16:30 sexta oferecido → inicio nao esta na grade livre"
+      - "8741 2o corte 15h blocked apos 1o POST 14h"
+      - "guard.blocked janela = 8/11 na janela nova"
+
+ainda_quebra_versao_nova:
+  - I1 copy de sucesso sem commit (9605, 5718, 0101 pos-fail)
+  - I2 cliente novo (TipoId) e 2o SKU de combo
+  - I3 oferta de inicio fora da grade (5668)
+  - tess.empty / FULL 90k em frase curta pos-falha
+  - booking.rescheduled nao emitido (2185)
+  - tess-fallback sem handoff.human
+nao_e_desta_versao:
+  - Wave0 7434 5389 4700 2513 7247 8027 8528 (pre-15:02)
+
+activate_peer:
+  suggested: patch-dev
+  llm_for_peer: composer-2.5-fast
+  persona_file: squads/tess-nightwatch/agents/patch-dev.md
+  task: patch-booking-path
+  severity: P0
+  evidence:
+    phone_last4: "0101"
+    event: booking.failed
+    timestamp_utc: "2026-09-03T02:13:03.759Z"
+    invariant_broken: I2
+  task_scope: >
+    TipoId no POST /clientes; evento booking.rescheduled no PUT 2xx; apos
+    booking.failed o outbound nao pode dizer "ja confirmamos". Nao patch nesta
+    auditoria. Quinn verifica I1 em 9605/5718/0101 depois do patch.
+  also_suggested_later:
+    - to: quality-sentinel
+      task: verify-trinks-commit
+      last4: "9605"
+      timestamp_utc: "2026-09-02T21:43:16.215Z"
+    - to: floor-quality
+      task: audit-floor-quality
+      last4: "5668"
+      timestamp_utc: "2026-09-02T21:09:56.556Z"
+
+next_action_p0:
+  - last4: "0101"
+    next_action: activate-dev
+    also: notify-human
+  - last4: "9605"
+    next_action: notify-human
+  - last4: "5718"
+    next_action: notify-human
+  - last4: "2185"
+    next_action: activate-dev
+  - last4: "7163"
+    next_action: notify-human
+  - last4: "5668"
+    next_action: notify-human
+
+forbidden_done:
+  - no_git_push: true
+  - no_rsync: true
+  - no_trinks_mutate: true
+  - no_resume: true
+  - no_prompt_paste: true
+  - no_code_patch: true

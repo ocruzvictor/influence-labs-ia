@@ -1,0 +1,49 @@
+workflow:
+  id: patrol-loop
+  name: Nightwatch patrol loop
+  version: "1.0.0"
+  description: Ciclo 15 min — Supervisor patrulha e só então acorda peers.
+  type: ops
+  sequence:
+    - step: patrol
+      agent: nightwatch-supervisor
+      action: patrol-live
+      creates: patrol_report
+    - step: rescue
+      agent: nightwatch-supervisor
+      action: rescue-thread
+      requires: patrol_report
+      condition: patrol_has_p0_stuck_thread
+      creates: rescue_result
+    - step: floor_audit
+      agent: floor-quality
+      action: audit-floor-quality
+      requires: patrol_report
+      condition: patrol_interval_60m_or_quality_fail
+      creates: floor_report
+    - step: wake_dev
+      agent: nightwatch-supervisor
+      action: activate-peer
+      requires: patrol_report
+      condition: patrol_has_p0_or_p1_code
+      creates: dev_handoff
+    - step: patch
+      agent: patch-dev
+      action: patch-booking-path
+      requires: dev_handoff
+      creates: patch_file_list
+    - step: gate
+      agent: quality-sentinel
+      action: run-quality-gate
+      requires: patch_file_list
+      creates: gate_verdict
+  handoff_prompts:
+    nightwatch-supervisor_to_patch-dev: |
+      Carregar agents/patch-dev.md. Motor: Composer 2.5 Fast.
+      Entrada: evidence YAML + onda A/B. Não patrulhar.
+    patch-dev_to_quality-sentinel: |
+      Carregar agents/quality-sentinel.md. Veredito High, testes Fast.
+      Entrada: file list. Não implementar o fix.
+    floor-quality_to_nightwatch-supervisor: |
+      Carregar agents/nightwatch-supervisor.md. Motor: Grok 4.6 High.
+      Entrada: floor_report. Rescue ou activate-dev se I3/roteiro quebrado.

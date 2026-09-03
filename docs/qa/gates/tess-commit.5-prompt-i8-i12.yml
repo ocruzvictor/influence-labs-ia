@@ -1,0 +1,53 @@
+schema: 1
+story: 'tess-commit.5'
+story_title: 'Diff prompt I.8 / I.1.17 / I.12 / I.1.3 no repo — Victor cola'
+gate: PASS
+status_reason: 'Mira 1–4 no repo (I.8 neutro, I.1.17+NUNCA ampliado, I.12 tag≠reserva, I.1.3 6 campos + fail honesto). Zero cola TESS 46589. Story 2 já Done. 4/4 prompt-diff PASS.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:tess-conversa-v3-clean.md@f0dadd5b,CHANGELOG-46589.md@7bb3b0fb,tess-prompt-i8-i12.test.js@baab5dab,HEAD:8b40465'
+updated: '2026-09-03T04:03:09Z'
+top_issues: []
+waiver: { active: false }
+
+quality_score: 100
+expires: '2026-09-17T04:03:09Z'
+
+evidence:
+  tests_reviewed: 4
+  tests_passed: 4
+  tests_failed: 0
+  risks_identified: 0
+  coderabbit: 'SKIP — CLI presente; tree suja fora do IN. [AUTO-DECISION] review manual do prompt-diff; QA não cola TESS.'
+  prompt_diff: 'PASS — I.8 sem "Tá garantido 😊"; I.1.17+NUNCA banem já confirmamos / seu agendamento está / tudo certo com [serviço] / fica sim [hora] sem booking.created; I.12 Tag ≠ reserva; I.1.3 6 campos antes de [BOOKING_CREATE] + handoff dado_indisponivel.'
+  tess_cola: 'NONE — CHANGELOG v3.2.2 diz Victor cola; Dex não colou 46589. Story = repo only.'
+  dep_story_2: 'Done (gate tess-commit.2 PASS) — AC6 satisfeito.'
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Sem PII. Sem cola TESS. Prompt SOT só no repo.'
+  performance:
+    status: PASS
+    notes: 'Diff de texto; sem runtime extra.'
+  reliability:
+    status: PASS
+    notes: 'Backend C3 (story 2) já fecha I1 sem cola. Prompt deixa de ensinar a mentira; efeito em prod só após Victor colar (OUT desta story).'
+  maintainability:
+    status: PASS
+    notes: 'CHANGELOG v3.2.2 segue rito existente. Teste prompt-diff em backend/test lê o SOT — não é aplicação.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Victor cola tess-conversa-v3-clean.md v3.2.2 no TESS 46589 quando o backend da story 2 estiver no ar — outro rito, não Dex/QA.'
+      refs: ['docs/prompts/tess-conversa-v3-clean.md', 'docs/prompts/CHANGELOG-46589.md']
+
+auto_decisions:
+  - 'Status ready-for-review ≡ InReview → Done.'
+  - 'CodeRabbit skip (tree suja / anti-self-review).'
+  - 'backend/test/tess-prompt-i8-i12.test.js é gate de prompt, não diff de aplicação — AC5 ("zero backend") interpretado como zero runtime.'
+  - 'CHANGELOG permitido pelo rito do repo (OUT da story: não inventar release).'
+  - 'gotchas.json ausente → skip.'

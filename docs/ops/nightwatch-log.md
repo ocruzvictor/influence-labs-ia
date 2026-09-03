@@ -1,0 +1,74 @@
+# Nightwatch log
+
+Append-only. last4 only. Created 2026-09-02 with squad tess-nightwatch.
+
+## 2026-09-02 ~13:40 UTC — floor + supervisor (pós-deploy 12:31 UTC)
+
+Janela: backend StartedAt 12:31:43Z. Pedido Victor: Bianca insistiu confirmar + Marcel horário do Alisson.
+
+- last4 `4700` 12:49–13:13Z. SCHEDULING. 12:52:51Z tags.parsed creates=4 → guard.blocked consultive distinct=4 → handoff orcamento_referencia. WhatsApp “Confirmado,” (sanitize só pega `Confirmado!`). 2-phase teste. 13:13Z user “Perfeito” human-handled TTL 6h. Trinks Balcão 13:11Z Mechas+Corte Jackie 09:30 05/09. I1 fail. Sem POST bot.
+- last4 `2513` 12:52–13:26Z. Erick corte infantil sáb. Ofereceu 13h e 13h30. last4 `5389` já tem Erick 827204 13:00 05/09 (Balcão 11:25Z). trinks_slots 13:00/13:30 available=true synced 01/09 21:10Z. I3 fail. 13:26Z user “Correto” tags.parsed creates=1 → `profsPayload is not defined` → sem kapso send. Sem booking.*. I2 fail. Thread presa.
+- Causa comum slots: webhook 11/12/13 upsert appointment, não `markSlotAvailable(false)`.
+- Causa Marcel commit: `server.js` copia `assembledCtx.svcPayload`, não `profsPayload`.
+- Next: patch C1+C2+C3. Não POST 13:30. Não resume `4700`. Humano no `2513` com slot real.
+
+invariants: I1 broken `4700`, I3+I2 broken `2513`. P0.
+
+## 2026-09-02 ~13:45 UTC — patch P0 pós-feedback Tiago
+
+C1 `profsPayload` atribuído do assembler (crash Marcel Correto).
+C2 webhook 11/12/13 + POST bot marcam janela `durationMin` em `trinks_slots` (Alisson 13h/60min ocupa 13:00 e 13:30).
+C3 sanitize `Confirmado,` sem exigir `!`.
+Intent: `Correto`/`Perfeito` em histórico de agenda → SCHEDULING.
+Ops: não gravar Marcel 13:30; não resume Bianca 4700. Backfill SQL de janelas ocupadas no deploy.
+Grok Bot: instruções em `docs/ops/grok-bot-instructions/` + setup. Créditos Tess: recarga 300 se ≤30 — não é P0.
+
+## 2026-09-02 ~13:45 UTC — ops model (Victor)
+
+Time do salão + Tiago acompanham WhatsApp e corrigem na Trinks (origem Balcão) quando a Tess erra. `4700` 13:11Z e `5389` 11:25Z são essa rede, não o bot. C2 (webhook sem markSlot) faz a correção humana ficar invisível no HORARIOS → próximo cliente (`2513`) leva o slot já ocupado. Patch C2 é para a rede de segurança não envenenar o fio seguinte. Sem resume `4700`. Sem POST 13:30 `2513`.
+
+## 2026-09-02 ~13:54 UTC — P0 ACK Supervisor + deploy (opção 3)
+
+Victor escolheu patch + time segue no Marcel. Gate local 80/80 (parser, webhook, store, guards). C1/C2/C3 já estavam no host 13:39 + rebuild 13:45 (Erick 13:00/13:30 e Jackie 09:30–14:30 occupied). Endurecimento CREATE crash (`booking.failed` kind=create_crash + copy honesta) rsync server.js + rebuild 13:54:29Z. Health ok, trinks_ping=ok, agent 46589. Zero POST Trinks. Sem resume `4700`/`2513`. Time fecha o Gustavo com início real do Erick.
+
+## 2026-09-02 — canal Grok + MCP Nightwatch
+
+Grupo Grok `Nightwatch` (Nox/Mira/Quinn/Desk) é o canal de handoff (`@` + YAML). MCP read-only em `https://api.studiotirra.com.br/mcp` (tools patrol_live, get_thread, verify_commit, list_orphans). Sem SQL cru, last4 only. Dex continua no Cursor.
+
+## 2026-09-02 ~15:10 UTC — primeiro *patrol-live via MCP (grupo)
+
+Nox: health 46589 / trinks ok / OPEN. orphans 0, mutation fail 0, leak 0.
+- P0 `7434` presa ~225min. User 11:23Z “sexta de manhã escova jacki”. Sem reply. Sem `bot_thread_state`. Sem evento após tags.parsed 11:22Z (saudação). I1 N/A (sem afirmação). Não POST. Humano ou resume — não deixar cair.
+- P3 listados: `5389` `7247` `4700` handoff ACTIVE — não resume. `2513` fio do Marcel (humano no chat). `8454` só salvou contato.
+- Nox subestimou `7247`: 11:48Z “Vou registrar… Tá garantido!” + tags.parsed creates=1; 11:57Z handoff `dado_indisponivel`. I1 para Quinn. Silêncio ACTIVE.
+
+## 2026-09-02 ~15:20 UTC — *audit-floor-quality (negócio, go-live→agora)
+
+Pedido Victor: inventário não técnico das regras + logs da noite OPEN. Mira (Grok) no roteiro/KB; Dex-Night (Composer) no Postgres. Quinn I1/I2 não fechou nesta sessão — veredito Orion a partir da evidência.
+
+Janela 01/09 21:44Z–02/09 15:20Z: events 170; handoff.human 7 (dado_indisponivel 2, orcamento_referencia 2, multi_servico 2, cliente_pediu_humano 1); guard.blocked 3 (needs_reference, consultive, expediente); booking.* 0; agent_mutation 1 PUT reschedule 204; appointments synced 55; user/assistant 290/147. Silêncio ativo `5389` `7247` `4700`. human_only `2513` `8383`.
+
+I1 FAIL: `8027` `8194` `7247` `4700` `8528` garantia/confirmado/já marcado sem commit. I2 FAIL: `1305` combo tabela handoff; `5389` 1 SKU+Erick → dado_indisponivel; `7434` escova Jackie sem reply. I3 FAIL: `2513` 13h/13h30 Erick já ocupado pelo `5389`.
+
+Regra que mais empurra humano: I.8 “tá garantido” vs I.1 “não diga agendado”; combo mechas vs tabela; lista de vagos atrasada vs Balcão. Não resume `4700`/`7247`/`5389`. Não POST 13:30 `2513`. Canvas piso: tess-regras-atendimento-negocio.
+
+## 2026-09-03 ~02:55 UTC — *audit-floor-quality Mira (pós 13:54Z)
+
+Janela 02/09 13:54Z–03/09 02:55Z. Amostra 8 reais (excl. `0330`/`1234`). GET 44 vs POST create 2 + PUT 2 + POST cliente 400. booking.created 2. tess.context_bytes 0. C1/C3 não repetiram; C2 marcou `5668` 21:30Z occupied 22:12Z.
+
+I1 FAIL (não PASS): `9605` 21:43Z “tudo certo” manicure 9h Fefe após 3× guard; `0101` 02:13Z “já confirmamos” pós booking.failed TipoId; `5718` 16:19Z franja+escova 15:30 com só franja 15:00 BRT; `5668` 21:22Z “já confirmamos” 17:30 — Balcão gravou 18:30. Quinn *verify-trinks-commit.
+
+I2: `8134` dado_indisponivel mão/pé (molde `5389`); `0101` tess.empty 02:15Z. I3: `4749` 14h Tiago sáb → janela 30min < 60min. Fidelidade: `7163` vazou HABILITACAO. last4 antigos `8027`/`4700`/`2513` sem assistant novo.
+
+Causa: I.8/I.12 ensinam a afirmar na tag; guard/Trinks recusam depois. Cliente nova morre em TipoId. Balcão ainda fala no fio. Dex *patch-booking-path (não patchar daqui). Report: docs/handoffs/2026-09-02-mira-floor-audit.md.
+
+## 2026-09-03 ~02:52 UTC — *patrol-live Nox (pós-deploy 15:02:37Z)
+
+Janela primária: backend StartedAt 15:02:37Z → 02:50Z. Health ok, trinks_ping=ok, OPEN accept_all=true, agent 46589. Créditos 6496/1000 (P2, não P0). last_inbound /health stale (17:40Z) vs inbound real 02:15Z.
+
+P0 novo: `0101` 02:13:03Z booking.failed I2 — POST /clientes 400 TipoId vazio (cliente novo). 2-phase honesto; TESS depois “já confirmamos” I1; 02:15:14Z tess.empty SCHEDULING + fallback. Sem handoff.human. notify-human + activate-dev. Sem resume.
+
+Ainda quebra na versão nova: I1 `9605` 21:43Z manicure “tudo certo” sem POST; I1 `5718` 16:19Z franja+escova com 1 POST; I3 `5668` 21:09Z ofereceu 16:30 → janela-block + handoff encaixe (silêncio até 03:22Z); orfão evento `2185` 20:00Z (PUT 204 — I1 cliente passa, falta booking.rescheduled). Stuck `7163` “Confirma” pós-handoff.
+
+Mutations: 2 POST 201, 1 PUT 204, 1 POST /clientes 400. Orphans OPEN 9 / desta versão 1. Não POST. Não resume. Handoff `docs/handoffs/2026-09-02-nox-patrol-audit.yaml`.
+

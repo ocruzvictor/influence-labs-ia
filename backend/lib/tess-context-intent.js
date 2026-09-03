@@ -16,14 +16,15 @@ const INTENTS = Object.freeze({
   UNCERTAIN: 'UNCERTAIN',
 });
 
-const PRICE_RE = /\b(quanto|preco|preço|valor|custa|custo|quanto\s+fica)\b/i;
+const PRICE_RE = /\b(quanto|preco|preço|valor|custa|custo|quanto\s+fica|em conta|mais barato)\b/i;
 const FAQ_RE = /\b(endereco|endereço|onde fica|estacionamento|pix|pagamento|formas de pagamento|horario de funcionamento|horário de funcionamento|funcionamento|como chegar)\b/i;
 const CANCEL_RE = /\b(cancela|cancelar|cancel|desmarc|desmarquei|nao vou|não vou)\b/i;
+const ABORT_DISMISS_RE = /\b(deixa pra la|deixa pra lá|desisto|esquece|mudei de ideia|nao quero mais|não quero mais)\b/i;
 const RESCHEDULE_RE = /\b(remarc|mudar horario|mudar horário|trocar horario|trocar horário|outro horario|outro horário)\b/i;
 // Alias legado: clientes ainda pedem humano pelo nome de quem atendia antes.
 const HANDOFF_RE = /\b(falar com|humano|gabriel|atendente|pessoa real)\b/i;
 const DATE_RE = /\b(amanha|amanhã|hoje|tarde|noite|segunda|terca|terça|quarta|quinta|sext[ao]|sabado|sábado|domingo|\d{1,2}[\/\-]\d{1,2}|\d{1,2}h|\d{1,2}:\d{2})\b/i;
-const PROFESSIONAL_RE = /\b(tiago|andre|andré|erick|fefe|fernanda|gi\b|giovanna|claudia|cláudia|bruuna|bruna)\b/i;
+const PROFESSIONAL_RE = /\b(tiago|andre|andré|erick|erik|eric|fefe|fernanda|gi\b|giovanna|claudia|cláudia|bruuna|bruna|jackie|jacki|jaque|jaqueline|kamila|camila|dylan|eli)\b/i;
 
 const SERVICE_KEYWORDS = [
   'cort', 'barba', 'mecha', 'escova', 'color', 'camuflag', 'progressiva', 'hidrat',
@@ -32,6 +33,8 @@ const SERVICE_KEYWORDS = [
 ];
 
 const SCHEDULING_QUESTION_RE = /\b(horario|horário|qual servico|qual serviço|qual dia|qual data|que horas|prefere|escolhe|confirma|profissional|disponivel|disponível)\b/i;
+const POST_FAILED_ASSISTANT_RE = /\b(problema tecnico|problema técnico|nao consegui gravar|não consegui gravar|nao fecha na agenda|não fecha na agenda|nao fecha dentro do expediente|não fecha dentro do expediente)\b/i;
+const SCHEDULING_CONTINUATION_RE = /\b(outro dia|outro horario|outro horário|pode ser outro|prefere outro|tenta outro|remarc)\b/i;
 
 const TRIVIAL_EXACT = new Set([
   'oi', 'ola', 'olá', 'oie',
@@ -96,11 +99,45 @@ function isTrivialAllowlist(text) {
   return false;
 }
 
+function hasSchedulingAsk(norm) {
+  return /\b(agendar|quero marcar|marcar( um)? horario|vim pelo)\b/.test(norm);
+}
+
+function isSimpleBookingBundle(norm) {
+  if (hasPriceSignal(norm) || hasCancelSignal(norm) || hasRescheduleSignal(norm) || hasFaqSignal(norm)) {
+    return false;
+  }
+  const bits = [hasDateSignal(norm), hasServiceSignal(norm), hasProfessionalSignal(norm)]
+    .filter(Boolean).length;
+  return bits >= 2;
+}
+
 function hasCompoundIntent(messageText) {
   const norm = normalizeText(messageText);
   if (/^(oi|ola|olá|oie|bom dia|boa tarde|boa noite)\s+\S/.test(norm)) return true;
+  if (hasSchedulingAsk(norm)) return true;
   if (hasServiceSignal(norm) || hasDateSignal(norm) || hasPriceSignal(norm)) return true;
   if (hasProfessionalSignal(norm)) return true;
+  return false;
+}
+
+function isPostBookingFailedContext(history, lastBookingOutcome) {
+  if (lastBookingOutcome === 'failed' || lastBookingOutcome === 'blocked') return true;
+  if (!Array.isArray(history) || !history.length) return false;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i];
+    if (m?.role === 'assistant') {
+      return POST_FAILED_ASSISTANT_RE.test(normalizeText(m.content));
+    }
+    if (m?.role === 'user') break;
+  }
+  return false;
+}
+
+function isSchedulingContinuation(norm) {
+  if (SCHEDULING_CONTINUATION_RE.test(norm)) return true;
+  if (hasRescheduleSignal(norm)) return true;
+  if (hasDateSignal(norm) && norm.length <= 40) return true;
   return false;
 }
 
@@ -117,6 +154,24 @@ function isSchedulingInProgress(history) {
   return false;
 }
 
+function isConfirmationUtterance(text) {
+  const stripped = normalizeText(text).replace(/[!?.,;:]+$/g, '').trim();
+  return /^(sim|pode|confirmo|esse horario|esse horário|isso|pode ser|pode confirmar|confirma|ok pode|isso mesmo|correto|perfeito|fechado)$/.test(stripped);
+}
+
+function hasAbortDismissSignal(norm) {
+  return ABORT_DISMISS_RE.test(norm);
+}
+
+function isDraftSchedulingContext(history) {
+  if (isSchedulingInProgress(history)) return true;
+  const historyNorm = (history || [])
+    .filter((m) => m?.role === 'user')
+    .map((m) => normalizeText(m.content))
+    .join(' ');
+  return hasServiceSignal(historyNorm) || hasDateSignal(historyNorm);
+}
+
 function hasMultipleIntents(norm) {
   let count = 0;
   if (hasPriceSignal(norm)) count++;
@@ -126,7 +181,8 @@ function hasMultipleIntents(norm) {
   return count >= 2;
 }
 
-function classifyTessIntent(messageText, history = [], futureBookings = []) {
+function classifyTessIntent(messageText, history = [], futureBookings = [], opts = {}) {
+  const { lastBookingOutcome } = opts;
   const signals = [];
   const norm = normalizeText(messageText);
   const textLen = String(messageText || '').length;
@@ -136,7 +192,22 @@ function classifyTessIntent(messageText, history = [], futureBookings = []) {
     return { intent: INTENTS.UNCERTAIN, confidence: 'low', signals };
   }
 
+  if (isPostBookingFailedContext(history, lastBookingOutcome)) {
+    if (hasFaqSignal(norm) && !hasServiceSignal(norm) && !hasDateSignal(norm) && !isSchedulingContinuation(norm)) {
+      signals.push('post_failed', 'faq');
+      return { intent: INTENTS.FAQ, confidence: 'high', signals };
+    }
+    if (isSchedulingContinuation(norm) || isConfirmationUtterance(messageText)) {
+      signals.push('post_failed', 'continuation');
+      return { intent: INTENTS.SCHEDULING, confidence: 'high', signals };
+    }
+  }
+
   if (textLen > 120) {
+    if (isSimpleBookingBundle(norm) || hasSchedulingAsk(norm)) {
+      signals.push('long_but_booking');
+      return { intent: INTENTS.SCHEDULING, confidence: 'high', signals };
+    }
     signals.push('long_message');
     return { intent: INTENTS.UNCERTAIN, confidence: 'low', signals };
   }
@@ -146,7 +217,7 @@ function classifyTessIntent(messageText, history = [], futureBookings = []) {
     return { intent: INTENTS.UNCERTAIN, confidence: 'low', signals };
   }
 
-  if (hasMultipleIntents(norm) && textLen > 50) {
+  if (hasMultipleIntents(norm) && textLen > 50 && !isSimpleBookingBundle(norm)) {
     signals.push('multi_intent');
     return { intent: INTENTS.UNCERTAIN, confidence: 'low', signals };
   }
@@ -159,17 +230,31 @@ function classifyTessIntent(messageText, history = [], futureBookings = []) {
     return { intent: INTENTS.RESCHEDULE, confidence: 'high', signals: ['reschedule'] };
   }
 
+  const draftActive = isDraftSchedulingContext(history);
+  const noFutureBookings = !Array.isArray(futureBookings) || futureBookings.length === 0;
+
   if (hasCancelSignal(norm)) {
-    if (Array.isArray(futureBookings) && futureBookings.length > 0) {
+    if (!noFutureBookings) {
       return { intent: INTENTS.CANCEL, confidence: 'high', signals: ['cancel', 'future_bookings'] };
     }
-    signals.push('cancel_no_bookings');
-    return { intent: INTENTS.UNCERTAIN, confidence: 'low', signals };
+    if (draftActive) {
+      return { intent: INTENTS.FAQ, confidence: 'high', signals: ['abort_draft'] };
+    }
+    return { intent: INTENTS.CANCEL, confidence: 'high', signals: ['cancel_no_bookings'] };
+  }
+
+  if (hasAbortDismissSignal(norm) && draftActive && noFutureBookings) {
+    return { intent: INTENTS.FAQ, confidence: 'high', signals: ['abort_draft'] };
   }
 
   if (isSchedulingInProgress(history)) {
-    signals.push('scheduling_in_progress');
-    return { intent: INTENTS.UNCERTAIN, confidence: 'low', signals };
+    if (hasFaqSignal(norm)) {
+      return { intent: INTENTS.FAQ, confidence: 'high', signals: ['scheduling_in_progress', 'faq'] };
+    }
+    if (hasPriceSignal(norm)) {
+      return { intent: INTENTS.PRICING, confidence: 'high', signals: ['scheduling_in_progress', 'price'] };
+    }
+    return { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['scheduling_in_progress'] };
   }
 
   if (hasCompoundIntent(messageText)) {
@@ -195,11 +280,15 @@ function classifyTessIntent(messageText, history = [], futureBookings = []) {
     return { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] };
   }
 
-  if (history?.length > 0 && /^(sim|pode|confirmo|esse horario|esse horário|isso|pode ser)$/.test(norm)) {
-    return { intent: INTENTS.SCHEDULING, confidence: 'medium', signals: ['confirmation'] };
+  if (history?.length > 0 && isConfirmationUtterance(messageText)) {
+    return { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['confirmation'] };
   }
 
-  if (textLen > 40 || hasMultipleIntents(norm)) {
+  if (hasSchedulingAsk(norm)) {
+    return { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['scheduling_ask'] };
+  }
+
+  if ((textLen > 40 || hasMultipleIntents(norm)) && !isSimpleBookingBundle(norm)) {
     return { intent: INTENTS.UNCERTAIN, confidence: 'low', signals: ['ambiguous'] };
   }
 
@@ -236,15 +325,24 @@ function trivialSkipResponse() {
 
 module.exports = {
   INTENTS,
+  PROFESSIONAL_RE,
   classifyTessIntent,
   isTrivialAllowlist,
   shouldSkipTess,
   hasCompoundIntent,
   isSchedulingInProgress,
+  isPostBookingFailedContext,
+  isSchedulingContinuation,
+  isConfirmationUtterance,
   isMediaMessage,
   trivialSkipResponse,
   normalizeText,
   hasServiceSignal,
   hasDateSignal,
   hasPriceSignal,
+  hasFaqSignal,
+  hasAbortDismissSignal,
+  isDraftSchedulingContext,
+  hasSchedulingAsk,
+  isSimpleBookingBundle,
 };

@@ -29,6 +29,38 @@ const QUEM_CANCELOU = {
   OUTRO: 4,
 };
 
+// POST /clientes Telefones[].TipoId — Trinks API "Valores Enumerados" (tipo de telefone).
+// Ref: https://trinks.readme.io/reference/valores-enumerados
+// 400 prod literal: Telefones[0].TipoId: 'Tipo Id' must not be empty.
+const TELEFONE_TIPO_ID = {
+  NAO_INFORMADO: 0,
+  COMERCIAL: 1,
+  RESIDENCIAL: 2,
+  CELULAR: 3,
+  RECADO: 4,
+  OUTRO: 5,
+  WHATSAPP: 6,
+};
+
+/** Body puro do POST /clientes — testável sem I/O. */
+function buildCreateClientPayload({
+  estabelecimentoId,
+  nome,
+  ddd,
+  numero,
+  tipoId = TELEFONE_TIPO_ID.WHATSAPP,
+}) {
+  const actor = Number(tipoId);
+  if (!Number.isInteger(actor) || actor < 0 || actor > 6) {
+    throw new Error(`TipoId invalido: ${tipoId}`);
+  }
+  return {
+    estabelecimentoId: String(estabelecimentoId),
+    nome: nome || 'Cliente WhatsApp',
+    telefones: [{ ddd, numero, TipoId: actor }],
+  };
+}
+
 /** Monta body do PATCH cancelado com quemCancelou coerced para int32 válido. */
 function buildCancelPayload(motivo, quemCancelou = QUEM_CANCELOU.CLIENTE) {
   const actor = Number(quemCancelou);
@@ -138,7 +170,9 @@ module.exports = {
   toTimestamptz,
   mapAppointment,
   buildCancelPayload,
+  buildCreateClientPayload,
   STATUS_BY_ID,
   QUEM_CANCELOU,
+  TELEFONE_TIPO_ID,
   BR_OFFSET,
 };

@@ -107,6 +107,7 @@ test('persistência é idempotente e evento de cliente é processado', async () 
 test('processNotification com envelope SNS PT upsert agendamento', async () => {
   const updates = [];
   const saved = [];
+  const slotMarks = [];
   const processor = createTrinksWebhookProcessor({
     db: {
       async query(sql, params) {
@@ -119,6 +120,9 @@ test('processNotification com envelope SNS PT upsert agendamento', async () => {
       upsertProfessional: async () => {},
       getClientByTrinksId: async () => null,
       upsertAppointment: async value => saved.push(value),
+      markSlotWindowAvailable: async (profId, startsAt, durationMin, available) => {
+        slotMarks.push({ profId, startsAt, durationMin, available });
+      },
     },
   });
   const envelope = {
@@ -137,6 +141,40 @@ test('processNotification com envelope SNS PT upsert agendamento', async () => {
   assert.equal(saved[0].durationMin, 40);
   assert.equal(saved[0].scheduledAt, '2026-08-15T14:30:00-03:00');
   assert.equal(updates.at(-1)[2], 'processed');
+  assert.equal(slotMarks.length, 1);
+  assert.equal(String(slotMarks[0].profId), String(saved[0].professionalId));
+  assert.equal(slotMarks[0].startsAt, '2026-08-15T14:30:00-03:00');
+  assert.equal(slotMarks[0].durationMin, 40);
+  assert.equal(slotMarks[0].available, false);
+});
+
+test('processNotification evento 13 (cancel/delete) devolve a janela na grade', async () => {
+  const slotMarks = [];
+  const processor = createTrinksWebhookProcessor({
+    db: {
+      async query(sql) {
+        return { rows: [] };
+      },
+    },
+    store: {
+      getClientByTrinksId: async () => null,
+      upsertAppointment: async () => ({}),
+      markSlotWindowAvailable: async (profId, startsAt, durationMin, available) => {
+        slotMarks.push({ profId, startsAt, durationMin, available });
+      },
+    },
+  });
+  const envelope = {
+    MessageId: 'pt-13',
+    TopicArn: 'arn:test',
+    Type: 'Notification',
+    Message: JSON.stringify({ ...PT_APPOINTMENT_MESSAGE, TipoDeEvento: 13, Action: 3 }),
+  };
+  const result = await processor.processNotification(envelope);
+  assert.equal(result.eventId, 13);
+  assert.equal(slotMarks.length, 1);
+  assert.equal(slotMarks[0].available, true);
+  assert.equal(slotMarks[0].durationMin, 40);
 });
 
 test('evento fechamento de conta (1) marca processed sem throw', async () => {

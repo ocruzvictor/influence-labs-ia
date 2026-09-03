@@ -174,6 +174,41 @@ function stripBookingTags(tessText) {
 
 const RESIDUAL_TAG_RE = /\[(BOOKING_CREATE|BOOKING_CANCEL|BOOKING_RESCHEDULE|BOOKING_CONFIRM|BOOKING_REQUEST|HANDOFF_HUMAN)[^\]]*\]/gi;
 
+/** Tags inventadas pelo modelo (ex. CHECK_AVAILABILITY) — nunca devem ir ao WhatsApp. */
+const UNKNOWN_TAG_RE = /\[[^\]]{1,800}\]/g;
+
+function shouldKeepBracketTag(tagBody) {
+  const body = String(tagBody || '');
+  if (/^BOOKING_/i.test(body)) return true;
+  if (/^HANDOFF_HUMAN/i.test(body)) return true;
+  if (/CLIENTE ENVIOU/i.test(body)) return true;
+  if (/AUDIO TRANSCRITO/i.test(body)) return true;
+  if (/STICKER/i.test(body)) return true;
+  return false;
+}
+
+function stripUnknownTags(text) {
+  return String(text || '').replace(UNKNOWN_TAG_RE, (match) => {
+    const body = match.slice(1, -1);
+    return shouldKeepBracketTag(body) ? match : '';
+  });
+}
+
+function stripModelScratch(text) {
+  const fence = '`'.repeat(3);
+  let s = String(text || '');
+  const fenceRe = new RegExp(fence + '[\\s\\S]*?' + fence, 'g');
+  const unclosedRe = new RegExp(fence + '[\\s\\S]*$', 'g');
+  s = s.replace(fenceRe, '');
+  s = s.replace(unclosedRe, '');
+  s = s.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+  s = s.replace(/<\/?(?:function_call|tool_call|tool_use|invoke)[^>]*>/gi, '');
+  s = s.replace(/^\s*\[Valid[^\n]*$/gim, '');
+  return s;
+}
+
+const STRIP_TAG_FALLBACK = 'Deixa eu conferir esse horário.';
+
 function stripResidualBookingTags(text) {
   let s = String(text || '');
   s = s.replace(RESIDUAL_TAG_RE, '');
@@ -181,12 +216,17 @@ function stripResidualBookingTags(text) {
   s = s.replace(/\[BOOKING_CANCEL\]\s*\n?{[\s\S]*?}/gi, '');
   s = s.replace(/\[BOOKING_RESCHEDULE\]\s*\n?{[\s\S]*?}/gi, '');
   s = s.replace(/\[BOOKING_REQUEST\]\s*\n?{[\s\S]*?}/gi, '');
+  s = stripModelScratch(s);
+  s = stripUnknownTags(s);
+  s = s.replace(/\bTA\s*-\s*/g, '');
   s = s.replace(/^\s*[\[\]]\s*$/gm, '');
-  return s.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  s = s.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  if (!s) return STRIP_TAG_FALLBACK;
+  return s;
 }
 
 const PREMATURE_CONFIRM_PATTERNS = [
-  /\b(agendado|confirmado|pronto)\s*!+/gi,
+  /\b(agendado|confirmado|pronto)\s*[,!.]*/gi,
   /\b(agendamento )?(realizado|finalizado|fechado)\b/gi,
   /\bte esperamos\b/gi,
   /\b(cancelando|cancelado)\b[^\n]*/gi,
@@ -194,13 +234,41 @@ const PREMATURE_CONFIRM_PATTERNS = [
   /\b(já )?cancelei\b[^\n]*/gi,
   /\bdesmarquei\b[^\n]*/gi,
   /\bvou cancelar\b[^\n]*/gi,
+  /\bta garantido\b[^\n]*/gi,
+  /\btá garantido\b[^\n]*/gi,
+  /\bvou registrar\b[^\n]*/gi,
+  /\bgabriel confere\b[^\n]*/gi,
+  /\brecepcao confere\b[^\n]*/gi,
+  /\brecepção confere\b[^\n]*/gi,
+  /\bjá marcado\b[^\n]*/gi,
+  /\bja marcado\b[^\n]*/gi,
+  /\bjá está marcado\b[^\n]*/gi,
+  /\bja esta marcado\b[^\n]*/gi,
+  /\bvou reagendar\b[^\n]*/gi,
 ];
 
-function sanitizePrematureConfirm(text) {
+const POST_FAIL_CONFIRM_PATTERNS = [
+  /\bj[aá]\s+confirmamos\b[^\n]*/gi,
+  /\btudo certo com\b[^\n]*/gi,
+  /\bseu agendamento est[aá][^\n]*/gi,
+];
+
+const COMBO_FUSION_PATTERNS = [
+  /\bprontinho\b[^\n]*/gi,
+  /\b(?:franja|escova|corte|barba|manicure)[^\n]*\b(?:\+| e )\b[^\n]*(?:franja|escova|corte|barba|manicure)[^\n]*(?:est[aá]|marcad)/gi,
+];
+
+function sanitizePrematureConfirm(text, options = {}) {
   let s = text;
   for (const re of PREMATURE_CONFIRM_PATTERNS) s = s.replace(re, '');
+  if (options.afterFailOrBlock) {
+    for (const re of POST_FAIL_CONFIRM_PATTERNS) s = s.replace(re, '');
+  }
+  if (options.comboSecondBlocked) {
+    for (const re of COMBO_FUSION_PATTERNS) s = s.replace(re, '');
+  }
   s = s.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
-  return s || 'Confirmo aqui então 👀';
+  return s || 'Deixa eu conferir esse horário na agenda.';
 }
 
 function resolveServiceName(servicesData, serviceId) {
@@ -428,10 +496,18 @@ function filterServicesByKeywords(servicesData, messageText) {
     .normalize('NFD')
     .replace(/\p{M}/gu, '');
   const hits = FILTER_SERVICE_KEYWORDS.filter((kw) => norm.includes(kw));
+  // KB sinonimos-servicos.md: "pé" → Pedicure (default); "mão" → Manicure.
+  const padded = ` ${norm} `;
+  const peMatch = /(^|[\s,.;:!?])(pe|pes)($|[\s,.;:!?])/.test(padded);
+  const maoMatch = /(^|[\s,.;:!?])(mao|maos)($|[\s,.;:!?])/.test(padded);
+  if (peMatch) hits.push('pedicure');
+  if (maoMatch) hits.push('manicure');
   if (!hits.length) return null;
   const filtered = servicesData.filter((s) => {
     const name = normalizeServiceName(s.nome);
-    return hits.some((kw) => name.includes(kw));
+    if (hits.some((kw) => name.includes(kw))) return true;
+    if (peMatch && /depilacao de pe|spa dos pes|escalda/.test(name)) return true;
+    return false;
   });
   return filtered.length ? filtered : null;
 }
@@ -529,12 +605,90 @@ function isBookingOwnedByClient(bookingId, futureBookings) {
   );
 }
 
+function serviceSkuMatches(appointment, serviceName, serviceId) {
+  if (!appointment) return false;
+  if (serviceId != null && appointment.service_id != null) {
+    return String(appointment.service_id) === String(serviceId);
+  }
+  if (!serviceName || !appointment.service_name) return false;
+  const a = normalizeServiceName(appointment.service_name);
+  const b = normalizeServiceName(serviceName);
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+/**
+ * Resolve agendamentoId para PUT reschedule — bind SKU Rosa (P0.6).
+ * Retorna { agendamentoId, reason } — reason preenchido quando 0 PUT.
+ */
+function resolveRescheduleAgendamentoId({
+  bookingReschedule,
+  futureBookings,
+  findClientBookingResult = null,
+}) {
+  const rosa = Array.isArray(futureBookings) ? futureBookings : [];
+  const targetName = bookingReschedule?.service_name;
+  const targetId = bookingReschedule?.service_id;
+
+  if (bookingReschedule?.agendamento_id) {
+    const id = String(bookingReschedule.agendamento_id);
+    const owned = rosa.find((b) => String(b.trinks_id) === id);
+    if (!owned || !isBookingOwnedByClient(id, rosa)) {
+      return { agendamentoId: null, reason: 'not_owned' };
+    }
+    if (!serviceSkuMatches(owned, targetName, targetId)) {
+      return { agendamentoId: null, reason: 'sku_mismatch' };
+    }
+    return { agendamentoId: id, reason: null };
+  }
+
+  if (!rosa.length) {
+    return { agendamentoId: null, reason: 'rosa_vazio' };
+  }
+
+  let candidates = rosa.filter((b) => serviceSkuMatches(b, targetName, targetId));
+  if (bookingReschedule?.professional_id && candidates.length > 1) {
+    const profFiltered = candidates.filter(
+      (b) => String(b.professional_id) === String(bookingReschedule.professional_id),
+    );
+    if (profFiltered.length) candidates = profFiltered;
+  }
+
+  if (candidates.length === 1) {
+    return { agendamentoId: String(candidates[0].trinks_id), reason: null };
+  }
+
+  if (findClientBookingResult) {
+    const foundId = String(findClientBookingResult.id || findClientBookingResult.trinks_id || '');
+    const owned = rosa.find((b) => String(b.trinks_id) === foundId);
+    if (owned && serviceSkuMatches(owned, targetName, targetId)) {
+      return { agendamentoId: foundId, reason: null };
+    }
+    return { agendamentoId: null, reason: 'sku_mismatch' };
+  }
+
+  if (candidates.length > 1) {
+    return { agendamentoId: null, reason: 'ambiguous' };
+  }
+
+  return { agendamentoId: null, reason: 'sku_mismatch' };
+}
+
+function formatRescheduleRefusalMessage(reason) {
+  if (reason === 'rosa_vazio') {
+    return 'Não encontrei um agendamento seu na agenda pra remarcar. Me confirma qual serviço e horário você tinha, ou fala com a recepção.';
+  }
+  return 'Não consegui remarcar esse horário automaticamente — o serviço não bate com o que está na agenda. Me confirma qual agendamento você quer mudar, ou a recepção te ajuda.';
+}
+
 module.exports = {
   normalizeJsonQuotes,
   parseInlineArgs,
   parseCreateArgs,
   stripBookingTags,
   stripResidualBookingTags,
+  stripUnknownTags,
+  stripModelScratch,
   sanitizePrematureConfirm,
   sanitizeInventedClientTurns,
   resolveServiceName,
@@ -559,9 +713,13 @@ module.exports = {
   usesApartirDePricing,
   hasRecentClientImageMarker,
   isBookingOwnedByClient,
+  serviceSkuMatches,
+  resolveRescheduleAgendamentoId,
+  formatRescheduleRefusalMessage,
   normalizeServiceName,
   CLIENT_IMAGE_MARKER,
   FREE_SERVICE_NAMES,
   HABILITACAO_HEADER,
   PREMATURE_CONFIRM_PATTERNS,
+  POST_FAIL_CONFIRM_PATTERNS,
 };

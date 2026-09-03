@@ -42,6 +42,9 @@ const {
   buildCreateSuccessMessage,
   pickCreateGuard,
   comboOverlaps,
+  formatDataFmtFrom201,
+  resolveServicoNomeFrom201,
+  findActiveAppointmentConflict,
 } = require('./lib/booking-guards');
 const { getBotState, resolvePhoneAccess } = require('./lib/bot-state');
 const {
@@ -51,6 +54,8 @@ const {
   persistStaffOutbound,
 } = require('./lib/bot-thread-state');
 const { tessAuthHeaders, tessWorkspaceConfigured, tessWorkspaceId } = require('./lib/tess-auth');
+const nightwatchOps = require('./lib/nightwatch-ops');
+const { mountNightwatchMcp } = require('./lib/nightwatch-mcp');
 
 // --- Load .env (zero deps) ---
 try {
@@ -128,6 +133,8 @@ const {
   isConsultiveColorService,
   isFreeAllowlistedService,
   isBookingOwnedByClient,
+  resolveRescheduleAgendamentoId,
+  formatRescheduleRefusalMessage,
   needsReferenceService,
   hasRecentClientImageMarker,
 } = require('./lib/booking-parser');
@@ -144,7 +151,8 @@ const {
   formatTessCreditAlert,
 } = require('./lib/tess-credit-usage');
 const { createTrinksApi } = require('./lib/trinks-api');
-const { buildCancelPayload, QUEM_CANCELOU } = require('./lib/trinks-mapping');
+const { buildCancelPayload, buildCreateClientPayload, QUEM_CANCELOU } = require('./lib/trinks-mapping');
+const { shouldHandoffEmptyTess, handleEmptyTessHandoff } = require('./lib/tess-empty-handoff');
 const { createTrinksLocalStore } = require('./lib/trinks-local-store');
 const { createTrinksSnsHandler, SnsValidationError } = require('./lib/trinks-sns');
 const { createTrinksWebhookProcessor } = require('./lib/trinks-webhook-processor');
@@ -725,11 +733,12 @@ async function createClientInTrinks(phone, name) {
   const ddd = national.slice(0, 2);
   const numero = national.slice(2);
   if (ddd.length !== 2 || numero.length < 8) throw new Error('telefone invalido para criar cliente');
-  const payload = {
-    estabelecimentoId: String(TRINKS_EST_ID),
-    nome: name || 'Cliente WhatsApp',
-    telefones: [{ ddd, numero }],
-  };
+  const payload = buildCreateClientPayload({
+    estabelecimentoId: TRINKS_EST_ID,
+    nome: name,
+    ddd,
+    numero,
+  });
   const response = await trinksApi.request('/clientes', {
     method: 'POST',
     body: payload,
@@ -832,9 +841,11 @@ async function cancelBookingInTrinks(agendamentoId, motivo, quemCancelou = QUEM_
       cancelledAt: new Date(),
     });
     if (current?.professional_id && current?.scheduled_at) {
-      await trinksLocalStore.markSlotAvailable(
+      const durationMin = Number(current.duration_min) || 30;
+      await trinksLocalStore.markSlotWindowAvailable(
         current.professional_id,
         current.scheduled_at,
+        durationMin,
         true,
       );
     }
@@ -888,15 +899,18 @@ async function rescheduleBookingInTrinks(agendamentoId, booking, professionalsDa
       scheduledAt: `${booking.date}T${booking.time}:00-03:00`,
     });
     if (current?.professional_id && current?.scheduled_at) {
-      await trinksLocalStore.markSlotAvailable(
+      const oldDur = Number(current.duration_min) || duracao || 30;
+      await trinksLocalStore.markSlotWindowAvailable(
         current.professional_id,
         current.scheduled_at,
+        oldDur,
         true,
       );
     }
-    await trinksLocalStore.markSlotAvailable(
+    await trinksLocalStore.markSlotWindowAvailable(
       payload.profissionalId,
       `${booking.date}T${booking.time}:00-03:00`,
+      duracao || 30,
       false,
     );
   } catch (err) {
@@ -1002,9 +1016,10 @@ async function createBookingInTrinks(booking, professionalsData) {
     }
   }
   try {
-    await trinksLocalStore.markSlotAvailable(
+    await trinksLocalStore.markSlotWindowAvailable(
       profId,
       `${booking.date}T${booking.time}:00-03:00`,
+      duracao || 30,
       false,
     );
   } catch (err) {
@@ -1123,6 +1138,7 @@ async function runOperatorResumeTurn(phone, operatorNote) {
     OPERATOR_RESUME_TRIGGER,
     historyForClassify,
     futureBookingsForClassify,
+    { lastBookingOutcome: state.lastBookingOutcome },
   );
 
   const requestedDate = extractRequestedDate(OPERATOR_RESUME_TRIGGER);
@@ -1251,7 +1267,9 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   // Classificar intenção ANTES do fetch Trinks (context-on-demand)
   const historyForClassify = state.history.slice(-8);
   const futureBookingsForClassify = phone ? await loadClientFutureBookings(phone) : [];
-  const intentResult = classifyTessIntent(messageText, historyForClassify, futureBookingsForClassify);
+  const intentResult = classifyTessIntent(messageText, historyForClassify, futureBookingsForClassify, {
+    lastBookingOutcome: state.lastBookingOutcome,
+  });
   const isMedia = isMediaMessage(messageText);
 
   let pendingOperatorNote = null;
@@ -1292,6 +1310,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   let tessText;
   let tessRaw = null;
   let svcPayload = { text: '', data: [] };
+  let profsPayload = { text: '', data: [] };
   let contextProfile = 'FULL';
   let assembledCtx = null;
   let tessCredits = null;
@@ -1351,7 +1370,16 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       mergeSlotContextDates,
       nextSaturdayDates,
     });
-    svcPayload = assembledCtx.svcPayload;
+    svcPayload = {
+      text: assembledCtx.svcPayload?.text || '',
+      data: Array.isArray(assembledCtx.svcPayload?.data) ? assembledCtx.svcPayload.data : [],
+    };
+    // Marcel 2513 2026-09-02: CREATE crashava com profsPayload is not defined /
+    // .data ausente e o kapso catch engolia o send.
+    profsPayload = {
+      text: assembledCtx.profsPayload?.text || '',
+      data: Array.isArray(assembledCtx.profsPayload?.data) ? assembledCtx.profsPayload.data : [],
+    };
     contextProfile = assembledCtx.contextProfile;
     emitContextBytesLog(assembledCtx, sessionId, TESS_CONTEXT_CONFIG, false);
 
@@ -1395,8 +1423,30 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   if (rootId) state.rootId = rootId;
   if (!tessText) {
     console.error('[TESS] Empty response:', JSON.stringify(summarizeFailedTessResponse(tessRaw)));
+    const fallback = 'Ola! Estou com uma dificuldade tecnica. Nosso atendimento humano entrara em contato em breve!';
+    const emptyCredits = extractTessCredits(tessRaw);
+    emitOperationalEvent(db, {
+      event: 'tess.empty',
+      clientPhone: phone,
+      kapsoConversationId,
+      payload: { intent: intentResult?.intent || null, credits: emptyCredits },
+    }).catch(() => {});
+    await handleEmptyTessHandoff({
+      credits: emptyCredits,
+      phone,
+      db,
+      kapsoConversationId,
+      markHumanHandled,
+      shouldEmitHandoff,
+      emitOperationalEvent,
+    }).catch((err) => console.error('[empty-handoff] error:', err.message));
+    if (phone) {
+      saveConversationTurns(phone, [
+        { role: 'assistant', content: fallback, agent: 'tess-fallback' },
+      ]).catch((err) => console.error('[DB] Save empty-TESS fallback error:', err.message));
+    }
     return {
-      response: 'Ola! Estou com uma dificuldade tecnica. Nosso atendimento humano entrara em contato em breve!',
+      response: fallback,
       timestamp: new Date().toISOString(),
     };
   }
@@ -1442,10 +1492,14 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   // Mensagem final de sucesso/falha eh construida pelo backend apos chamada a Trinks (bloco 4 abaixo).
   const createsToRun = bookingCreates.length ? bookingCreates : (bookingConfirm ? [bookingConfirm] : []);
   const cancelsToRun = bookingCancels.length ? bookingCancels : (bookingCancel ? [bookingCancel] : []);
-  const hasBookingTag = createsToRun.length || cancelsToRun.length || bookingReschedule;
-  const displayText = hasBookingTag ? sanitizePrematureConfirm(sanitizedCleanText) : sanitizedCleanText;
+  const afterFailOrBlock = state.lastBookingOutcome === 'failed' || state.lastBookingOutcome === 'blocked';
+  const displayText = sanitizePrematureConfirm(sanitizedCleanText, {
+    afterFailOrBlock,
+    comboSecondBlocked: false,
+  });
+  if (afterFailOrBlock) state.lastBookingOutcome = null;
   const formatted = formatAssistantOutput(displayText, state.turn === 0);
-  state.history.push({ role: 'assistant', content: sanitizedCleanText });
+  state.history.push({ role: 'assistant', content: displayText });
   state.turn += 1;
   state.lastAccess = Date.now();
   // After first turn, session history is authoritative — keep cadastro, drop HISTORICO ANTERIOR.
@@ -1459,7 +1513,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   if (phone) {
     saveConversationTurns(phone, [
       { role: 'user', content: messageText },
-      { role: 'assistant', content: sanitizedCleanText },
+      { role: 'assistant', content: displayText },
     ]).catch(err => console.error('[DB] Save turns error:', err.message));
   }
 
@@ -1471,6 +1525,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   // Mensagens finais 2-phase (apos chamada a Trinks). Acumuladas em finalMessages,
   // enviadas como blocos extras apos o reply principal sanitizado.
   const finalMessages = [];
+
+  const futureBookings = clientPhone ? await loadClientFutureBookings(clientPhone) : [];
 
   // 4a. Criar agendamento(s) — combo: processa em sequência e para no primeiro erro
   const distinctServiceIds = new Set(
@@ -1503,6 +1559,14 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
 
   const skipCreates = Boolean(handoffHuman);
+  let createIdempotentSkip = false;
+  let comboFirstSucceeded = false;
+  let comboSecondBlocked = false;
+
+  const markBookingOutcome = (outcome) => {
+    state.lastBookingOutcome = outcome;
+    sessionState.set(sessionId, state);
+  };
 
   if (skipCreates && createsToRun.length) {
     const blockKind = needsReferenceBlock
@@ -1552,11 +1616,14 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         },
       }).catch(() => {});
     }
+    markBookingOutcome('blocked');
   } else if (createsToRun.length) {
+    try {
     if (!state.createKeys) state.createKeys = new Set();
+    const profsData = Array.isArray(profsPayload.data) ? profsPayload.data : [];
     for (const createTag of createsToRun) {
     const profObj = createTag.professional_id
-      ? profsPayload.data.find(p => p.id === createTag.professional_id)
+      ? profsData.find(p => p.id === createTag.professional_id)
       : null;
     const bookingData = {
       service: createTag.service_name,
@@ -1586,6 +1653,16 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       bookingData.time,
       bookingData.durationMinutes,
     );
+    let appointmentConflict = null;
+    if (bookingData.professionalId && bookingData.date) {
+      const dayStart = new Date(`${bookingData.date}T00:00:00-03:00`);
+      const dayEnd = new Date(`${bookingData.date}T23:59:59-03:00`);
+      const profAppointments = await trinksLocalStore.listAppointmentsByProfessional(
+        bookingData.professionalId,
+        { from: dayStart, to: dayEnd },
+      );
+      appointmentConflict = findActiveAppointmentConflict(profAppointments, bookingData, { clientPhone });
+    }
     let compatible = true;
     if (bookingData.serviceId && bookingData.professionalId) {
       compatible = await trinksLocalStore.isCompatible(
@@ -1609,6 +1686,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         kapsoConversationId,
         payload: { kind: 'consultive', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId },
       }).catch(() => {});
+      if (comboFirstSucceeded) comboSecondBlocked = true;
+      markBookingOutcome('blocked');
       break;
     }
     if (priceZero && !isFreeAllowlistedService(servicoNomeGuard)) {
@@ -1626,7 +1705,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       }).catch(() => {});
       break;
     }
-    const guard = pickCreateGuard({ compatible, expedienteFit: fit, janelaFit });
+    const guard = pickCreateGuard({ compatible, expedienteFit: fit, janelaFit, appointmentConflict });
     if (guard.kind === 'incompatible') {
       const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
       const svcEntry = svcPayload.data.find(s => String(s.id) === String(bookingData.serviceId));
@@ -1648,6 +1727,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         kapsoConversationId,
         payload: { kind: 'incompatible', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId },
       }).catch(() => {});
+      if (comboFirstSucceeded) comboSecondBlocked = true;
+      markBookingOutcome('blocked');
       break;
     }
     if (guard.kind === 'expediente') {
@@ -1661,6 +1742,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         kapsoConversationId,
         payload: { kind: 'expediente', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId },
       }).catch(() => {});
+      if (comboFirstSucceeded) comboSecondBlocked = true;
+      markBookingOutcome('blocked');
       break;
     }
     if (guard.kind === 'janela') {
@@ -1674,11 +1757,29 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         kapsoConversationId,
         payload: { kind: 'janela', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId, reason: guard.reason },
       }).catch(() => {});
+      if (comboFirstSucceeded) comboSecondBlocked = true;
+      markBookingOutcome('blocked');
+      break;
+    }
+    if (guard.kind === 'ocupado') {
+      console.warn(`[${sessionId}] Booking BLOCKED ocupado: ${guard.reason}`);
+      finalMessages.push(
+        'Esse horário já está reservado na agenda da profissional. Me passa outro horário (ou outro dia) que eu te ajudo.',
+      );
+      emitOperationalEvent(db, {
+        event: 'guard.blocked',
+        clientPhone,
+        kapsoConversationId,
+        payload: { kind: 'ocupado', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId, reason: guard.reason },
+      }).catch(() => {});
+      if (comboFirstSucceeded) comboSecondBlocked = true;
+      markBookingOutcome('blocked');
       break;
     }
     const idemKey = createIdempotencyKey(bookingData);
     if (state.createKeys.has(idemKey)) {
       console.log(`[idempotency] create duplicado ignorado ${idemKey}`);
+      createIdempotentSkip = true;
       continue;
     }
     if (clientPhone && bookingData.date) {
@@ -1690,22 +1791,24 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       });
       if (findDuplicateAppointment(existing, bookingData)) {
         state.createKeys.add(idemKey);
+        createIdempotentSkip = true;
         console.log(`[idempotency] create duplicado ignorado ${idemKey}`);
         continue;
       }
     }
     try {
-      bookingResult = await createBookingInTrinks(bookingData, profsPayload.data);
+      bookingResult = await createBookingInTrinks(bookingData, profsData);
       state.createKeys.add(idemKey);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
-      const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
+      const servicoNome = resolveServicoNomeFrom201(
+        bookingResult,
+        bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId),
+      );
       if (phone && (servicoNome || bookingData.serviceId)) {
         updateClientAfterBooking(phone, servicoNome || `id:${bookingData.serviceId}`).catch(() => {});
       }
-      const valorFmt = (bookingData.valor ?? bookingResult?.valor ?? 0).toFixed(2).replace('.', ',');
-      const dataFmt = bookingData.date && bookingData.time
-        ? `${bookingData.date.split('-').reverse().join('/')} às ${bookingData.time}`
-        : 'no horario combinado';
+      const valorFmt = (bookingData.valor ?? bookingResult?.valor ?? bookingResult?.data?.valor ?? 0).toFixed(2).replace('.', ',');
+      const dataFmt = formatDataFmtFrom201(bookingResult, bookingData);
       const profNome = profObj?.apelido || profObj?.nome || 'a equipe';
       const servicoLinha = servicoNome ? `💅 ${servicoNome}\n` : '';
       finalMessages.push(buildCreateSuccessMessage({
@@ -1725,6 +1828,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
           afterHours: !isSalonOpen().open,
         },
       }).catch(() => {});
+      comboFirstSucceeded = true;
     } catch (err) {
       emitOperationalEvent(db, {
         event: 'booking.failed',
@@ -1733,6 +1837,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         kapsoConversationId,
         payload: {},
       }).catch(() => {});
+      markBookingOutcome('failed');
       if (err.message && err.message.includes('incompativel')) {
         const servicoNome = bookingData.service || resolveServiceName(svcPayload.data, bookingData.serviceId);
         const svcEntry = svcPayload.data.find(s => String(s.id) === String(bookingData.serviceId));
@@ -1760,6 +1865,36 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       break;
     }
     }
+    } catch (err) {
+      console.error(`[${sessionId}] Booking CREATE crashed:`, err.message);
+      emitOperationalEvent(db, {
+        event: 'booking.failed',
+        clientPhone,
+        motivo: err.message,
+        kapsoConversationId,
+        payload: { kind: 'create_crash' },
+      }).catch(() => {});
+      markBookingOutcome('failed');
+      if (!finalMessages.length) {
+        finalMessages.push(
+          `Opa, tive um problema técnico ao confirmar esse horário 😕\n\n` +
+          `Deixa eu tentar outro horário próximo pra você. Me fala se prefere outro dia ou outro profissional?`,
+        );
+      }
+    }
+  }
+
+  if (createsToRun.length && !skipCreates && !bookingResult && !finalMessages.length && !createIdempotentSkip) {
+    console.warn(`[${sessionId}] Booking CREATE dropped: tag parsed but no POST/guard/fail`);
+    emitOperationalEvent(db, {
+      event: 'booking.dropped',
+      clientPhone,
+      kapsoConversationId,
+      payload: { creates: createsToRun.length },
+    }).catch(() => {});
+    finalMessages.push(
+      'Não consegui gravar esse horário na agenda agora. Me confirma o dia, o serviço e o profissional que eu tento de novo — ou te passo pra recepção.',
+    );
   }
 
   // 4b. Cancelar agendamento(s)
@@ -1837,16 +1972,31 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
 
   // 4c. Reagendar agendamento
-  if (bookingReschedule) {
+  const reschedulesToRun = bookingReschedules.length
+    ? bookingReschedules
+    : (bookingReschedule ? [bookingReschedule] : []);
+  for (const bookingReschedule of reschedulesToRun) {
     console.log(`[${sessionId}] Booking reschedule from tag:`, JSON.stringify(bookingReschedule));
     try {
       const clienteId = clientPhone ? await getClientId(clientPhone) : null;
       if (!clienteId) throw new Error('clienteId nao encontrado para reagendamento');
 
-      const agendamentoId = bookingReschedule.agendamento_id
-        || (bookingReschedule.old_date ? (await findClientBooking(clienteId, bookingReschedule.old_date, bookingReschedule.professional_id))?.id : null);
+      const findResult = bookingReschedule.old_date
+        ? await findClientBooking(clienteId, bookingReschedule.old_date, bookingReschedule.professional_id)
+        : null;
+      const resolved = resolveRescheduleAgendamentoId({
+        bookingReschedule,
+        futureBookings,
+        findClientBookingResult: findResult,
+      });
 
-      if (!agendamentoId) throw new Error(`Agendamento original nao encontrado para data ${bookingReschedule.old_date}`);
+      if (!resolved.agendamentoId) {
+        console.warn(`[${sessionId}] Reschedule refused (${resolved.reason}):`, JSON.stringify(bookingReschedule));
+        finalMessages.push(formatRescheduleRefusalMessage(resolved.reason));
+        continue;
+      }
+
+      const agendamentoId = resolved.agendamentoId;
 
       const newBooking = {
         service: bookingReschedule.service_name,
@@ -1889,6 +2039,16 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
           ? `${newBooking.date.split('-').reverse().join('/')} às ${newBooking.time}`
           : 'no horario combinado';
         finalMessages.push(`Pronto, reagendei pra ${dataFmt}! Te esperamos. 😊`);
+        emitOperationalEvent(db, {
+          event: 'booking.rescheduled',
+          clientPhone,
+          kapsoConversationId,
+          payload: {
+            trinksId: agendamentoId,
+            serviceId: newBooking.serviceId,
+            serviceName: bookingReschedule.service_name || newBooking.service,
+          },
+        }).catch(() => {});
       }
     } catch (err) {
       if (err.message && err.message.includes('incompativel')) {
@@ -1939,6 +2099,11 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
 
   console.log(`[${sessionId}] Response (${Date.now() - startTime}ms): "${formatted.response.slice(0, 80)}..."`);
+  if (comboSecondBlocked && formatted.responses?.length) {
+    const resanitized = sanitizePrematureConfirm(formatted.responses[0], { comboSecondBlocked: true });
+    formatted.responses[0] = resanitized;
+    formatted.response = resanitized;
+  }
   // Anexa mensagens finais (sucesso/falha 2-phase) como blocos extras apos o reply principal.
   // AC11: cancel falhou → não enviar texto prematuro ("Cancelando...") antes da msg de erro.
   let allBlocks = [...formatted.responses, ...finalMessages];
@@ -1972,6 +2137,12 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       clientPhone,
       salonState: isSalonOpen(),
     };
+  }
+  if (phone && finalMessages.length) {
+    saveConversationTurns(
+      phone,
+      finalMessages.map((content) => ({ role: 'assistant', content, agent: 'trinks-2phase' })),
+    ).catch((err) => console.error('[DB] Save 2-phase turns error:', err.message));
   }
   return result;
 }
@@ -2767,9 +2938,9 @@ app.post('/admin/conversations/:phone/resume', async (req, res) => {
   if (!ADMIN_TOKEN || req.headers['x-admin-token'] !== ADMIN_TOKEN) {
     return res.status(401).json({ error: 'unauthorized' });
   }
-  const { note, actor } = req.body || {};
+  const { note, actor, force } = req.body || {};
   try {
-    const result = await resumeConversation(req.params.phone, { note, actor }, {
+    const result = await resumeConversation(req.params.phone, { note, actor, force }, {
       db,
       getBotState,
       resolvePhoneAccess,
@@ -3171,6 +3342,30 @@ app.get('/health', async (req, res) => {
   });
 });
 
+mountNightwatchMcp(app, {
+  getToken: () => process.env.NIGHTWATCH_MCP_TOKEN || process.env.ADMIN_TOKEN || '',
+  db,
+  ops: nightwatchOps,
+  getHealthLite: async () => {
+    const trinks_ping = await pingTrinks();
+    const tess_credits = await readTessCreditUsage();
+    return {
+      tess_agent: TESS_AGENT_ID,
+      accept_all: BOT_ACCEPT_ALL,
+      mode: BOT_ACCEPT_ALL ? 'OPEN' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT' : 'WHITELIST'),
+      trinks_ping: {
+        status: trinks_ping.status,
+        latency_ms: trinks_ping.latency_ms,
+        cached: Boolean(trinks_ping.cached),
+      },
+      tess_credits: {
+        remaining: tess_credits.account_remaining,
+        remaining_source: tess_credits.account_remaining != null ? 'account' : tess_credits.remaining_source,
+      },
+    };
+  },
+});
+
 // --- Start ---
 const port = process.env.PORT || 3001;
 if (require.main === module) {
@@ -3180,7 +3375,8 @@ if (require.main === module) {
     console.log(`   POST http://localhost:${port}/webhook/kapso`);
     console.log(`   POST http://localhost:${port}/webhook/trinks`);
     console.log(`   GET/POST http://localhost:${port}/webhook/meta`);
-    console.log(`   GET  http://localhost:${port}/health\n`);
+    console.log(`   GET  http://localhost:${port}/health`);
+    console.log(`   POST http://localhost:${port}/mcp (Nightwatch)\n`);
     console.log(`   TESS agent: ${TESS_AGENT_ID}`);
     const botMode = BOT_ACCEPT_ALL ? 'OPEN (responde todos)' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT (whitelist vazia)' : `WHITELIST (${BOT_ALLOWED_PHONES.length} telefone(s))`);
     console.log(`   Bot mode: ${botMode}`);

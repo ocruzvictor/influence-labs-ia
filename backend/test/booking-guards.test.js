@@ -5,6 +5,10 @@ const {
   findDuplicateAppointment,
   buildCreateSuccessMessage,
   pickCreateGuard,
+  comboOverlaps,
+  formatDataFmtFrom201,
+  resolveServicoNomeFrom201,
+  findActiveAppointmentConflict,
 } = require('../lib/booking-guards');
 
 const booking = {
@@ -117,20 +121,105 @@ test('pickCreateGuard — expediente ganha de janela', () => {
   assert.equal(guard.kind, 'expediente');
 });
 
-test('pickCreateGuard — multi_service quando distinctServiceCount >= 2', () => {
+test('pickCreateGuard — 2+ SKUs não viram veto cego', () => {
   const guard = pickCreateGuard({
     compatible: true,
     expedienteFit: { ok: true, reason: '' },
+    janelaFit: { ok: true, reason: '' },
     distinctServiceCount: 2,
   });
-  assert.equal(guard.kind, 'multi_service');
+  assert.equal(guard.kind, null);
 });
 
-test('pickCreateGuard — multi_service tem prioridade sobre incompatível', () => {
+test('pickCreateGuard — incompatível ganha mesmo com 2+ SKUs', () => {
   const guard = pickCreateGuard({
     compatible: false,
     expedienteFit: { ok: false, reason: 'depois das 19h' },
     distinctServiceCount: 3,
   });
-  assert.equal(guard.kind, 'multi_service');
+  assert.equal(guard.kind, 'incompatible');
+});
+
+test('comboOverlaps — sequência tocante no mesmo dia não overlap', () => {
+  assert.equal(comboOverlaps([
+    { date_time: '2026-09-05T14:00:00-03:00', duration_minutes: 60 },
+    { date_time: '2026-09-05T15:00:00-03:00', duration_minutes: 45 },
+  ]), false);
+});
+
+test('comboOverlaps — mesmo início é overlap', () => {
+  assert.equal(comboOverlaps([
+    { date_time: '2026-09-05T14:00:00-03:00', duration_minutes: 60 },
+    { date_time: '2026-09-05T14:00:00-03:00', duration_minutes: 30 },
+  ]), true);
+});
+
+test('comboOverlaps — janelas que se cruzam', () => {
+  assert.equal(comboOverlaps([
+    { date: '2026-09-05', time: '14:00', durationMinutes: 90 },
+    { date: '2026-09-05', time: '15:00', duration_minutes: 60 },
+  ]), true);
+});
+
+test('comboOverlaps — dias diferentes não overlap', () => {
+  assert.equal(comboOverlaps([
+    { date_time: '2026-09-05T14:00:00-03:00', duration_minutes: 120 },
+    { date_time: '2026-09-06T14:00:00-03:00', duration_minutes: 120 },
+  ]), false);
+});
+
+test('formatDataFmtFrom201 — 5718: POST 201 15:00 prevalece sobre tag 15:30', () => {
+  const bookingResult = { data: { dataHoraInicio: '2026-09-02T15:00:00' } };
+  const bookingData = { date: '2026-09-02', time: '15:30' };
+  const fmt = formatDataFmtFrom201(bookingResult, bookingData);
+  assert.match(fmt, /15:00/);
+  assert.doesNotMatch(fmt, /15:30/);
+});
+
+test('formatDataFmtFrom201 — fallback tag quando 201 omite start', () => {
+  const fmt = formatDataFmtFrom201({}, { date: '2026-09-02', time: '14:30' });
+  assert.match(fmt, /02\/09\/2026 às 14:30/);
+});
+
+test('resolveServicoNomeFrom201 — só SKU do 201 (franja, não combo verbal)', () => {
+  const name = resolveServicoNomeFrom201(
+    { data: { servico: { nome: 'Corte de franja' } } },
+    'Corte de franja + Escova',
+  );
+  assert.equal(name, 'Corte de franja');
+});
+
+test('findActiveAppointmentConflict — 9605: Fefe 09:00 ocupada por outro cliente', () => {
+  const rows = [{
+    status: 'confirmed',
+    professional_id: '826936',
+    scheduled_at: '2026-09-03T09:00:00-03:00',
+    client_phone: '5511999999999',
+    trinks_id: '14129517',
+  }];
+  const booking = { professionalId: '826936', date: '2026-09-03', time: '09:00' };
+  const conflict = findActiveAppointmentConflict(rows, booking, { clientPhone: '5511888888888' });
+  assert.ok(conflict);
+  assert.match(conflict.reason, /ocupado/);
+});
+
+test('findActiveAppointmentConflict — mesmo cliente no slot → sem conflito', () => {
+  const rows = [{
+    status: 'scheduled',
+    professional_id: '826936',
+    scheduled_at: '2026-09-03T09:00:00-03:00',
+    client_phone: '5511888888888',
+  }];
+  const booking = { professionalId: '826936', date: '2026-09-03', time: '09:00' };
+  assert.equal(findActiveAppointmentConflict(rows, booking, { clientPhone: '5511888888888' }), null);
+});
+
+test('pickCreateGuard — appointmentConflict → ocupado', () => {
+  const guard = pickCreateGuard({
+    compatible: true,
+    expedienteFit: { ok: true },
+    janelaFit: { ok: true },
+    appointmentConflict: { reason: 'inicio ja ocupado por outro cliente' },
+  });
+  assert.equal(guard.kind, 'ocupado');
 });

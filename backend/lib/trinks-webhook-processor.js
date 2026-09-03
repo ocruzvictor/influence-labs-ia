@@ -263,7 +263,24 @@ function createTrinksWebhookProcessor({ db, store }) {
           deleted,
           clientPhone: localClient?.phone || normalized.cliente?.telefone || null,
         });
-        if (appointment) await store.upsertAppointment(appointment);
+        if (appointment) {
+          await store.upsertAppointment(appointment);
+          if (appointment.professionalId && appointment.scheduledAt && typeof store.markSlotWindowAvailable === 'function') {
+            const cancelled = deleted
+              || appointment.status === 'cancelled'
+              || appointment.status === 'canceled';
+            try {
+              await store.markSlotWindowAvailable(
+                appointment.professionalId,
+                appointment.scheduledAt,
+                appointment.durationMin || 30,
+                cancelled,
+              );
+            } catch (slotErr) {
+              console.error('[trinks-webhook] markSlotWindowAvailable falhou:', slotErr.message);
+            }
+          }
+        }
       } else {
         throw new Error(`Unsupported Trinks webhook event: ${parsed.eventId}`);
       }

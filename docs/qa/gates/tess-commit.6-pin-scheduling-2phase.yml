@@ -1,0 +1,53 @@
+schema: 1
+story: 'tess-commit.6'
+story_title: 'Pin SCHEDULING pós-failed + 2-phase cita só start+SKU do POST 201'
+gate: PASS
+status_reason: 'Pin pós-failed devolve SCHEDULING high / BOOKING (não FULL 29k); FAQ nítido não pina; 2-phase usa dataHoraInicio+SKU do 201 (5718 15:00 ≠ tag 15:30). Copy de fail intacta. Fatia P1 81/81 + store/webhook 17/17.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:tess-context-intent.js@b0ebfc07,booking-guards.js@45dea11d,server.js@bd42a9b5,tess-context-intent.test.js@c605618e,tess-context-profiles.test.js@966a8e4a,booking-guards.test.js@65767144,HEAD:8b40465'
+updated: '2026-09-03T04:03:09Z'
+top_issues: []
+waiver: { active: false }
+
+quality_score: 100
+expires: '2026-09-17T04:03:09Z'
+
+evidence:
+  tests_reviewed: 81
+  tests_passed: 81
+  tests_failed: 0
+  p1_plus_store_webhook: '98/98 (81 fatia intent/profiles/guards/slots/prompt + 17 store/webhook)'
+  risks_identified: 0
+  coderabbit: 'SKIP — CLI presente; review manual da fatia. [AUTO-DECISION] QA não auto-fixa source.'
+  i1_unit: 'PASS — 0101 "Outro dia" → SCHEDULING high; quinta pós-blocked → SCHEDULING; 5718 bolha 15:00 do 201, não 15:30 da tag; resolveServicoNomeFrom201 só franja (não combo verbal).'
+  i3_clock: 'PASS — formatDataFmtFrom201 prefere dataHoraInicio do 201; fallback tag só se 201 omitir start (AUTO-DECISION Dex documentado).'
+  fail_copy: 'PASS — "Opa, tive um problema técnico ao confirmar esse horário" intacto em server.js ~1861/~1880.'
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'last4 só como rótulo; sem PII; zero POST Trinks real.'
+  performance:
+    status: PASS
+    notes: 'Pin é regex + flag de sessão; BOOKING slotDays=3 evita FULL 10d/29k.'
+  reliability:
+    status: PASS
+    notes: 'Flag lastBookingOutcome evicta = perde pin (mesmo trade-off da story 2). Fallback de history (assistant "problema técnico") cobre o fio imediato. 201 sem start → tag, não inventa hora.'
+  maintainability:
+    status: PASS
+    notes: 'Helpers formatDataFmtFrom201 / resolveServicoNomeFrom201 isolados em booking-guards.js; classifyTessIntent recebe opts.lastBookingOutcome no hot-path e no resume.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Opcional: teste de montagem 2-phase combo 1/2 no server (hoje coberto pelos helpers + comboSecondBlocked da story 2).'
+      refs: ['backend/server.js']
+
+auto_decisions:
+  - 'Status ready-for-review ≡ InReview → Done.'
+  - 'CodeRabbit skip (tree suja / anti-self-review).'
+  - 'gotchas.json ausente → skip.'
+  - '201 sem dataHoraInicio → fallback tag aceito (não inventar hora).'

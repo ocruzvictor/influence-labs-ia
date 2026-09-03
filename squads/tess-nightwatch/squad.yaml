@@ -1,0 +1,70 @@
+name: tess-nightwatch
+version: 1.0.0
+short-title: Tess Nightwatch 24/7
+description: >-
+  Squad de supervisão contínua do bot WhatsApp Tess 46589 / Trinks.
+  Personas (não modelos puros): Supervisor raciocina em Grok 4.6 High;
+  Patch Dev executa em Composer 2.5 Fast; Quality Sentinel usa High no
+  veredito e Fast nos testes; Floor Quality (negócio) usa High na leitura
+  do fio e Fast nos logs.
+author: Victor Cruz / Influence Labs
+license: UNLICENSED
+slashPrefix: nightwatch
+
+aios:
+  minVersion: "2.1.0"
+  type: squad
+
+components:
+  tasks:
+    - patrol-live.md
+    - rescue-thread.md
+    - activate-peer.md
+    - patch-booking-path.md
+    - verify-trinks-commit.md
+    - run-quality-gate.md
+    - audit-floor-quality.md
+  agents:
+    - nightwatch-supervisor.md
+    - patch-dev.md
+    - quality-sentinel.md
+    - floor-quality.md
+  workflows:
+    - patrol-loop.yaml
+    - incident-response.yaml
+  checklists:
+    - live-quality.md
+    - deploy-gate.md
+  templates: []
+  tools: []
+  scripts: []
+
+config:
+  extends: extend
+  coding-standards: config/coding-standards.md
+  tech-stack: config/tech-stack.md
+  source-tree: config/source-tree.md
+
+dependencies:
+  node: []
+  python: []
+  squads:
+    - salon-whatsapp
+
+tags:
+  - tess
+  - whatsapp
+  - trinks
+  - nightwatch
+  - ops
+
+llm:
+  planning: grok-4.6-high
+  execution: composer-2.5-fast
+  cursor_slugs:
+    planning: cursor-grok-4.6-medium
+    execution: composer-2.5-fast
+  note: >-
+    Product names are Grok 4.6 High and Composer 2.5 Fast.
+    Cursor Task slug for Grok High may resolve to cursor-grok-4.6-medium
+    until High is listed. Never spawn a raw model without a persona file.

@@ -48,10 +48,28 @@ test('bookingFitsSlotWindow — início fora da grade livre', () => {
   assert.match(fit.reason, /nao esta na grade/);
 });
 
-test('bookingFitsSlotWindow — snapshot vazio não bloqueia (expediente cobre o outro lado)', () => {
+test('bookingFitsSlotWindow — snapshot vazio fail-closed (P1.9)', () => {
   const fit = bookingFitsSlotWindow([], '2026-09-05', '14:00', 120);
-  assert.equal(fit.ok, true);
+  assert.equal(fit.ok, false);
+  assert.match(fit.reason, /grade indisponivel/);
   assert.equal(fit.contiguousMinutes, null);
+});
+
+test('4749-class: 17:00Z+17:30Z adjacentes → 60min contínuos no 14:00 BRT', () => {
+  const tiago4749 = [
+    new Date('2026-09-06T17:00:00.000Z'),
+    new Date('2026-09-06T17:30:00.000Z'),
+  ];
+  const fit = bookingFitsSlotWindow(tiago4749, '2026-09-06', '14:00', 60);
+  assert.equal(fit.ok, true);
+  assert.equal(fit.contiguousMinutes, 60);
+});
+
+test('4749-class: só um átomo 30min → recusa 60min', () => {
+  const single = [new Date('2026-09-06T17:00:00.000Z')];
+  const fit = bookingFitsSlotWindow(single, '2026-09-06', '14:00', 60);
+  assert.equal(fit.ok, false);
+  assert.match(fit.reason, /janela continua 30min/);
 });
 
 test('annotateStarts — quatro slots de 30min: 14:00 cabe 120min', () => {

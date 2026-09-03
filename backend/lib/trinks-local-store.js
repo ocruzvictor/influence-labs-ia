@@ -288,6 +288,27 @@ function createTrinksLocalStore(db) {
     return firstRow(result);
   }
 
+  /**
+   * Marca todos os inícios da grade que caem dentro de [startsAt, startsAt+duration).
+   * Balcão 13h/60min precisa ocupar 13:00 e 13:30, senão a IA oferece o meio da janela.
+   */
+  async function markSlotWindowAvailable(professionalId, startsAt, durationMin, available) {
+    const start = new Date(startsAt);
+    if (Number.isNaN(start.getTime()) || !professionalId) return [];
+    const dur = Math.max(Number(durationMin) || 30, 1);
+    const end = new Date(start.getTime() + dur * 60000);
+    const result = await db.query(
+      `UPDATE trinks_slots
+          SET available = $4, updated_at = NOW(), synced_at = NOW()
+        WHERE professional_id = $1
+          AND starts_at >= $2
+          AND starts_at < $3
+        RETURNING professional_id, starts_at, available`,
+      [String(professionalId), start.toISOString(), end.toISOString(), Boolean(available)],
+    );
+    return allRows(result);
+  }
+
   async function getClientByTrinksId(trinksId) {
     const result = await db.query(
       `SELECT trinks_id, phone, name, email, birth_date, active, raw,
@@ -352,6 +373,20 @@ function createTrinksLocalStore(db) {
       [String(trinksId)],
     );
     return firstRow(result);
+  }
+
+  async function listAppointmentsByProfessional(professionalId, { from = new Date(0), to = null } = {}) {
+    const result = await db.query(
+      `SELECT *
+         FROM trinks_appointments
+        WHERE professional_id = $1
+          AND scheduled_at >= $2
+          AND ($3::TIMESTAMPTZ IS NULL OR scheduled_at < $3)
+          AND deleted_at IS NULL
+        ORDER BY scheduled_at`,
+      [String(professionalId), from, to],
+    );
+    return allRows(result);
   }
 
   async function listAppointmentsByClient(phone, { from = new Date(0), to = null } = {}) {
@@ -480,11 +515,13 @@ function createTrinksLocalStore(db) {
     replaceSlotsForDate,
     hasSlotSnapshotForDate,
     markSlotAvailable,
+    markSlotWindowAvailable,
     getClientByTrinksId,
     getClientByPhone,
     upsertClient,
     getAppointment,
     listAppointmentsByClient,
+    listAppointmentsByProfessional,
     listAppointmentsByTrinksClient,
     upsertAppointment,
     markAppointmentStatus,

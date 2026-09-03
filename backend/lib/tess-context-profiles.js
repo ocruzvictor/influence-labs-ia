@@ -104,15 +104,15 @@ function buildContextProfile(intentResult, opts = {}) {
     case INTENTS.CANCEL:
       return {
         profile: PROFILES.CANCEL,
-        fetchSlots: true,
+        fetchSlots: false,
         fetchCatalog: false,
         fetchProfessionals: false,
         fetchHabilitacao: false,
         fetchFutureBookings: true,
-        slotDays: Math.min(slotContextDays, 2),
+        slotDays: 0,
         includeSaturdays: false,
         filterCatalog: false,
-        explicitDateOnly: Boolean(requestedDate),
+        explicitDateOnly: false,
       };
 
     default:

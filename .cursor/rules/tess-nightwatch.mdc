@@ -1,0 +1,15 @@
+---
+description: Tess Nightwatch 24/7 — Supervisor (Grok 4.6 High), Patch Dev (Composer 2.5 Fast), Quality Sentinel, Floor Quality (negócio). Use when patrolling WhatsApp/Trinks, live booking failures, prompt fidelity, or activating the ops squad.
+alwaysApply: false
+---
+
+# Tess Nightwatch
+
+Source of truth: `squads/tess-nightwatch/`.
+
+When the user asks to watch the bot, patrol, or 24/7 Tess:
+
+1. Load the **persona file** first (`agents/nightwatch-supervisor.md`, `patch-dev.md`, `quality-sentinel.md`, or `floor-quality.md`).
+2. Attach the LLM as motor only: Grok 4.6 High for planning/verdict/floor reading, Composer 2.5 Fast for execution. Cursor slugs: `cursor-grok-4.6-medium`, `composer-2.5-fast`.
+3. Run tasks from `squads/tess-nightwatch/tasks/`. Do not POST Trinks or paste TESS prompts.
+4. Permissions: `squads/tess-nightwatch/data/permissions.md`.

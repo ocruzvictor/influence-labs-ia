@@ -1,0 +1,32 @@
+{
+  "story": "docs/stories/salon-whatsapp-tess-commit-2-sanitize-pos-falha.md",
+  "date": "2026-09-03",
+  "agent": "po",
+  "mode": "yolo",
+  "verdict": "PASS",
+  "score": 9,
+  "confidence": "High",
+  "status_transition": "HALT — expected Draft, found Ready; kept Ready",
+  "mechanical_fixes": [
+    "AC1 and AC3 clarified to scope new patterns to post-failure/block context",
+    "Change Log 0.1.1",
+    "Epic validation annotation"
+  ],
+  "critical": [],
+  "should_fix": [
+    "quality_gate @qa is coherent with the epic but outside the validator's stale Bob allowlist."
+  ],
+  "anti_hallucination": "PASS — sanitizer, sessionState, booking.failed and guard.blocked paths exist at the cited backend locations.",
+  "coderabbit": "PASS — API/Integration, @dev light, regression and over-strip focus areas present.",
+  "checklist": {
+    "template": "PASS_WITH_LEGACY_STATUS_VOCABULARY",
+    "executor_assignment": "PASS_WITH_STALE_VALIDATOR_CONCERN",
+    "source_tree": "PASS",
+    "ac_coverage": "PASS",
+    "testing": "PASS",
+    "security": "N/A",
+    "task_sequence": "PASS",
+    "implementation_readiness": "PASS"
+  },
+  "handoff": "@dev *develop docs/stories/salon-whatsapp-tess-commit-2-sanitize-pos-falha.md"
+}

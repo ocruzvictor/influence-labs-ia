@@ -60,12 +60,32 @@ describe('buildContextProfile', () => {
     assert.equal(p.profile, PROFILES.FULL);
   });
 
+  test('scoped CANCEL → fetchSlots false, future bookings only', () => {
+    const p = buildContextProfile(
+      { intent: INTENTS.CANCEL, confidence: 'high' },
+      { effectiveMode: 'scoped', slotContextDays: 10 },
+    );
+    assert.equal(p.profile, PROFILES.CANCEL);
+    assert.equal(p.fetchSlots, false);
+    assert.equal(p.fetchFutureBookings, true);
+  });
+
   test('low confidence → FULL', () => {
     const p = buildContextProfile(
       { intent: INTENTS.SCHEDULING, confidence: 'medium' },
       { effectiveMode: 'scoped', slotContextDays: 10 },
     );
     assert.equal(p.profile, PROFILES.FULL);
+  });
+
+  test('story 6: SCHEDULING high pós-failed → BOOKING (não FULL 29k)', () => {
+    const p = buildContextProfile(
+      { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['post_failed', 'continuation'] },
+      { effectiveMode: 'scoped', slotContextDays: 10 },
+    );
+    assert.equal(p.profile, PROFILES.BOOKING);
+    assert.equal(p.slotDays, 3);
+    assert.notEqual(p.profile, PROFILES.FULL);
   });
 });
 

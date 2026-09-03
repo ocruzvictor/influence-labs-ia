@@ -1,0 +1,32 @@
+workflow:
+  id: incident-response
+  name: Nightwatch incident response
+  version: "1.0.0"
+  description: P0 pontual (leak, TESS failed, falso confirmado) fora do tick.
+  type: ops
+  sequence:
+    - step: classify
+      agent: nightwatch-supervisor
+      action: patrol-live
+      creates: incident_class
+    - step: customer
+      agent: nightwatch-supervisor
+      action: rescue-thread
+      requires: incident_class
+      creates: customer_state
+    - step: code
+      agent: patch-dev
+      action: patch-booking-path
+      requires: incident_class
+      condition: invariant_broken_needs_code
+      creates: patch_file_list
+    - step: verify
+      agent: quality-sentinel
+      action: verify-trinks-commit
+      requires: customer_state
+      creates: i1_i2_verdict
+  handoff_prompts:
+    nightwatch-supervisor_to_patch-dev: |
+      P0 código. Persona patch-dev + Composer 2.5 Fast. Evidence obrigatória.
+    nightwatch-supervisor_to_quality-sentinel: |
+      Verificar I1/I2 no vivo. High no veredito.

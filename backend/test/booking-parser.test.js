@@ -103,6 +103,71 @@ test('cancel.2 — sanitize remove "Vou pedir o cancelamento pra você"', () => 
   assert.ok(!/cancelamento/i.test(out));
 });
 
+test('false-confirm — remove tá garantido / vou registrar / já marcado', () => {
+  const out = sanitizePrematureConfirm('Tá garantido, vou registrar e a recepção confere. Já marcado!');
+  assert.ok(!/garantido/i.test(out));
+  assert.ok(!/vou registrar/i.test(out));
+  assert.ok(!/já marcado/i.test(out));
+});
+
+test('false-confirm — Confirmado com vírgula (Bianca) também some', () => {
+  const out = sanitizePrematureConfirm('Confirmado, Bianca. Vou registrar o teste.');
+  assert.ok(!/confirmado/i.test(out));
+  assert.ok(!/vou registrar/i.test(out));
+});
+
+// --- P0.5 sanitize turno seguinte (0101 / 9605 / 5668) ---
+test('postFail.0101 — remove "já confirmamos" com flag pós-falha', () => {
+  const out = sanitizePrematureConfirm(
+    'Quer remarcar o corte que já confirmamos pra outro dia?',
+    { afterFailOrBlock: true },
+  );
+  assert.ok(!/já confirmamos/i.test(out));
+  assert.ok(!/ja confirmamos/i.test(out));
+});
+
+test('postFail.9605 — remove "tudo certo com [serviço]" com flag', () => {
+  const out = sanitizePrematureConfirm(
+    'Tudo certo com a manicure amanhã às 9h com a Fefe!',
+    { afterFailOrBlock: true },
+  );
+  assert.ok(!/tudo certo com/i.test(out));
+});
+
+test('postFail.5668 — remove "seu agendamento está" com flag', () => {
+  const out = sanitizePrematureConfirm(
+    'Seu agendamento está confirmado para 17:30.',
+    { afterFailOrBlock: true },
+  );
+  assert.ok(!/seu agendamento est/i.test(out));
+});
+
+test('postFail.semFlag — sem flag, padrões contextuais não stripam', () => {
+  const out = sanitizePrematureConfirm('Quer remarcar o corte que já confirmamos?');
+  assert.match(out, /já confirmamos/i);
+});
+
+test('postFail.5718 — combo 2º blocked remove Prontinho + fusão', () => {
+  const out = sanitizePrematureConfirm(
+    'Prontinho! Sua franja + Escova está marcada para 15:30.',
+    { comboSecondBlocked: true },
+  );
+  assert.ok(!/prontinho/i.test(out));
+  assert.ok(!/franja.*escova/i.test(out));
+});
+
+test('postFail.taCerto — pergunta "Tá certo?" NÃO é stripada', () => {
+  const out = sanitizePrematureConfirm('Tá certo? Posso registrar esse horário?');
+  assert.match(out, /Tá certo\?/);
+});
+
+test('postFail.8397 — cancel copy intacta (sem tag booking)', () => {
+  const cancelCopy = 'Não consegui localizar/cancelar seu horário automaticamente 😕\nVou pedir pra recepção resolver com você. Um momento!';
+  const out = sanitizePrematureConfirm(cancelCopy);
+  assert.match(out, /Não consegui localizar\/cancelar/);
+  assert.match(out, /recepção resolver/);
+});
+
 // --- item 2: renderHabilitacaoMap ---
 test('item2.1 — lista vazia / null → string vazia', () => {
   assert.equal(renderHabilitacaoMap([]), '');
@@ -196,6 +261,33 @@ test('catalog.2 — servicesForProfessional filtra pelo apelido exato', () => {
   assert.deepEqual(servicesForProfessional(list, 'Dylan'), ['Manicure', 'Pedicure']);
 });
 
+test('catalog.filter — pé/pés mapeia Pedicure + Depilação de Pé, não corte', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const list = [
+    { id: 1, nome: 'Corte Masculino' },
+    { id: 2, nome: 'Pedicure' },
+    { id: 3, nome: 'Manicure' },
+    { id: 4, nome: 'Depilação de Pé' },
+  ];
+  const pe = filterServicesByKeywords(list, 'queria fazer o pé sábado');
+  assert.ok(pe?.some((s) => s.nome === 'Pedicure'));
+  assert.ok(pe?.some((s) => s.nome === 'Depilação de Pé'));
+  assert.ok(!pe?.some((s) => s.nome === 'Corte Masculino'));
+  const mao = filterServicesByKeywords(list, 'queria fazer a mão amanhã');
+  assert.deepEqual((mao || []).map((s) => s.nome), ['Manicure']);
+});
+
+test('catalog.filter — penteado não dispara sinônimo pé', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const list = [
+    { id: 1, nome: 'Penteado' },
+    { id: 2, nome: 'Pedicure' },
+  ];
+  const out = filterServicesByKeywords(list, 'quero um penteado de festa');
+  assert.ok(out?.some((s) => s.nome === 'Penteado'));
+  assert.ok(!out?.some((s) => s.nome === 'Pedicure'));
+});
+
 test('dados-cliente.1 — cliente recorrente + phone → DADOS_CLIENTE (nunca PERFIL)', () => {
   const { buildPersistedSection } = require('../lib/booking-parser');
   const out = buildPersistedSection({
@@ -265,6 +357,50 @@ test('faseD.leak — stripResidualBookingTags remove tags residuais', () => {
   assert.ok(!/\[BOOKING_/.test(out));
   assert.ok(!/\[HANDOFF_/.test(out));
   assert.match(out, /Pronto!/);
+});
+
+test('hotfix D1 — CHECK_AVAILABILITY removida; marcador de imagem preservado', () => {
+  const { stripResidualBookingTags, stripBookingTags } = require('../lib/booking-parser');
+  const leaked = 'Vou verificar [CHECK_AVAILABILITY profissional=Erick data=2026-09-02 periodo=tarde horarioEspecifico=14:30] pra você.';
+  const out = stripResidualBookingTags(leaked);
+  assert.ok(!/CHECK_AVAILABILITY/.test(out));
+  assert.ok(!/\[CHECK_/.test(out));
+  assert.match(out, /Vou verificar/);
+
+  const withImage = 'Recebi sua referência [CLIENTE ENVIOU IMAGEM] — lindo coque!';
+  assert.match(stripResidualBookingTags(withImage), /\[CLIENTE ENVIOU IMAGEM\]/);
+
+  const createTag = '[BOOKING_CREATE servicoId=1 profissionalId=3 dataHoraInicio=2026-09-02T14:30:00-03:00 valor=90 duracaoMinutos=60]';
+  const parsed = stripBookingTags(`Confirmo ${createTag}`);
+  assert.equal(parsed.bookingCreates.length, 1);
+  assert.ok(!/BOOKING_CREATE/.test(parsed.clean));
+});
+
+test('vinicius angeli — Validação rápida, fence e TA- não vazam', () => {
+  const { stripResidualBookingTags } = require('../lib/booking-parser');
+  const leaked = [
+    'Ótimo! No sábado (05/09) à tarde, tenho 17h para você com o Tiago. Corte Masculino, R$ 105. Confirma? 😊',
+    '',
+    '[Validação rápida: sábado 05/09, Tiago 17:00 tem 60min contínuos, Corte Masculino (TA) = 60min. ✓ Cabe perfeitamente e termina às 18h (fechamento sábado).]',
+  ].join('\n');
+  const out = stripResidualBookingTags(leaked);
+  assert.ok(!/Validação/i.test(out));
+  assert.ok(!/60min contínuos/.test(out));
+  assert.ok(!/fechamento sábado/.test(out));
+  assert.match(out, /Confirma/);
+  assert.match(out, /17h/);
+
+  const fence = '`'.repeat(3);
+  const withCode = `Horário ok.\n${fence}javascript\nfunction checkSlot(){ return true; }\n${fence}\nConfirma?`;
+  const outCode = stripResidualBookingTags(withCode);
+  assert.ok(!/function checkSlot/.test(outCode));
+  assert.ok(!/```/.test(outCode));
+  assert.match(outCode, /Confirma/);
+
+  const withSku = 'No sábado às 10h30, o Tiago tem disponibilidade para Corte Masculino (TA - Corte Masculino).';
+  const outSku = stripResidualBookingTags(withSku);
+  assert.ok(!/TA\s*-/.test(outSku));
+  assert.match(outSku, /Corte Masculino/);
 });
 
 test('faseD.sanitize — Cancelei os três não mantém cancelei', () => {

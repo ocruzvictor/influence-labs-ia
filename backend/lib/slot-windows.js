@@ -79,9 +79,18 @@ function formatAnnotatedTimes(starts, timeZone = 'America/Sao_Paulo') {
     .join(', ');
 }
 
+function formatPickedAnnotatedTimes(picked, allStarts, timeZone = 'America/Sao_Paulo') {
+  const pickedMs = new Set(uniqueSortedMs(picked));
+  if (!pickedMs.size) return '';
+  return annotateStarts(allStarts)
+    .filter((row) => pickedMs.has(row.startsAtMs))
+    .map((row) => `${formatHhmm(row.startsAtMs, timeZone)} (${row.contiguousMinutes}min contínuos)`)
+    .join(', ');
+}
+
 /**
  * O início cabe se a faixa contínua a partir dele for >= duração do serviço.
- * Sem starts (snapshot vazio) não bloqueia — o expediente continua sendo o outro gate.
+ * Sem starts (snapshot vazio) → fail-closed (P1.9).
  */
 function bookingFitsSlotWindow(starts, dateStr, timeStr, durationMinutes = 0, grainMin) {
   const date = String(dateStr || '');
@@ -94,7 +103,7 @@ function bookingFitsSlotWindow(starts, dateStr, timeStr, durationMinutes = 0, gr
   if (startMs == null) return { ok: false, reason: 'data/hora invalida', contiguousMinutes: 0 };
   const startsMs = uniqueSortedMs(starts);
   if (!startsMs.length) {
-    return { ok: true, reason: 'sem snapshot de slots — janela nao validada', contiguousMinutes: null };
+    return { ok: false, reason: 'sem snapshot de slots — grade indisponivel', contiguousMinutes: null };
   }
   const grain = grainMin || inferGrainMinutes(startsMs);
   const startSet = new Set(startsMs);
@@ -118,6 +127,7 @@ module.exports = {
   contiguousMinutesFrom,
   annotateStarts,
   formatAnnotatedTimes,
+  formatPickedAnnotatedTimes,
   bookingFitsSlotWindow,
   uniqueSortedMs,
 };

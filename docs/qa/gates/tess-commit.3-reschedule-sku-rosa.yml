@@ -1,0 +1,57 @@
+schema: 1
+story: 'tess-commit.3'
+story_title: 'PUT reschedule só no bookingId/SKU do Rosa + booking.rescheduled'
+gate: CONCERNS
+status_reason: 'Resolver recusa Barba≠Corte e Rosa vazio (0 PUT); path 4c só PUT após bind SKU. Falta unit do emit booking.rescheduled pós-2xx (AC4/AC7).'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:trinks-mapping.js@41dda936,booking-parser.js@faf546b1,tess-empty-handoff.js@f33bef84,server.js@bd42a9b5,trinks-mapping.test.js@92603333,booking-parser.test.js@0cca317d,reschedule-sku.test.js@37b140cf,tess-empty-handoff.test.js@34ae13b7,HEAD:8b40465'
+updated: '2026-09-03T03:58:48Z'
+top_issues:
+  - id: 'TEST-001'
+    severity: medium
+    finding: 'AC4/AC7 pedem unit do emit booking.rescheduled somente após PUT 2xx do SKU certo. A suíte prova o resolver (0 PUT / id certo) mas não o emitOperationalEvent no path 4c.'
+    suggested_action: 'Adicionar teste do path 4c (helper extraído ou mock de emit + trinksApi.request) que asserte 1 booking.rescheduled no 2xx do SKU certo e 0 eventos no sku_mismatch.'
+    suggested_owner: 'dev'
+waiver: { active: false }
+
+quality_score: 90
+expires: '2026-09-17T03:58:48Z'
+
+evidence:
+  tests_reviewed: 6
+  tests_passed: 6
+  tests_failed: 0
+  risks_identified: 1
+  coderabbit: 'SKIP — CLI presente; review manual da fatia. [AUTO-DECISION] QA não auto-fixa source.'
+  i1_unit: 'PASS classe 2185 — Rosa Corte + futuro Barba → sku_mismatch, copy sem reagendei. Classe 0160 no teste atual desambigua para Corte quando os dois existem (AC5), não recusa cega. Wiring server.js: emit só depois de rescheduleBookingInTrinks (que throws em falha).'
+  trace:
+    ac_covered: [1, 2, 3, 5, 6]
+    ac_gaps: [4]
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'isBookingOwnedByClient no id explícito; ids fictícios; zero PUT de rede.'
+  performance:
+    status: PASS
+    notes: 'findClientBooking ainda pode GET, mas PUT só após resolve. Sem migration.'
+  reliability:
+    status: CONCERNS
+    notes: 'Emit booking.rescheduled sem teste de regressão. serviceSkuMatches usa includes — Corte vs Barba está seguro; homônimos (Corte Fem/Masc) caem em ambiguous → 0 PUT (fail-closed).'
+  maintainability:
+    status: PASS
+    notes: 'Helper puro testável; cancel ownership não alterado.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Unit do emit booking.rescheduled no 2xx do SKU certo e ausência no mismatch (TEST-001).'
+      refs: ['backend/server.js', 'backend/test/reschedule-sku.test.js']
+    - action: 'Renomear teste 0160-class (hoje desambigua para Corte; recusa 0 PUT está no 2185).'
+      refs: ['backend/test/reschedule-sku.test.js']
+
+auto_decisions:
+  - 'Status ready-for-review ≡ InReview → Done (CONCERNS não bloqueia).'
+  - 'CodeRabbit skip (tree suja / anti-self-review).'
+  - 'AC4 funcional verificado por code review do path 4c; gap é só cobertura do evento.'
+  - 'gotchas.json ausente → skip.'

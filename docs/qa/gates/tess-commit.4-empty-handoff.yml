@@ -1,0 +1,52 @@
+schema: 1
+story: 'tess-commit.4'
+story_title: 'tess.empty + credits=0 → handoff.human + silence em bot_thread_state'
+gate: PASS
+status_reason: 'credits===0 dispara handleEmptyTessHandoff (evento + markHumanHandled); credits>0 e owner skip; tess.empty continua; 4/4 units PASS; zero migration.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:trinks-mapping.js@41dda936,booking-parser.js@faf546b1,tess-empty-handoff.js@f33bef84,server.js@bd42a9b5,trinks-mapping.test.js@92603333,booking-parser.test.js@0cca317d,reschedule-sku.test.js@37b140cf,tess-empty-handoff.test.js@34ae13b7,HEAD:8b40465'
+updated: '2026-09-03T03:58:48Z'
+top_issues: []
+waiver: { active: false }
+
+quality_score: 100
+expires: '2026-09-17T03:58:48Z'
+
+evidence:
+  tests_reviewed: 4
+  tests_passed: 4
+  tests_failed: 0
+  risks_identified: 0
+  coderabbit: 'SKIP — CLI presente; review manual da fatia. [AUTO-DECISION] QA não auto-fixa source.'
+  i2_unit: 'PASS — empty+credits=0 ⇒ handoff.human + row; fallback Kapso não substitui (assert evento+silence). Live 0101 02:15 fora do DoD.'
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Owner skip via isOwnerPhone + shouldEmitHandoff; sem silenciar o dono.'
+  performance:
+    status: PASS
+    notes: 'Reusa markHumanHandled / HUMAN_HANDLED_TTL_MS; sem query extra além do path 4d.'
+  reliability:
+    status: PASS
+    notes: 'null credits não dispara (===0 explícito). Erro do handoff é catch+log — fallback Kapso ainda sai. P0.2 notify-humano ops continua OUT.'
+  maintainability:
+    status: PASS
+    notes: 'Helper extraído; branch !tessText no server.js espelha 4d.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Endurecer o teste “fallback sozinho falha” para invocar um path só-texto e assertar falha (hoje é tautologia do estado vazio; o 0101-class já prova evento+row).'
+      refs: ['backend/test/tess-empty-handoff.test.js']
+    - action: 'P0.2 notify-humano (Kapso/Balcão) permanece rito ops — não fecha I2 operacional sozinho.'
+      refs: ['docs/stories/epics/EPIC-tess-commit-honesty.md']
+
+auto_decisions:
+  - 'Status ready-for-review ≡ InReview → Done.'
+  - 'CodeRabbit skip (tree suja / anti-self-review).'
+  - 'Quinn-Watch I2 unit desta classe = PASS; I2 vivo continua bloqueado até deploy (OUT).'
+  - 'gotchas.json ausente → skip.'
