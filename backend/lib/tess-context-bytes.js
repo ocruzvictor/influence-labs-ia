@@ -55,8 +55,42 @@ function logContextBytes({
   return payload;
 }
 
+/**
+ * Persiste o payload já medido em bot_operational_events.
+ * Não inclui texto de bloco — só contagens. Fire-and-forget via emitOperationalEvent.
+ */
+async function persistContextBytesEvent(db, payload, clientPhone) {
+  if (!db || !payload) return null;
+  const { emitOperationalEvent } = require('./operational-events');
+  const blocks = payload.blocks && typeof payload.blocks === 'object' ? payload.blocks : {};
+  const safeBlocks = {};
+  for (const [key, value] of Object.entries(blocks)) {
+    if (value && typeof value === 'object') {
+      safeBlocks[key] = {
+        chars: Number(value.chars) || 0,
+        approx_tokens: Number(value.approx_tokens) || 0,
+      };
+    }
+  }
+  await emitOperationalEvent(db, {
+    event: 'tess.context_bytes',
+    clientPhone,
+    motivo: `${payload.intent || 'n/a'}:${payload.context_profile || 'n/a'}`,
+    payload: {
+      intent: payload.intent || null,
+      context_profile: payload.context_profile || null,
+      skipped_tess: Boolean(payload.skipped_tess),
+      tess_context_mode: payload.tess_context_mode || null,
+      blocks: safeBlocks,
+      sessionId: payload.sessionId || null,
+    },
+  });
+  return payload;
+}
+
 module.exports = {
   approxTokens,
   measureContextBlocks,
   logContextBytes,
+  persistContextBytesEvent,
 };

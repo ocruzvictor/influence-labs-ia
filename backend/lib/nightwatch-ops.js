@@ -16,9 +16,12 @@ const WATCH_EVENTS = [
   'tags.parsed',
   'tags.leaked',
   'handoff.human',
+  'handoff.accepted',
+  'handoff.sla_breach',
   'tess.empty',
   'tess.timeout',
   'cancel.not_owned',
+  'outbound.watchdog',
 ];
 
 const SUCCESS_COPY_RE = /confirmado|agendado|garantido|j[aá] marcado|reagendei|cancelei|t[aá] certo|pronto!/i;

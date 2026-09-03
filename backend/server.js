@@ -191,6 +191,10 @@ const {
   extractTessCredits,
   logTessTurnTelemetry,
 } = require('./lib/tess-context-assembler');
+const { persistContextBytesEvent } = require('./lib/tess-context-bytes');
+const { saveConversationTurns: persistConversationTurns } = require('./lib/conversation-history');
+const { startOutboundWatchdog } = require('./lib/outbound-outbox');
+const { buildHandoffSlaPayload, formatHandoffSlaNotice } = require('./lib/handoff-sla');
 
 const app = express();
 app.use(cors());
@@ -361,14 +365,7 @@ function formatBookingDateTime(ts) {
 }
 
 async function saveConversationTurns(phone, turns) {
-  const digits = (phone || '').replace(/\D/g, '');
-  if (!digits || !turns.length) return;
-  for (const t of turns) {
-    await db.query(
-      `INSERT INTO conversation_history (client_phone, role, content, agent) VALUES ($1, $2, $3, $4)`,
-      [digits, t.role, t.content, t.agent || null]
-    );
-  }
+  return persistConversationTurns(db, phone, turns);
 }
 
 async function upsertClient(phone, name) {
@@ -1355,7 +1352,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       future_bookings: '',
       user_payload: tessText,
     };
-    emitContextBytesLog(
+    const skipBytes = emitContextBytesLog(
       {
         intent: intentResult.intent,
         contextProfile,
@@ -1365,6 +1362,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       TESS_CONTEXT_CONFIG,
       true,
     );
+    persistContextBytesEvent(db, skipBytes, phone).catch(() => {});
     logTessTurnTelemetry({
       sessionId,
       intent: intentResult.intent,
@@ -1408,7 +1406,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       data: Array.isArray(assembledCtx.profsPayload?.data) ? assembledCtx.profsPayload.data : [],
     };
     contextProfile = assembledCtx.contextProfile;
-    emitContextBytesLog(assembledCtx, sessionId, TESS_CONTEXT_CONFIG, false);
+    const assembledBytes = emitContextBytesLog(assembledCtx, sessionId, TESS_CONTEXT_CONFIG, false);
+    persistContextBytesEvent(db, assembledBytes, phone).catch(() => {});
 
     try {
       tessRaw = await callTESS([
@@ -1444,8 +1443,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       })).catch(() => {});
       if (phone) {
         saveConversationTurns(phone, [
-          { role: 'user', content: messageText },
-          { role: 'assistant', content: timeoutResult.response, agent: 'tess-timeout' },
+          { role: 'user', content: messageText, intent: intentResult.intent },
+          { role: 'assistant', content: timeoutResult.response, agent: 'tess-timeout', intent: intentResult.intent },
         ]).catch((saveErr) => console.error('[DB] Save TESS timeout turns error:', saveErr.message));
       }
       state.history.push({ role: 'assistant', content: timeoutResult.response });
@@ -1497,7 +1496,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     }).catch((err) => console.error('[empty-handoff] error:', err.message));
     if (phone) {
       saveConversationTurns(phone, [
-        { role: 'assistant', content: fallback, agent: 'tess-fallback' },
+        { role: 'assistant', content: fallback, agent: 'tess-fallback', intent: intentResult.intent },
       ]).catch((err) => console.error('[DB] Save empty-TESS fallback error:', err.message));
     }
     return {
@@ -1567,8 +1566,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   // Persist conversation turns to PostgreSQL (fire-and-forget, non-blocking)
   if (phone) {
     saveConversationTurns(phone, [
-      { role: 'user', content: messageText },
-      { role: 'assistant', content: displayText },
+      { role: 'user', content: messageText, intent: intentResult.intent },
+      { role: 'assistant', content: displayText, intent: intentResult.intent },
     ]).catch(err => console.error('[DB] Save turns error:', err.message));
   }
 
@@ -2174,7 +2173,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         clientPhone,
         motivo: handoffHuman.motivo,
         kapsoConversationId,
-        payload: {},
+        payload: buildHandoffSlaPayload(),
       }).catch(() => {});
     }
   }
@@ -2227,7 +2226,12 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   if (phone && finalMessages.length) {
     saveConversationTurns(
       phone,
-      finalMessages.map((content) => ({ role: 'assistant', content, agent: 'trinks-2phase' })),
+      finalMessages.map((content) => ({
+        role: 'assistant',
+        content,
+        agent: 'trinks-2phase',
+        intent: intentResult.intent,
+      })),
     ).catch((err) => console.error('[DB] Save 2-phase turns error:', err.message));
   }
   return result;
@@ -2344,12 +2348,14 @@ async function notifyTiagoHandoff({ motivo, clientPhone, clientName, lastClientM
   }
   const phoneDigits = String(clientPhone || '').replace(/\D/g, '') || '?';
   const displayName = clientName && clientName !== 'Cliente' ? clientName : 'cliente';
+  const sla = buildHandoffSlaPayload();
   const text =
     `🔔 Bot pediu sua atenção\n\n` +
     `Motivo: ${motivo || 'não especificado'}\n` +
     `Cliente: ${displayName}\n` +
     `Telefone: ${phoneDigits}\n` +
     `Última msg: "${(lastClientMsg || '').slice(0, 200)}"\n\n` +
+    `${formatHandoffSlaNotice(sla)}\n\n` +
     `Para retomar a IA, responda AQUI neste chat:\n` +
     `retomar ${displayName}. <orientação 20–500 caracteres>\n\n` +
     `Ex.: retomar Bianca. Agenda o teste de mecha — obrigatório, independente da venda consultiva.\n\n` +
@@ -2669,6 +2675,20 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   // O envio acontece via chamada separada a API do Kapso depois do TESS.
   res.json({ ok: true });
 
+  // Victor 2026-09-03: duplicar é aceitável. Watchdog só no caminho que deveria falar.
+  // Kill/allowlist/human-handled já retornaram acima — não acordam o cliente.
+  const outboxWaitMs = Math.max(5_000, Number(process.env.OUTBOX_WAIT_MS) || 45_000);
+  const outbox = isOwnerPhone(sessionPhone)
+    ? { markFinal() {}, async fail() { return { skipped: true }; } }
+    : startOutboundWatchdog({
+        phone: sessionPhone,
+        sessionId,
+        phoneNumberId,
+        waitMs: outboxWaitMs,
+        sendFn: sendKapsoMessage,
+        emitEvent: (evt) => emitOperationalEvent(db, evt),
+      });
+
   try {
     // 5b. Transcrição de áudio em background. Bot avisa "vou escutar" antes,
     // transcreve via TESS, e concatena ao messageText antes do processMessage.
@@ -2703,6 +2723,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
           : 'Tive um problema pra escutar seu áudio. Pode mandar por texto?';
         await sendKapsoMessage(sessionId, reason, phoneNumberId)
           .catch(err => console.error('[audio] msg de falha falhou:', err.message));
+        outbox.markFinal();
         return;
       }
     }
@@ -2734,14 +2755,21 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
           await sendKapsoMessage(TIAGO_NOTIFICATION_PHONE, ackText, phoneNumberId);
         },
       });
+      outbox.markFinal();
       return;
     }
 
     const result = await processMessage(sessionId, messageText, contactName, null, sessionId, kapsoConversationId);
     const blocks = result.responses?.length ? result.responses : [result.response];
+    let sentAny = false;
     for (const block of blocks) {
-      if (block && block.trim()) await sendKapsoMessage(sessionId, block, phoneNumberId);
+      if (block && block.trim()) {
+        const ok = await sendKapsoMessage(sessionId, block, phoneNumberId);
+        if (ok) sentAny = true;
+      }
     }
+    if (sentAny) outbox.markFinal();
+    else await outbox.fail('blocos_vazios');
     // Handoff: notifica Tiago em WhatsApp interno (numero ja na whitelist e em conversa ativa).
     if (result.handoff) {
       notifyTiagoHandoff({
@@ -2762,6 +2790,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     }
   } catch (err) {
     console.error(`[kapso][${sessionId}] erro processando/enviando:`, err.message);
+    await outbox.fail('catch_sem_outbound');
   }
 }, 28000));
 

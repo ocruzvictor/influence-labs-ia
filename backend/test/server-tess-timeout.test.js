@@ -75,21 +75,25 @@ test('processMessage timeout → fallback enviado, evento e zero mutação/silê
   assert.equal(fetchCalls.length, 1);
   assert.match(String(fetchCalls[0][0]), /tess/i);
 
-  assert.equal(operationalEvents.length, 1);
-  assert.equal(operationalEvents[0].event, 'tess.timeout');
-  assert.equal(operationalEvents[0].clientPhone, '0007');
-  assert.deepEqual(operationalEvents[0].payload, {
+  const timeoutEvents = operationalEvents.filter((e) => e.event === 'tess.timeout');
+  assert.equal(timeoutEvents.length, 1);
+  assert.equal(timeoutEvents[0].clientPhone, '0007');
+  assert.deepEqual(timeoutEvents[0].payload, {
     intent: 'CANCEL',
     contextProfile: 'CANCEL',
     timeout_ms: 25_000,
   });
+  assert.equal(
+    operationalEvents.filter((e) => e.event === 'tess.context_bytes').length,
+    1,
+  );
 
   const savedTurns = queries
     .filter((entry) => /INSERT INTO conversation_history/i.test(entry.text))
     .map((entry) => entry.params);
   assert.deepEqual(savedTurns, [
-    ['0007', 'user', 'Pode cancelar esse também', null],
-    ['0007', 'assistant', result.response, 'tess-timeout'],
+    ['0007', 'user', 'Pode cancelar esse também', null, 'CANCEL'],
+    ['0007', 'assistant', result.response, 'tess-timeout', 'CANCEL'],
   ]);
 
   const sql = queries.map((entry) => entry.text).join('\n');

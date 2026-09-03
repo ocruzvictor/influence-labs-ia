@@ -141,17 +141,17 @@ describe('resolveSlotDates', () => {
 });
 
 describe('parseTessContextConfig', () => {
-  test('defaults safe', () => {
+  test('defaults scoped (Victor 2026-09-03)', () => {
     const c = parseTessContextConfig({});
-    assert.equal(c.mode, 'full');
-    assert.equal(c.effectiveMode, 'full');
+    assert.equal(c.mode, 'scoped');
+    assert.equal(c.effectiveMode, 'scoped');
     assert.equal(c.skipTrivial, false);
     assert.equal(c.trivialMaxChars, 80);
   });
 
-  test('invalid mode → full', () => {
+  test('invalid mode → scoped', () => {
     const c = parseTessContextConfig({ TESS_CONTEXT_MODE: 'bogus' });
-    assert.equal(c.mode, 'full');
+    assert.equal(c.mode, 'scoped');
   });
 
   test('FORCE_FULL overrides scoped', () => {

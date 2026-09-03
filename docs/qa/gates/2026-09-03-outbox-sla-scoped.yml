@@ -1,0 +1,372 @@
+schema: 1
+slice: '2026-09-03-outbox-sla-scoped'
+slice_title: 'Fatia operacional — outbox pós-ACK + handoff SLA + default scoped'
+scope_type: 'operational-slice'   # NÃO é story formal; SOT = handoff Orion
+gate: CONCERNS
+status_reason: >
+  Invariantes de cliente passam: OUTBOX_COPY não afirma sucesso de agenda, fail/markFinal
+  não duplica envio, outbox não dispara em kill/allowlist/human-handled/owner, re-alerta de
+  SLA nunca fala com o cliente e as CLIs mantêm last4-only. 555/555 testes verdes.
+  Bloqueiam publish quatro itens de release-engineering/defeito funcional: (1) SLA bogus na
+  janela sáb-18h→seg-09h; (2) "Skip trivial continua OFF" é FALSO no processo live (prod está
+  skip_trivial=true desde 2026-09-01); (3) passthrough de env do compose existe no VPS mas não
+  em HEAD — o `git reset` do rito pode clobberar e o rollback documentado fica inoperante;
+  (4) dois arquivos fora da allowlist declarada (tess-context-assembler.js e nginx/default.conf).
+reviewer: 'Quinn (Test Architect)'
+sot_handoff: 'docs/handoffs/2026-09-03-orion-proxima-fatia-outbox-sla-scoped.md'
+sot_decisions: 'docs/analysis/2026-09-03-orion-decisoes-execucao.md'
+reviewed_revision: 'c93046dcce95cfbb1a79a4de45d62f56114527ee'
+reviewed_worktree: 'dirty — allowlist da fatia não commitada (13 novos + 11 modificados)'
+deployed_revision: '07f59cbf4b8b43c92687acb7ab2f4618fcd64631'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-03T21:57:48Z'
+expires: '2026-09-17T21:57:48Z'
+quality_score: 72
+waiver: { active: false }
+
+# ---------------------------------------------------------------------------
+# 1. VERIFICAÇÕES PEDIDAS — resultado por item
+# ---------------------------------------------------------------------------
+requested_checks:
+  i1_outbox_copy:
+    status: PASS
+    evidence:
+      - 'backend/lib/outbound-outbox.js:6-7 — OUTBOX_COPY = "Tive um problema técnico agora. Não gravei nem cancelei nada na agenda. Pode mandar de novo?" — nega estado de agenda, não afirma sucesso.'
+      - 'backend/test/outbound-outbox.test.js:5-8 — asserção de que a copy não casa /confirmado|já marcado|agendado com sucesso/i.'
+    notes: >
+      A copy faz uma afirmação NEGATIVA ("não gravei nem cancelei") que pode ser factualmente
+      errada se o booking tiver sucesso no Trinks depois do watchdog disparar. Isso é risco
+      aceito e documentado por Victor (decisões #4: "falso 'não gravei' > silêncio").
+      I1 como enunciado ("nunca afirma sucesso de agenda") está atendido.
+
+  i1_no_duplicate_after_markfinal:
+    status: PASS
+    evidence:
+      - 'backend/lib/outbound-outbox.js:22-24 — fire() early-return com guarda `if (sentFinal || fired)`.'
+      - 'backend/lib/outbound-outbox.js:23-24 — `fired = true` é setado SINCRONAMENTE antes de qualquer await → seguro contra reentrância.'
+      - 'backend/lib/outbound-outbox.js:51-54 — markFinal() seta sentFinal + clearTimeout.'
+      - 'backend/lib/outbound-outbox.js:55-58 — fail() faz clearTimeout e delega a fire().'
+      - 'backend/test/outbound-outbox.test.js:10-24 — markFinal antes de fail → skipped=true, 0 envios.'
+      - 'backend/test/outbound-outbox.test.js:26-45 — fail duplicado → 1 envio, segundo skipped.'
+    notes: 'Três ordenações auditadas (markFinal→fail, fail→markFinal, timer→markFinal): todas resultam em ≤1 envio.'
+
+  outbox_gating:
+    status: PASS
+    evidence:
+      - 'backend/server.js:2649-2651 — kill switch global (botState.toggles.global === false) retorna ANTES do outbox.'
+      - 'backend/server.js:2660-2663 — allowlist/denylist (phoneAccess.silent) retorna ANTES do outbox.'
+      - 'backend/server.js:2667-2670 — human-handled retorna ANTES do outbox.'
+      - 'backend/server.js:2680-2690 — construção do outbox acontece só depois dos três returns.'
+      - 'backend/server.js:2681-2682 — owner (isOwnerPhone) recebe stub no-op { markFinal(){}, fail(){ skipped:true } }.'
+    notes: 'Nenhum dos quatro caminhos silenciosos pode acordar o cliente. Comentário do código em server.js:2678-2679 bate com o comportamento real.'
+
+  sla_15min_commercial:
+    status: CONCERNS
+    evidence:
+      - 'backend/lib/handoff-sla.js:10 — HANDOFF_SLA_MINUTES = 15.'
+      - 'backend/lib/handoff-sla.js:12-25 — computeHandoffSlaAt respeita isSalonOpen.'
+      - 'backend/lib/salon-dates.js:130-147 — política Ter-Sex 9-19, Sáb 9-18, Dom/Seg FECHADO.'
+      - 'backend/server.js:2176 — payload SLA anexado ao evento handoff.human.'
+      - 'backend/lib/tess-empty-handoff.js:37 — payload SLA também no handoff por tess.empty.'
+    notes: 'Ver finding SLA-01: lookahead de 24h é insuficiente para a janela sáb-18h→seg-09h.'
+
+  realert_never_contacts_client:
+    status: PASS
+    evidence:
+      - 'backend/scripts/salao/observabilidade/realertar_handoff_sla.js:7-9 — importa apenas cli helpers, realertBreachedHandoffs e emitOperationalEvent. Zero import de sendKapsoMessage.'
+      - 'backend/lib/handoff-sla.js:124-156 — realertBreachedHandoffs só emite handoff.sla_breach com clientPhone:null e RETORNA os avisos; não existe caminho de envio.'
+      - 'backend/scripts/salao/observabilidade/aceitar_handoff.js:3 — header "Sem WhatsApp ao cliente"; confirmado por ausência de sendFn.'
+    notes: >
+      Efeito colateral funcional (não bloqueante): o re-alerta NÃO notifica o Tiago por WhatsApp —
+      só emite evento e imprime JSON. O aviso ao Tiago no handoff original existe
+      (server.js:2364 notifyTiagoHandoff), mas o re-alerta de breach depende de alguém rodar a CLI
+      ou de o Nightwatch consumir handoff.sla_breach.
+
+  last4_only_in_clis:
+    status: PASS
+    evidence:
+      - 'backend/lib/handoff-sla.js:80 — last4FromPhone(row.client_phone) no item de saída.'
+      - 'backend/lib/handoff-sla.js:84 — motivo passa por redactSnippet(.., 80).'
+      - 'backend/lib/handoff-sla.js:121 — acceptHandoff retorna { last4, accepted, owner }; telefone completo só em uso interno para emitEvent.'
+      - 'backend/test/handoff-sla.test.js:50 — assert.ok(!JSON.stringify(report).includes(''5511999996388'')) prova ausência do telefone cheio.'
+      - 'backend/lib/salao-cli-ops.js:105 — last4OnlyPhone em listAckWithoutOutbound; :108 redactSnippet no conteúdo.'
+      - 'As 21 CLIs em backend/scripts/salao/** são wrappers finos de printJson; a disciplina last4 é imposta na camada lib.'
+    notes: >
+      Exceção legítima e fora das CLIs: server.js:2349,2356 (notifyTiagoHandoff) envia o telefone
+      completo ao próprio Tiago, que precisa ligar para a cliente. Não é superfície de CLI.
+
+  default_scoped_override_ac15:
+    status: CONCERNS
+    evidence:
+      - 'backend/lib/tess-context-config.js:8 — String(env.TESS_CONTEXT_MODE || ''scoped'') → default scoped.'
+      - 'backend/lib/tess-context-config.js:9 — valor inválido cai para scoped (era full na AC15).'
+      - 'backend/lib/tess-context-config.js:2-3 — override documentado no header ("Default 2026-09-03 (Victor): MODE=scoped").'
+      - 'infra/.env.example:59-61 — comentário "Default 2026-09-03 = scoped (Victor). Rollback: full."'
+      - 'docs/analysis/2026-09-03-orion-decisoes-execucao.md:15 — decisão registrada.'
+      - 'backend/test/tess-context-profiles.test.js — "defaults scoped (Victor 2026-09-03)", "invalid mode → scoped", "FORCE_FULL overrides scoped": 3/3 PASS.'
+    notes: >
+      AC15 da story (docs/stories/salon-whatsapp-tess-context-on-demand.md:81 e tabela :96)
+      ainda diz default `full`. O override está rastreável em docs operacionais, mas a story
+      não tem nota de emenda — um revisor futuro pode ler `scoped` como regressão de AC15.
+      Ver finding SCOPE-03.
+
+  skip_trivial_off:
+    status: FAIL
+    evidence:
+      - 'CÓDIGO OK — backend/lib/tess-context-config.js:11 — env.TESS_SKIP_TRIVIAL === ''true'' → default false (OFF).'
+      - 'COMPOSE OK — infra/docker-compose.yml:+TESS_SKIP_TRIVIAL: ${TESS_SKIP_TRIVIAL:-false} → fallback OFF.'
+      - 'PROD NÃO OK — docs/ops/smoke-tess-context-scoped-whitelist-2026-09-01.md:15 — tabela do processo live: TESS_SKIP_TRIVIAL = `true`.'
+      - 'PROD NÃO OK — docs/ops/smoke-tess-context-scoped-whitelist-2026-09-01.md:53 — log do container: "[tess] context mode=scoped skip_trivial=true".'
+      - 'PROD NÃO OK — docs/stories/salon-whatsapp-tess-context-on-demand.md:134 — Task 6 deploy 2026-09-01 setou TESS_SKIP_TRIVIAL=true via infra/.env + passthrough do compose.'
+    notes: >
+      A afirmação do handoff (linha 64, "Skip trivial continua OFF") vale para o DEFAULT DE CÓDIGO,
+      não para o processo live. Prod está com skip trivial LIGADO desde 2026-09-01.
+      Ver finding ENV-01 — é um bloqueador de publish porque o rito não checa esta variável.
+
+  infra_mixed_diff_risk:
+    status: CONCERNS
+    evidence:
+      - 'infra/.env.example — DENTRO da fatia: TESS_CONTEXT_MODE full→scoped (linhas 59-61).'
+      - 'infra/.env.example — FORA da fatia: bloco de crédito TESS (TESS_CREDIT_BUDGET, TESS_ALERT_THRESHOLDS, TESS_ALERT_REMAINING_THRESHOLDS, TESS_ALERT_PHONES, TESS_CREDIT_CHECK_MIN), HUMAN_HANDLED_TTL_HOURS=6, NIGHTWATCH_MCP_TOKEN.'
+      - 'infra/docker-compose.yml — DENTRO da fatia: TESS_CONTEXT_MODE, TESS_SKIP_TRIVIAL, TESS_CONTEXT_FORCE_FULL, TESS_TRIVIAL_MAX_CHARS.'
+      - 'infra/docker-compose.yml — FORA da fatia: NIGHTWATCH_MCP_TOKEN, TESS_CREDIT_* (5 vars), TRINKS_ALERT_PHONES, TRINKS_QUOTA_CHECK_MIN.'
+    notes: >
+      O handoff já avisava. Confirmado e enumerado linha a linha acima para triagem.
+      Os adicionais do compose usam fallback `${VAR:-default}`, então são inertes se o VPS não
+      definir nada — exceto TESS_CREDIT_BUDGET:-1000 e os thresholds, que passam a existir no
+      container e podem ativar alerta de crédito.
+
+# ---------------------------------------------------------------------------
+# 2. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues:
+  - id: 'SLA-01'
+    severity: high
+    finding: 'computeHandoffSlaAt devolve SLA fora do horário comercial na janela sáb-18h → seg-09h'
+    evidence: 'backend/lib/handoff-sla.js:17-24 — loop de 96 iterações × 15 min = 24h de lookahead. Dom(0) e Seg(1) são fechados (backend/lib/salon-dates.js:139-140), então de sáb-18h a ter-09h são ~63h > 24h; o loop esgota e cai no fallback da linha 24 (now + 15 min), dentro de horário fechado.'
+    reproduction: |
+      node -e "require('./backend/lib/handoff-sla').computeHandoffSlaAt(new Date('2026-08-16T15:00:00-03:00'))"
+      Medido:  Dom 15:00 → SLA Dom 15:15 (FECHADO)   [esperado: Ter 09:15]
+               Sáb 18:30 → SLA Sáb 18:45 (FECHADO)   [esperado: Ter 09:15]
+               Dom 09:00 → SLA Dom 09:15 (FECHADO)   [esperado: Ter 09:15]
+               Seg 12:00 → SLA Ter 09:15 (ok, 21h < 24h)
+               Sex 19:30 → SLA Sáb 09:15 (ok)
+    impact: >
+      Handoff no fim de semana nasce com SLA já vencido → listar_handoff_sla marca breached=true
+      imediatamente e realertar_handoff_sla emite handoff.sla_breach repetidamente.
+      Alert-fatigue justamente no guarda-corpo criado para proteger o tempo de resposta.
+      Blast radius ~39h/semana (~23%). Interno ao Tiago; NUNCA atinge a cliente.
+    suggested_action: 'Elevar o lookahead para ≥288 iterações (72h) ou caminhar dia-a-dia até o próximo dia aberto. Adicionar asserção isSalonOpen(sla).open === true.'
+    blocks_publish: true
+
+  - id: 'ENV-01'
+    severity: high
+    finding: 'Invariante "Skip trivial OFF" não vale no processo live, e o rito de publish não verifica a variável'
+    evidence: 'docs/ops/smoke-tess-context-scoped-whitelist-2026-09-01.md:15,53,97 e docs/stories/salon-whatsapp-tess-context-on-demand.md:134 — prod roda skip_trivial=true desde 2026-09-01. Handoff §Gate Quinn linha 64 afirma OFF. O checklist de confirmação do handoff (passo 5) checa TESS_CONTEXT_MODE, BOT_ACCEPT_ALL e allowlist, mas NÃO checa TESS_SKIP_TRIVIAL.'
+    impact: >
+      Duas rotas, ambas com flip silencioso de comportamento:
+      (a) publicando o compose, ${TESS_SKIP_TRIVIAL:-false} resolve pelo infra/.env do VPS (=true)
+          → skip trivial permanece LIGADO, contrariando o invariante declarado do gate;
+      (b) resetando sem publicar o compose, o passthrough desaparece → cai no default de código
+          (false) → skip trivial DESLIGA silenciosamente em prod.
+      Nenhuma das duas foi planejada explicitamente.
+    suggested_action: 'Victor decide o valor-alvo de TESS_SKIP_TRIVIAL em prod; Gage captura `docker exec backend env | grep TESS_` ANTES do reset e adiciona TESS_SKIP_TRIVIAL ao passo 5 do rito.'
+    blocks_publish: true
+
+  - id: 'ENV-02'
+    severity: high
+    finding: 'Passthrough de env existe no VPS mas não em HEAD; o `git reset` do rito pode clobberar e deixar o rollback documentado inoperante'
+    evidence: 'git show HEAD:infra/docker-compose.yml | grep TESS_CONTEXT → NENHUM resultado. O serviço backend usa bloco `environment:` explícito e NÃO tem `env_file:` (grep env_file infra/docker-compose.yml → vazio); backend/server.js não carrega dotenv. Porém docs/ops/smoke-tess-context-scoped-whitelist-2026-09-01.md:97 afirma que as vars estão "no processo backend (variáveis de container via docker-compose.yml)" → o compose do VPS tem edição local NÃO COMMITADA.'
+    impact: >
+      O passo 3 do rito (`git fetch` + reset no worktree) reverte infra/docker-compose.yml para HEAD,
+      que não tem passthrough algum. Sem TESS_CONTEXT_MODE nem TESS_CONTEXT_FORCE_FULL chegando ao
+      container, o rollback do passo 6 ("TESS_CONTEXT_MODE=full" ou "TESS_CONTEXT_FORCE_FULL=1")
+      NÃO FUNCIONA — a única saída passa a ser reverter código + rebuild.
+      Corolário: a afirmação do handoff "Se o VPS já define a env, o fallback do compose não muda o
+      processo" é enganosa, porque sem o passthrough o valor do infra/.env não alcança o processo.
+    suggested_action: 'Publicar infra/docker-compose.yml (linhas de passthrough) NO MESMO rebuild que backend/lib/tess-context-config.js — atômico. Antes do reset, Gage faz backup do compose do VPS e diffa contra o local.'
+    blocks_publish: true
+
+  - id: 'SCOPE-01'
+    severity: medium
+    finding: 'backend/lib/tess-context-assembler.js alterado sem estar na allowlist — mudança de hot-path visível à cliente'
+    evidence: 'git diff --stat mostra backend/lib/tess-context-assembler.js | 3 +- (adiciona `durationMin: resolveOfferDurationMin(svcPayload.data)` na construção do bloco de slots) e backend/test/tess-context-assembler.test.js | 74 ++++. Nenhum dos dois consta em docs/handoffs/2026-09-03-orion-proxima-fatia-outbox-sla-scoped.md.'
+    impact: >
+      Altera o cálculo de duração da oferta de horários — comportamento de agendamento visível à
+      cliente — dentro de um pacote cujo objetivo declarado é escopo estreito.
+      SEM risco de crash: resolveOfferDurationMin é exportado (backend/lib/tess-context-slots.js:442)
+      e tess-context-slots.js está limpo/commitado.
+    suggested_action: 'Incluir os dois arquivos na allowlist com justificativa explícita, ou deixá-los fora do commit. Não publicar mudança de oferta não declarada.'
+    blocks_publish: true
+
+  - id: 'SCOPE-02'
+    severity: medium
+    finding: 'infra/nginx/default.conf tem 43 linhas alteradas, embora o handoff diga "sem nginx" — e o rito manda dar reload'
+    evidence: 'git diff infra/nginx/default.conf: (a) remove upstreams n8n_upstream/chatwoot_upstream e transforma os vhosts em `return 503` (containers pausados por limite de CPU Hostinger); (b) adiciona `location /mcp` proxy para backend_upstream com passthrough de Authorization. Handoff linha 17 exclui nginx; passo 4 do rito pede "Nginx reload".'
+    impact: >
+      (a) é PROTETIVO: com os upstreams antigos presentes e os hosts irresolvíveis, `nginx -t`/reload
+      falha e derruba api.studiotirra.com.br junto. Sanidade offline: chaves balanceadas, zero
+      referência remanescente aos upstreams pausados.
+      (b) expõe /mcp publicamente. NÃO é brecha: requireNightwatchAuth falha fechado
+      (backend/lib/nightwatch-mcp.js:189-198 → 503 nightwatch_mcp_unconfigured quando sem token)
+      e compara com timingSafeEqual. Ainda assim é superfície pública nova, não declarada.
+    suggested_action: 'Decidir explicitamente: publicar nginx (aceitando /mcp exposto + 503 em n8n/chatwoot) OU manter fora e NÃO dar reload. Se publicar, rodar `nginx -t` antes do reload.'
+    blocks_publish: true
+
+  - id: 'OBX-01'
+    severity: medium
+    finding: 'A copy honesta morre em silêncio quando emitEvent falha — falha correlacionada'
+    evidence: 'backend/lib/outbound-outbox.js:23-42 — `fired = true` (linha 24) e `await emitEvent(...)` (26-32) acontecem ANTES de sendFn (34-35). Se emitEvent rejeita (Postgres fora), o envio nunca roda e fired=true bloqueia qualquer retry.'
+    impact: >
+      O outbox existe exatamente para cenários de falha, que frequentemente coincidem com problema
+      de DB/infra — ou seja, o caso de maior necessidade é o que silenciosamente não faz nada,
+      devolvendo a cliente ao silêncio que a fatia queria eliminar.
+      NÃO derruba o processo: withTimeout captura (backend/server.js:2248-2257) e o
+      res.json({ok:true}) já saiu em server.js:2676, logo não há unhandled rejection.
+    suggested_action: 'Envolver emitEvent em try/catch próprio, ou enviar primeiro e emitir depois.'
+    blocks_publish: false
+
+  - id: 'OBX-02'
+    severity: low
+    finding: 'Armadilha latente de falso-positivo I1: OUTBOX_COPY casa com o detector de sucesso de produção'
+    evidence: 'backend/lib/nightwatch-ops.js:27 — SUCCESS_COPY_RE inclui o token `cancelei`. OUTBOX_COPY contém "Não gravei nem cancelei nada" → regex casa (verificado: token capturado ["cancelei"]). classifyVerify (backend/lib/nightwatch-ops.js:302-304) devolveria FAIL/I1 "sucesso no WhatsApp sem booking/mutation 2xx".'
+    impact: >
+      HOJE INATIVO: a copy nunca é persistida em conversation_history (backend/lib/outbound-outbox.js
+      não chama saveConversationTurns; backend/server.js:2407-2427 sendKapsoMessage não persiste) e
+      verifyCommit ignora assistantText externo de propósito, lendo só a thread do banco
+      (backend/lib/nightwatch-ops.js:334-344; teste em backend/test/nightwatch-ops.test.js:329).
+      Vira falso FAIL/I1 no instante em que alguém persistir a copy — que é justamente o conserto
+      natural de OBX-03.
+      O teste da fatia não pega isso: backend/test/outbound-outbox.test.js:7 usa regex ad-hoc mais
+      fraca em vez de importar SUCCESS_COPY_RE.
+    suggested_action: 'Fazer o teste importar SUCCESS_COPY_RE de nightwatch-ops e trocar o token, ex.: "Não registrei nenhuma alteração na sua agenda." Corrigir junto com OBX-03.'
+    blocks_publish: false
+
+  - id: 'OBX-03'
+    severity: low
+    finding: 'A copy do outbox não entra no histórico da conversa — incoerência de thread, amplificada por scoped'
+    evidence: 'backend/lib/outbound-outbox.js — zero ocorrências de saveConversationTurns; envio direto por sendFn=sendKapsoMessage (backend/server.js:2688).'
+    impact: 'A cliente recebe uma mensagem que o bot não tem registro. No turno seguinte, sobretudo em `scoped` (menos histórico), a Tess pode se contradizer.'
+    suggested_action: 'Persistir a copy com agent=''outbox'' — e nesse momento OBX-02 precisa já estar corrigido.'
+    blocks_publish: false
+
+  - id: 'TEST-01'
+    severity: medium
+    finding: 'Teste "closed Sunday waits until Tuesday open + 15 min" passa sem verificar o que o nome afirma'
+    evidence: 'backend/test/handoff-sla.test.js:18-27 — asserta apenas sla > now e new Date(payload.sla_at).getUTCHours() >= 12. Com o resultado bugado Dom 15:15 (-03:00 → 18:15 UTC), 18 >= 12 → PASSA.'
+    impact: 'SLA-01 embarca verde. Falsa confiança exatamente no comportamento de fim de semana.'
+    suggested_action: 'Assertar isSalonOpen(sla).open === true e o weekday/hora esperados (Ter 09:15).'
+    blocks_publish: false
+
+  - id: 'SCOPE-03'
+    severity: low
+    finding: 'AC15 da story ainda declara default `full`; override só existe em docs operacionais'
+    evidence: 'docs/stories/salon-whatsapp-tess-context-on-demand.md:81 (AC15) e :96 (tabela) dizem default `full`. Override registrado em docs/analysis/2026-09-03-orion-decisoes-execucao.md:15, backend/lib/tess-context-config.js:2-3 e infra/.env.example:59-61 — mas sem nota de emenda na story.'
+    impact: 'Revisor futuro pode tratar `scoped` como regressão de AC15.'
+    suggested_action: 'Uma linha de emenda na story apontando para o handoff/decisão de 2026-09-03. (@pm/@po se quiserem story formal.)'
+    blocks_publish: false
+
+# ---------------------------------------------------------------------------
+# 3. EVIDÊNCIA DE TESTES
+# ---------------------------------------------------------------------------
+evidence:
+  slice_tests: 'PASS — 40/40 (9 arquivos listados no handoff)'
+  slice_test_command: "node --test test/outbound-outbox.test.js test/handoff-sla.test.js test/conversation-history.test.js test/salao-cli-ops.test.js test/salao-cli-context.test.js test/salao-cli-catalog.test.js test/tess-context-bytes-persist.test.js test/server-tess-timeout.test.js test/tess-context-profiles.test.js"
+  slice_test_result: '# tests 40 / # suites 4 / # pass 40 / # fail 0 (359ms)'
+  backend_suite: "PASS — 555/555, 18 suites (node --test 'test/**/*.test.js', 866ms)"
+  regression: 'PASS — nenhuma regressão fora da fatia apesar de server.js e tess-context-assembler.js alterados'
+  syntax: 'PASS — node --check em 12 arquivos novos/alterados (11 libs + server.js)'
+  nginx_offline_sanity: 'PASS — chaves balanceadas; zero referência a n8n_upstream/chatwoot_upstream'
+  coverage_gap: 'TEST-01 — asserção de fim de semana do SLA é vazia; OBX-02 — teste usa regex ad-hoc em vez de SUCCESS_COPY_RE'
+  not_executed:
+    - 'Deploy, rsync, Hostinger, build de container — fora de autoridade deste gate.'
+    - 'Estado real do env do VPS — não verificável sem ACK; ENV-01/ENV-02 dependem disso.'
+    - 'Smoke WhatsApp last4 0007 — exige ACK individual do Victor.'
+    - 'npm run lint / typecheck — sem script correspondente no backend/package.json.'
+
+# ---------------------------------------------------------------------------
+# 4. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      last4-only preservado nas superfícies de CLI; motivo/conteúdo passam por redactSnippet.
+      /mcp exposto pelo nginx falha fechado (503 sem token) e usa timingSafeEqual.
+      Nenhuma mutação Trinks, nenhuma rota nova no backend, allowlist intacta,
+      BOT_ACCEPT_ALL não tocado. infra/.env é gitignored (.gitignore:5) — sem risco de vazar segredo no commit.
+  reliability:
+    status: CONCERNS
+    notes: 'SLA-01 (SLA bogus no fim de semana) e OBX-01 (copy honesta perdida se o DB cair) degradam justamente os caminhos de falha.'
+  maintainability:
+    status: CONCERNS
+    notes: 'TEST-01 e OBX-02 criam falsa confiança. SCOPE-01/02 quebram a premissa de fatia estreita, dificultando bisect e rollback.'
+  performance:
+    status: PASS
+    notes: >
+      Watchdog usa timer unref'd (backend/lib/outbound-outbox.js:48) e não bloqueia o webhook —
+      res.json sai em server.js:2676 antes da criação do outbox, então o timeout de 28s do
+      withTimeout não interfere no timer de 45s. Queries de SLA têm janela e LIMIT parametrizados.
+  observability:
+    status: PASS
+    notes: 'WATCH_EVENTS ganha handoff.accepted, handoff.sla_breach e outbound.watchdog (backend/lib/nightwatch-ops.js:19-24). tess.context_bytes persiste só contagens, sem texto de bloco (backend/lib/tess-context-bytes.js:58-88).'
+
+# ---------------------------------------------------------------------------
+# 5. O QUE BLOQUEIA PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish:
+  - id: 'SLA-01'
+    action: 'Corrigir o lookahead de computeHandoffSlaAt (≥72h) e endurecer o teste de fim de semana.'
+    owner: '@dev'
+  - id: 'ENV-01'
+    action: 'Victor define o valor-alvo de TESS_SKIP_TRIVIAL em prod; adicionar a variável ao passo 5 do rito.'
+    owner: 'Victor + @devops'
+  - id: 'ENV-02'
+    action: 'Publicar o passthrough do compose junto com tess-context-config.js (atômico); backup/diff do compose do VPS antes do reset.'
+    owner: '@devops'
+  - id: 'SCOPE-01'
+    action: 'Decidir sobre tess-context-assembler.js (+ teste): entra na allowlist com justificativa ou fica fora do commit.'
+    owner: 'Orion + Victor'
+  - id: 'SCOPE-02'
+    action: 'Decidir sobre infra/nginx/default.conf: publicar (com nginx -t antes do reload) ou manter fora e não recarregar.'
+    owner: 'Orion + @devops'
+
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish_note: >
+  Gage PODE planejar o rito (sequência, backups, rollback, checklist). NÃO pode executar
+  commit/push/rebuild até os 5 bloqueadores acima serem resolvidos e um novo ACK do Victor.
+  Este gate não autoriza Hostinger, rsync, BOT_ACCEPT_ALL, alteração de allowlist,
+  paste de prompt Tess, mutação Trinks nem smoke WhatsApp.
+
+# ---------------------------------------------------------------------------
+# 6. RECOMENDAÇÕES
+# ---------------------------------------------------------------------------
+recommendations:
+  immediate:
+    - action: 'Corrigir SLA-01 (lookahead ≥288 iterações) + TEST-01 (assertar isSalonOpen(sla).open).'
+      refs: ['backend/lib/handoff-sla.js:17-24', 'backend/test/handoff-sla.test.js:18-27']
+    - action: 'Capturar `docker exec backend env | grep -E "TESS_(CONTEXT|SKIP)"` no VPS antes de qualquer reset, e anexar ao plano de publish.'
+      refs: ['docs/ops/smoke-tess-context-scoped-whitelist-2026-09-01.md:14-15']
+    - action: 'Commit atômico: backend/lib/tess-context-config.js + infra/docker-compose.yml (passthrough), senão o rollback não existe.'
+      refs: ['infra/docker-compose.yml', 'backend/lib/tess-context-config.js:8']
+    - action: 'Triagem linha-a-linha de infra/.env.example e docker-compose.yml (ver requested_checks.infra_mixed_diff_risk).'
+      refs: ['infra/.env.example', 'infra/docker-compose.yml']
+  future:
+    - action: 'Corrigir OBX-02 e OBX-03 juntos (persistir a copy + tirar o token "cancelei" e importar SUCCESS_COPY_RE no teste).'
+      refs: ['backend/lib/outbound-outbox.js:6', 'backend/lib/nightwatch-ops.js:27']
+    - action: 'OBX-01: proteger emitEvent com try/catch para a copy honesta sobreviver a queda de DB.'
+      refs: ['backend/lib/outbound-outbox.js:26-32']
+    - action: 'Fazer realertar_handoff_sla notificar o Tiago por WhatsApp (hoje só emite evento) — mantendo o cliente fora.'
+      refs: ['backend/lib/handoff-sla.js:124-156']
+    - action: 'Nota de emenda da AC15 na story on-demand.'
+      refs: ['docs/stories/salon-whatsapp-tess-context-on-demand.md:81']
+
+auto_decisions:
+  - '[AUTO-DECISION] Fatia sem story formal → gate emitido como scope_type=operational-slice, SOT = handoff Orion + doc de decisões (razão: handoff §"Depois do gate" declara que sem @pm/@po o pacote segue decisão operacional).'
+  - '[AUTO-DECISION] Auditar somente a allowlist do handoff; ~300 arquivos locais fora da fatia ignorados (razão: instrução explícita do escopo).'
+  - '[AUTO-DECISION] Rodada a suíte completa do backend (555) além dos 9 arquivos da fatia (razão: server.js e tess-context-assembler.js são compartilhados; regressão fora da fatia precisava ser descartada).'
+  - '[AUTO-DECISION] skip_trivial marcado FAIL em vez de CONCERNS (razão: o handoff afirma OFF como invariante de gate e a evidência documental mostra ON em prod; é divergência factual, não risco).'
+  - '[AUTO-DECISION] Estado do env do VPS tratado como não verificado, baseado apenas em docs (razão: sem autorização de deploy/SSH; ENV-01/ENV-02 exigem confirmação do Gage).'
+  - '[AUTO-DECISION] Gate global = CONCERNS, não FAIL (razão: nenhuma violação de honestidade voltada à cliente; todos os bloqueadores são de release-engineering ou defeito interno ao alerta do Tiago).'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, mudança de allowlist, abertura customer-wide, smoke WhatsApp nem qualquer deploy.'

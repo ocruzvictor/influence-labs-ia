@@ -3,6 +3,7 @@
  */
 
 const { isOwnerPhone } = require('./owner-access');
+const { buildHandoffSlaPayload } = require('./handoff-sla');
 
 function shouldHandoffEmptyTess(credits) {
   return Number.isFinite(credits) && credits === 0;
@@ -33,7 +34,7 @@ async function handleEmptyTessHandoff({
       event: 'handoff.human',
       clientPhone: phone,
       kapsoConversationId,
-      payload: { source: 'tess.empty', credits: 0 },
+      payload: { source: 'tess.empty', credits: 0, ...buildHandoffSlaPayload() },
     });
     handoff = true;
   }

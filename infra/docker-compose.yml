@@ -135,6 +135,10 @@ services:
       # Story 1.5 — KB dinâmica: backend Tirra envia memory_collections=[<id>]
       # em cada callTESS() quando setado. Vazio = graceful degradation (bot opera sem KB).
       TIRRA_KB_COLLECTION_ID: ${TIRRA_KB_COLLECTION_ID:-}
+      TESS_CONTEXT_MODE: ${TESS_CONTEXT_MODE:-scoped}
+      TESS_SKIP_TRIVIAL: ${TESS_SKIP_TRIVIAL:-false}
+      TESS_CONTEXT_FORCE_FULL: ${TESS_CONTEXT_FORCE_FULL:-}
+      TESS_TRIVIAL_MAX_CHARS: ${TESS_TRIVIAL_MAX_CHARS:-80}
       META_VERIFY_TOKEN: ${META_VERIFY_TOKEN:-studio-tirra-verify-2026}
       META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
       META_PHONE_NUMBER_ID: ${META_PHONE_NUMBER_ID}
