@@ -1,0 +1,58 @@
+schema: 1
+story: 'tess-commit.13'
+story_title: 'Nightwatch confiável por timeout e escopo de cliente'
+gate: PASS
+status_reason: 'AC1–AC12 atendidos: timeout P0 separado, patrol global e provas de commit/órfãos escopadas ao telefone completo, com metadata mínima, saída LGPD-safe e operação read-only.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:70b6b6c9564ba667e267aaa7bf7215e3b57b93f2'
+deployed_revision: 'N/A — deploy fora do escopo'
+updated: '2026-09-03T18:46:00Z'
+top_issues: []
+waiver: { active: false }
+
+quality_score: 100
+expires: '2026-09-17T18:46:00Z'
+
+evidence:
+  tests_reviewed: 39
+  tests_passed: 39
+  tests_failed: 0
+  focused_slice: 'Nightwatch + Trinks API: 39/39'
+  backend_suite: '531/531'
+  repository_prompt_tests: '79/79'
+  lint: 'PASS'
+  typecheck: 'PASS'
+  syntax: 'PASS'
+  diff: 'PASS'
+  coderabbit: 'PASS — CodeRabbit CLI, revisão final do backend com 0 findings após normalização de metadata.client_phone em listMutations'
+  timeout_signal: 'PASS — WATCH_EVENTS inclui tess.timeout; signals.p0_timeout é separado de p0_leaks e força next_action=activate-peer.'
+  patrol_scope: 'PASS — patrolLive permanece global para eventos e agent mutations, sem exigir clientPhone.'
+  verify_scope: 'PASS — last4 resolve telefone completo em janela temporal nas três fontes; zero match não usa evidência global, colisão falha fechada como ambiguous_last4, e thread/eventos/mutações usam o mesmo telefone e lookback.'
+  orphan_scope: 'PASS — listOrphans correlaciona telefone completo normalizado, preserva órfão cross-phone e aceita booking.rescheduled do mesmo telefone em ±2 minutos.'
+  metadata_whitelist: 'PASS — agent_mutation_* persiste somente client_phone normalizado e kapso_conversation_id opcional, inclusive em erro de transporte; listMutations normaliza metadata.client_phone.'
+  lgpd_read_only: 'PASS — superfícies públicas expõem apenas last4/snippets redigidos; Nightwatch executa somente SELECT/classificação em memória, sem migration, rota nova ou mutação Trinks.'
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Correlação interna usa telefone completo sem expô-lo; metadata é whitelisted e as respostas permanecem LGPD-safe.'
+  performance:
+    status: PASS
+    notes: 'Consultas mantêm janelas e limites parametrizados; nenhuma nova operação externa foi adicionada.'
+  reliability:
+    status: PASS
+    notes: 'Timeout aciona peer separadamente; verifyCommit falha fechado em colisão e não mistura evidência entre clientes.'
+  maintainability:
+    status: PASS
+    notes: 'Assinaturas públicas permanecem compatíveis e os cenários críticos possuem testes SQL-aware de regressão.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Manter o monitoramento operacional; este gate não autoriza BOT_ACCEPT_ALL nem abertura customer-wide.'
+      refs: ['docs/ops/nightwatch-log.md']
+
+auto_decisions:
+  - 'Unit/regression PASS não equivale a deploy; deployed_revision permanece N/A.'
+  - 'tess.context_bytes permanece follow-up e não integra o escopo deste gate.'
+  - 'Deploy, allowlist, Hostinger, rsync e abertura customer-wide permanecem fora do escopo.'

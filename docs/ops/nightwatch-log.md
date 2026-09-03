@@ -120,3 +120,45 @@ Health interno/público **200**, `status=ok`, `trinks_ping=ok`, TESS 46589, hash
 
 Nenhuma mensagem WhatsApp, mutação Trinks, replay `0101` ou abertura customer-wide foi executada. Próximo passo: smoke manual restrito no `0007`, em outro slot, e B3 completo.
 
+## 2026-09-03 17:17–17:28 UTC — smoke pós-publicação `0007`
+
+Nightwatch puxou a janela real após `0b39035`: health interno/público 200, `status=ok`, `trinks_ping=ok`, TESS 46589, WHITELIST intacta e `BOT_ACCEPT_ALL=false`.
+
+- **B3 PASS:** abort + pedido novo → `SCHEDULING`/`BOOKING`, oferta de horário, depois POST 201.
+- **B1 PASS:** CREATE `526224907` → PATCH cancel 204 → novo POST 201 `526226713`; nenhum skip idempotente indevido.
+- **B2/B4 PASS:** cancelamento classificado `CANCEL`, perfil `CANCEL`, `horarios=0`, PATCH 204 e `booking.cancelled outcome=all`; nenhum `cancel.not_owned`.
+- **P0 PASS:** CANCEL ficou em ~5.958 caracteres / ~1,5k tokens, sem grade grande; TESS respondeu em ~7,2s e não houve `tess.timeout`.
+
+Eventos da janela: `tags.parsed` ×7, `booking.created` ×2, `booking.cancelled` ×1; zero 5xx, `MODULE_NOT_FOUND`, `booking.failed`, `handoff.human` ou silêncio. O piloto segue restrito ao único `allow` `0007`; não abrir `BOT_ACCEPT_ALL=true`.
+
+## 2026-09-03 17:52 UTC — allowlist temporária para smoke de cliente novo
+
+Por autorização explícita do Victor, o telefone terminado em `8440` foi adicionado como `allow` para validar o cadastro de cliente novo. O `0007` existente foi preservado; nenhum outro telefone foi alterado.
+
+- Antes: `bot_whitelist` com 1 allow (`0007`); `BOT_ACCEPT_ALL=false`.
+- Depois: `bot_whitelist` com 2 allows (`0007`, `8440`); `BOT_ACCEPT_ALL=false`; `bot_toggles.global=true` preservado.
+- `.env` recebeu `8440` em `BOT_ALLOWED_PHONES`; backup: `/opt/influence-labs/infra/.env.pre-8440-20260903T175224Z`.
+- Nenhum restart, mensagem WhatsApp ou POST/PATCH Trinks foi executado. O roteamento DB aplica a alteração após o TTL de cache de 5s; o fallback já persistido no container continua `0007`-only até eventual restart.
+
+## 2026-09-03 18:08–18:15 UTC — smoke cliente novo `8440`
+
+O smoke do telefone temporário terminou com fluxo completo e sem silêncio:
+
+- Cliente novo confirmado (`client=false`): GET `/clientes` 200 → POST `/clientes` 201 (`agent_mutation_create_client`) → POST `/agendamentos` 201.
+- `booking.created` emitido; não houve 400 de `TipoId`, `booking.failed`, `tess.timeout`, 5xx ou `handoff.human`.
+- Cancelamento posterior: `CANCEL` enxuto, PATCH 204 e `booking.cancelled outcome=all`; nenhum `cancel.not_owned`.
+- Todos os quatro turnos tiveram outbound Kapso 200. B1 re-CREATE no mesmo slot não foi exercitado nesta sessão; já havia PASS no smoke `0007`.
+- O turno de confirmação passou por `UNCERTAIN/FULL` (~89k caracteres) e concluiu em ~12,4s; não é falha do P0 de CANCEL, mas permanece sinal de monitoramento.
+
+Após a coleta, o allow temporário `8440` foi removido conforme autorização limitada ao smoke. DB e `.env` voltaram a `0007`-only, `BOT_ACCEPT_ALL=false`, `bot_toggles.global=true`, health público 200, sem restart.
+
+## 2026-09-03 — gate da correção de monitoramento Nightwatch
+
+Story [tess-commit.13](../stories/salon-whatsapp-nightwatch-monitoring-scope.md) e gate [QA PASS](../qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml).
+
+- `tess.timeout` entrou no patrol como `p0_timeout` separado de `p0_leaks`; timeout na janela aciona `activate-peer`.
+- `patrolLive` permanece global. `verifyCommit` usa last4 apenas para resolver internamente um telefone completo dentro da janela; colisão retorna `CONCERNS/ambiguous_last4` e não mistura evidências. Mutações ficam scoped por metadata; `listOrphans` correlaciona por telefone completo e aceita `booking.rescheduled`.
+- Metadata do ledger é whitelist-only para `agent_mutation_*`; respostas continuam last4/snippets redigidos e as ferramentas Nightwatch seguem read-only.
+- Gates: 39/39 focados, 531/531 backend, 79/79 prompts, lint/typecheck/syntax/diff PASS; CodeRabbit CLI 0 findings.
+- Nenhuma alteração operacional foi feita: sem deploy/push, Hostinger, `rsync`, mutação Trinks, allowlist ou abertura customer-wide. `tess.context_bytes` segue como follow-up.
+

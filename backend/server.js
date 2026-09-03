@@ -737,7 +737,17 @@ async function getClientId(phone) {
   return null;
 }
 
-async function createClientInTrinks(phone, name) {
+function buildAgentMutationMetadata(clientPhone, kapsoConversationId) {
+  const metadata = {};
+  const digits = String(clientPhone || '').replace(/\D/g, '');
+  if (digits) metadata.client_phone = digits;
+  if (kapsoConversationId != null && kapsoConversationId !== '') {
+    metadata.kapso_conversation_id = String(kapsoConversationId);
+  }
+  return metadata;
+}
+
+async function createClientInTrinks(phone, name, { clientPhone, kapsoConversationId } = {}) {
   const digits = String(phone || '').replace(/\D/g, '');
   const national = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
   const ddd = national.slice(0, 2);
@@ -754,6 +764,7 @@ async function createClientInTrinks(phone, name) {
     body: payload,
     origin: 'agent_mutation_create_client',
     essential: true,
+    metadata: buildAgentMutationMetadata(clientPhone || phone, kapsoConversationId),
   });
   const client = response.data || response;
   const clientId = client.id || client.clienteId;
@@ -837,7 +848,7 @@ async function findClientBooking(clienteId, date, professionalId) {
 
 // Cancela agendamento via PATCH /agendamentos/{id}/status/cancelado
 // quemCancelou = enum (1=cliente), NÃO o Trinks client id — ver trinks-mapping.QUEM_CANCELOU.
-async function cancelBookingInTrinks(agendamentoId, motivo, quemCancelou = QUEM_CANCELOU.CLIENTE) {
+async function cancelBookingInTrinks(agendamentoId, motivo, quemCancelou = QUEM_CANCELOU.CLIENTE, { clientPhone, kapsoConversationId } = {}) {
   const current = await trinksLocalStore.getAppointment(agendamentoId);
   const payload = buildCancelPayload(motivo, quemCancelou);
   const result = await trinksApi.request(`/agendamentos/${agendamentoId}/status/cancelado`, {
@@ -845,6 +856,7 @@ async function cancelBookingInTrinks(agendamentoId, motivo, quemCancelou = QUEM_
     body: payload,
     origin: 'agent_mutation_cancel',
     essential: true,
+    metadata: buildAgentMutationMetadata(clientPhone, kapsoConversationId),
   });
   try {
     await trinksLocalStore.markAppointmentStatus(agendamentoId, 'cancelled', {
@@ -866,7 +878,7 @@ async function cancelBookingInTrinks(agendamentoId, motivo, quemCancelou = QUEM_
 }
 
 // Reagenda agendamento via PUT /agendamentos/{id}
-async function rescheduleBookingInTrinks(agendamentoId, booking, professionalsData) {
+async function rescheduleBookingInTrinks(agendamentoId, booking, professionalsData, { clientPhone, kapsoConversationId } = {}) {
   const current = await trinksLocalStore.getAppointment(agendamentoId);
   const profId = booking.professionalId
     || matchByName(professionalsData, booking.professional || '', 'apelido', 'nome')?.id;
@@ -903,6 +915,7 @@ async function rescheduleBookingInTrinks(agendamentoId, booking, professionalsDa
     body: payload,
     origin: 'agent_mutation_reschedule',
     essential: true,
+    metadata: buildAgentMutationMetadata(clientPhone || booking.clientPhone, kapsoConversationId),
   });
   try {
     await trinksLocalStore.markAppointmentStatus(agendamentoId, 'scheduled', {
@@ -950,7 +963,7 @@ function extractFromHistory(history) {
   return null;
 }
 
-async function createBookingInTrinks(booking, professionalsData) {
+async function createBookingInTrinks(booking, professionalsData, { clientPhone, kapsoConversationId } = {}) {
   const profId = booking.professionalId
     || matchByName(professionalsData, booking.professional || '', 'apelido', 'nome')?.id;
 
@@ -970,7 +983,10 @@ async function createBookingInTrinks(booking, professionalsData) {
   ]);
   const clienteId = existingClientId || (
     booking.clientPhone
-      ? await createClientInTrinks(booking.clientPhone, booking.clientName)
+      ? await createClientInTrinks(booking.clientPhone, booking.clientName, {
+        clientPhone: clientPhone || booking.clientPhone,
+        kapsoConversationId,
+      })
       : null
   );
 
@@ -1001,6 +1017,7 @@ async function createBookingInTrinks(booking, professionalsData) {
     body: payload,
     origin: 'agent_mutation_create',
     essential: true,
+    metadata: buildAgentMutationMetadata(clientPhone || booking.clientPhone, kapsoConversationId),
   });
   const created = data.data || data;
   const appointmentId = created.id || created.agendamentoId;
@@ -1836,7 +1853,10 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       continue;
     }
     try {
-      bookingResult = await createBookingInTrinks(bookingData, profsData);
+      bookingResult = await createBookingInTrinks(bookingData, profsData, {
+        clientPhone,
+        kapsoConversationId,
+      });
       bookingCreatedThisTurn = true;
       state.createKeys.add(idemKey);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
@@ -1977,7 +1997,10 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         }
         try {
           const ownedRow = (futureBookings || []).find((b) => String(b.trinks_id) === String(agendamentoId));
-          bookingResult = await cancelBookingInTrinks(agendamentoId, cancelTag.motivo);
+          bookingResult = await cancelBookingInTrinks(agendamentoId, cancelTag.motivo, QUEM_CANCELOU.CLIENTE, {
+            clientPhone,
+            kapsoConversationId,
+          });
           cancelSuccessCount += 1;
           console.log(`[${sessionId}] Booking cancelled in Trinks: agendamentoId ${agendamentoId}`);
           if (state.createKeys) {
@@ -2088,7 +2111,10 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
           `Esse horário não fecha na agenda da profissional — o serviço não cabe na janela livre até o próximo cliente. Me passa outro horário (ou outro dia) que eu te ajudo.`,
         );
       } else {
-        bookingResult = await rescheduleBookingInTrinks(agendamentoId, newBooking, profsPayload.data);
+        bookingResult = await rescheduleBookingInTrinks(agendamentoId, newBooking, profsPayload.data, {
+          clientPhone,
+          kapsoConversationId,
+        });
         console.log(`[${sessionId}] Booking rescheduled in Trinks: agendamentoId ${agendamentoId}`);
         const dataFmt = newBooking.date && newBooking.time
           ? `${newBooking.date.split('-').reverse().join('/')} às ${newBooking.time}`

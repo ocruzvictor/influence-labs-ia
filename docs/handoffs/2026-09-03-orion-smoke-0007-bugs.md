@@ -115,4 +115,31 @@ Cancelamos `526039154` às 09:30 via PATCH `agent_mutation_cancel` **204** (ops,
 - O worktree VPS foi atualizado e o backend reconstruído. A primeira tentativa usou cache desatualizado; o deploy foi corrigido com cópia do worktree para o contexto local do Docker e rebuild `--no-cache`. Não houve `rsync`.
 - Validação: container **Up**, health interno e público HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 e hashes dos módulos da story conferindo.
 - Configuração preservada: `BOT_ACCEPT_ALL=false`, modo **WHITELIST**, único `allow` terminado em `0007`; `.env`, `bot_toggles` e `bot_whitelist` não foram alterados.
-- Nenhum WhatsApp, POST/PATCH Trinks, Hostinger, replay `0101` ou slot 03/09 10:30 André foi executado. Próximo passo: smoke manual no `0007`, em outro slot, e conclusão do B3.
+- O smoke manual ainda não havia sido executado neste ponto; qualquer validação deveria usar somente `0007`, outro slot, sem `0101` ou 03/09 10:30 André.
+
+## Smoke pós-publicação `0007` (2026-09-03 17:17–17:28 UTC)
+
+- Revisão validada: `0b39035`; health interno/público HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 e WHITELIST intacta.
+- **B3 PASS:** “Esquece isso então… corte sábado 05/09 Erick” → `SCHEDULING`/`BOOKING`, sem FAQ, `dado_indisponivel` ou `handoff.human`; horário oferecido e CREATE posterior com POST 201.
+- **B1 PASS:** CREATE `526224907` → cancelamento 204 → novo CREATE após cancel com POST 201 (`526226713`); sem skip idempotente indevido.
+- **B2/B4 PASS:** pedido de cancelamento → `CANCEL`, perfil `CANCEL`, `horarios=0`, PATCH 204 no agendamento do cliente e `booking.cancelled` outcome `all`; nenhum `cancel.not_owned`.
+- **P0 PASS:** contexto CANCEL ~5.958 caracteres / ~1,5k tokens, sem grade grande; `tess.timeout` não observado; turno TESS ~7,2s e outbound 200.
+- Janela sem 5xx, `MODULE_NOT_FOUND`, `booking.failed`, `handoff.human` ou silêncio. Postgres registrou `tags.parsed` ×7, `booking.created` ×2 e `booking.cancelled` ×1; mutações observadas foram POST 201, PATCH 204, POST 201.
+- Decisão: Story 12 e o smoke restrito estão **PASS**. Manter o piloto exclusivamente no allowlist `0007`; não ativar `BOT_ACCEPT_ALL=true` nem abrir customer-wide sem os gates operacionais restantes.
+
+## Smoke de cliente novo `8440` (2026-09-03 18:08–18:15 UTC)
+
+- O número foi habilitado temporariamente e removido após o teste; a configuração voltou a `0007`-only, `BOT_ACCEPT_ALL=false`, `bot_toggles.global=true` e health público 200.
+- **Cadastro/TipoId PASS:** `client=false`, GET `/clientes` 200, POST `/clientes` 201 (`agent_mutation_create_client`) e POST `/agendamentos` 201; nenhum 400 de `TipoId`.
+- **Honestidade e cancelamento PASS:** quatro turnos com outbound Kapso 200; `booking.created`, depois `CANCEL` enxuto com PATCH 204 e `booking.cancelled outcome=all`; nenhum `booking.failed`, `tess.timeout`, `cancel.not_owned` ou silêncio.
+- B1 de re-CREATE no mesmo slot não foi exercitado nesta sessão; permanece coberto pelo smoke anterior `0007` e pelo gate unitário.
+- O turno de confirmação usou `UNCERTAIN/FULL` (~89k caracteres) e concluiu em ~12,4s. O P0 é específico de CANCEL; manter esse caminho sob monitoramento antes de qualquer abertura ampla.
+
+## Correção de lacunas do Nightwatch (2026-09-03)
+
+- Story [Nightwatch confiável por timeout e escopo de cliente](../stories/salon-whatsapp-nightwatch-monitoring-scope.md) implementada e aprovada no gate [`tess-commit.13`](../qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml).
+- `tess.timeout` agora é observado como `signals.p0_timeout` separado de `p0_leaks`; `patrolLive` reage com `activate-peer` sem perder o escopo global.
+- `verifyCommit` resolve last4 para telefone completo somente na janela consultada, falha fechado em colisão e filtra thread, eventos e mutações pelo mesmo cliente. `listOrphans` correlaciona por telefone completo e reconhece `booking.rescheduled`.
+- O ledger de mutações registra apenas metadata whitelisted (`client_phone` normalizado e `kapso_conversation_id` opcional); erro de transporte não adiciona PII. Saídas do Nightwatch continuam last4/snippets redigidos e read-only.
+- Evidência: 39/39 testes focados, 531/531 backend, 79/79 prompts, lint/typecheck/syntax/diff PASS e CodeRabbit 0 findings.
+- Nenhum deploy, push, Hostinger, `rsync`, alteração de allowlist, chamada Trinks real ou abertura customer-wide foi executado. `tess.context_bytes` permanece follow-up fora desta story.

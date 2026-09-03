@@ -17,6 +17,17 @@ function formatPayloadSummary(payload) {
   return detail ? String(detail).slice(0, 200) : '';
 }
 
+function sanitizeAgentMutationMetadata(origin, metadata = {}) {
+  if (!String(origin || '').startsWith('agent_mutation_')) return null;
+  const out = {};
+  const phoneDigits = String(metadata.client_phone || '').replace(/\D/g, '');
+  if (phoneDigits) out.client_phone = phoneDigits;
+  if (metadata.kapso_conversation_id != null && metadata.kapso_conversation_id !== '') {
+    out.kapso_conversation_id = String(metadata.kapso_conversation_id);
+  }
+  return out;
+}
+
 function createTrinksApi({
   db,
   baseUrl,
@@ -47,6 +58,7 @@ function createTrinksApi({
     essential = false,
     headers = {},
     skipBudget = false,
+    metadata = {},
   } = {}) {
     if (!skipBudget) {
       const gate = await canRequest({ essential, origin });
@@ -59,15 +71,21 @@ function createTrinksApi({
     }
     const started = Date.now();
     let status = null;
-    let requestMetadata = {};
-    try {
-      const url = new URL(path, base);
-      requestMetadata = {
-        page: url.searchParams.get('page') == null
-          ? null
-          : Number(url.searchParams.get('page')),
-      };
-    } catch (_) {}
+    const isAgentMutation = String(origin).startsWith('agent_mutation_');
+    let requestMetadata = isAgentMutation
+      ? sanitizeAgentMutationMetadata(origin, metadata)
+      : (() => {
+        try {
+          const url = new URL(path, base);
+          return {
+            page: url.searchParams.get('page') == null
+              ? null
+              : Number(url.searchParams.get('page')),
+          };
+        } catch (_) {
+          return {};
+        }
+      })();
     const reservationId = await reserveTrinksRequest(db, {
       method,
       path,
@@ -118,7 +136,9 @@ function createTrinksApi({
             status: null,
             consumed: false,
             latencyMs: Date.now() - started,
-            metadata: { ...requestMetadata, error: err.message },
+            metadata: isAgentMutation
+              ? requestMetadata
+              : { ...requestMetadata, error: err.message },
           });
         } catch (finalizeError) {
           console.error('[trinks-api] erro na requisicao, mas ledger nao finalizou:', finalizeError.message);
@@ -140,4 +160,8 @@ function createTrinksApi({
   return { request, refreshConsumption, canRequest };
 }
 
-module.exports = { createTrinksApi, formatPayloadSummary };
+module.exports = {
+  createTrinksApi,
+  formatPayloadSummary,
+  sanitizeAgentMutationMetadata,
+};

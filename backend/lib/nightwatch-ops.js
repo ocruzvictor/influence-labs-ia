@@ -7,6 +7,7 @@ const OUTCOME_EVENTS = [
   'booking.failed',
   'booking.dropped',
   'booking.cancelled',
+  'booking.rescheduled',
   'guard.blocked',
 ];
 
@@ -16,6 +17,7 @@ const WATCH_EVENTS = [
   'tags.leaked',
   'handoff.human',
   'tess.empty',
+  'tess.timeout',
   'cancel.not_owned',
 ];
 
@@ -31,6 +33,48 @@ function normalizeLast4(value) {
   const digits = String(value || '').replace(/\D/g, '');
   if (digits.length < 4) return null;
   return digits.slice(-4);
+}
+
+function normalizePhoneDigits(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits || null;
+}
+
+const RESOLVE_LAST4_SQL = `
+  SELECT DISTINCT phone FROM (
+    SELECT regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') AS phone
+      FROM conversation_history
+     WHERE RIGHT(regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), 4) = $1
+       AND regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') <> ''
+       AND created_at >= NOW() - ($2 * INTERVAL '1 minute')
+    UNION
+    SELECT regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') AS phone
+      FROM bot_operational_events
+     WHERE RIGHT(regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), 4) = $1
+       AND regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') <> ''
+       AND received_at >= NOW() - ($2 * INTERVAL '1 minute')
+    UNION
+    SELECT regexp_replace(COALESCE(metadata->>'client_phone', ''), '[^0-9]', '', 'g') AS phone
+      FROM trinks_api_requests
+     WHERE origin LIKE 'agent_mutation_%'
+       AND metadata->>'client_phone' IS NOT NULL
+       AND regexp_replace(COALESCE(metadata->>'client_phone', ''), '[^0-9]', '', 'g') <> ''
+       AND RIGHT(regexp_replace(COALESCE(metadata->>'client_phone', ''), '[^0-9]', '', 'g'), 4) = $1
+       AND requested_at >= NOW() - ($2 * INTERVAL '1 minute')
+  ) src
+ WHERE phone IS NOT NULL AND phone <> ''`;
+
+async function resolveLast4ToPhone(db, last4, { minutes = 30 } = {}) {
+  const needle = normalizeLast4(last4);
+  if (!needle) return { phone: null, ambiguous: false, phones: [] };
+  const windowMin = clampMinutes(minutes, 30);
+  const result = await db.query(RESOLVE_LAST4_SQL, [needle, windowMin]);
+  const phones = [...new Set((result?.rows || [])
+    .map((row) => normalizePhoneDigits(row.phone))
+    .filter(Boolean))];
+  if (phones.length > 1) return { phone: null, ambiguous: true, phones };
+  if (phones.length === 1) return { phone: phones[0], ambiguous: false, phones };
+  return { phone: null, ambiguous: false, phones: [] };
 }
 
 const DIGIT_RUN_RE = /(?<!\d)(?:\+?\d[\s().-]*){8,}(?!\d)/g;
@@ -71,19 +115,22 @@ function mapEventRow(row) {
   };
 }
 
-async function listEvents(db, { minutes = 15, last4 = null } = {}) {
+async function listEvents(db, { minutes = 15, last4 = null, clientPhone = null } = {}) {
   const windowMin = clampMinutes(minutes);
   const needle = last4 ? normalizeLast4(last4) : null;
+  const scopedPhone = clientPhone ? normalizePhoneDigits(clientPhone) : null;
   const result = await db.query(
     `SELECT event, client_phone, motivo, payload, received_at
        FROM bot_operational_events
       WHERE received_at >= NOW() - ($1 * INTERVAL '1 minute')
         AND event = ANY($2::text[])
+        AND ($4::text IS NULL
+             OR regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') = $4)
         AND ($3::text IS NULL
              OR RIGHT(regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), 4) = $3)
       ORDER BY received_at DESC
       LIMIT 80`,
-    [windowMin, WATCH_EVENTS, needle],
+    [windowMin, WATCH_EVENTS, scopedPhone ? null : needle, scopedPhone],
   );
   return (result?.rows || []).map(mapEventRow);
 }
@@ -122,13 +169,14 @@ async function listOrphans(db, { minutes = 15 } = {}) {
     `WITH parsed AS (
        SELECT id,
               received_at,
-              client_phone,
+              regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') AS phone_norm,
               RIGHT(regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), 4) AS last4,
               COALESCE((payload->>'creates')::int, 0) AS creates,
               COALESCE((payload->>'reschedules')::int, 0) AS reschedules
          FROM bot_operational_events
         WHERE event = 'tags.parsed'
           AND received_at >= NOW() - ($1 * INTERVAL '1 minute')
+          AND regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') <> ''
           AND (
             COALESCE((payload->>'creates')::int, 0) > 0
             OR COALESCE((payload->>'reschedules')::int, 0) > 0
@@ -138,11 +186,13 @@ async function listOrphans(db, { minutes = 15 } = {}) {
        FROM parsed p
       WHERE p.last4 IS NOT NULL
         AND char_length(p.last4) = 4
+        AND p.phone_norm <> ''
         AND NOT EXISTS (
           SELECT 1
             FROM bot_operational_events e
            WHERE e.event = ANY($2::text[])
-             AND RIGHT(regexp_replace(COALESCE(e.client_phone, ''), '[^0-9]', '', 'g'), 4) = p.last4
+             AND regexp_replace(COALESCE(e.client_phone, ''), '[^0-9]', '', 'g') = p.phone_norm
+             AND regexp_replace(COALESCE(e.client_phone, ''), '[^0-9]', '', 'g') <> ''
              AND e.received_at BETWEEN p.received_at - INTERVAL '2 minutes'
                                    AND p.received_at + INTERVAL '2 minutes'
         )
@@ -156,20 +206,23 @@ async function listOrphans(db, { minutes = 15 } = {}) {
     creates: Number(row.creates) || 0,
     reschedules: Number(row.reschedules) || 0,
     invariant: 'I1',
-    hint: 'tags.parsed sem created/failed/blocked/dropped ±2min',
+    hint: 'tags.parsed sem outcome ±2min (telefone completo)',
   }));
 }
 
-async function listMutations(db, { minutes = 15 } = {}) {
+async function listMutations(db, { minutes = 15, clientPhone = null } = {}) {
   const windowMin = clampMinutes(minutes);
+  const scopedPhone = clientPhone ? normalizePhoneDigits(clientPhone) : null;
   const result = await db.query(
     `SELECT method, endpoint, origin, http_status, requested_at
        FROM trinks_api_requests
       WHERE requested_at >= NOW() - ($1 * INTERVAL '1 minute')
         AND origin LIKE 'agent_mutation_%'
+        AND ($2::text IS NULL
+             OR regexp_replace(COALESCE(metadata->>'client_phone', ''), '[^0-9]', '', 'g') = $2)
       ORDER BY requested_at DESC
       LIMIT 40`,
-    [windowMin],
+    [windowMin, scopedPhone],
   );
   return (result?.rows || []).map((row) => ({
     method: row.method,
@@ -181,20 +234,42 @@ async function listMutations(db, { minutes = 15 } = {}) {
   }));
 }
 
-async function getThread(db, { last4, limit = 12 } = {}) {
+async function getThread(db, { last4, limit = 12, clientPhone = null, minutes = null } = {}) {
   const needle = normalizeLast4(last4);
   if (!needle) {
     return { error: 'last4_required', hint: 'Passe 4 dígitos finais do telefone.' };
   }
+  const scopedPhone = clientPhone ? normalizePhoneDigits(clientPhone) : null;
   const take = clampLimit(limit);
-  const result = await db.query(
-    `SELECT role, content, created_at, agent
-       FROM conversation_history
-      WHERE RIGHT(regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), 4) = $1
-      ORDER BY created_at DESC
-      LIMIT $2`,
-    [needle, take],
-  );
+  const windowMin = minutes == null ? null : clampMinutes(minutes);
+  let sql;
+  let params;
+  if (scopedPhone) {
+    if (windowMin != null) {
+      sql = `SELECT role, content, created_at, agent
+               FROM conversation_history
+              WHERE regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') = $1
+                AND created_at >= NOW() - ($3 * INTERVAL '1 minute')
+              ORDER BY created_at DESC
+              LIMIT $2`;
+      params = [scopedPhone, take, windowMin];
+    } else {
+      sql = `SELECT role, content, created_at, agent
+               FROM conversation_history
+              WHERE regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') = $1
+              ORDER BY created_at DESC
+              LIMIT $2`;
+      params = [scopedPhone, take];
+    }
+  } else {
+    sql = `SELECT role, content, created_at, agent
+             FROM conversation_history
+            WHERE RIGHT(regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), 4) = $1
+            ORDER BY created_at DESC
+            LIMIT $2`;
+    params = [needle, take];
+  }
+  const result = await db.query(sql, params);
   const turns = (result?.rows || []).reverse().map((row) => ({
     role: row.role,
     agent: row.agent || null,
@@ -239,20 +314,49 @@ async function verifyCommit(db, { last4, assistantText = '', minutes = 30 } = {}
     return { error: 'last4_required', hint: 'Passe 4 dígitos finais do telefone.' };
   }
   const windowMin = clampMinutes(minutes, 30);
-  let text = String(assistantText || '').trim();
-  if (!text) {
-    const thread = await getThread(db, { last4: needle, limit: 8 });
+  const resolution = await resolveLast4ToPhone(db, needle, { minutes: windowMin });
+  if (resolution.ambiguous) {
+    return {
+      last4: needle,
+      verdict: 'CONCERNS',
+      invariant: 'I1',
+      reason: 'ambiguous_last4',
+      ambiguous_last4: true,
+      assistant_snippet: null,
+      events: [],
+      mutations: [],
+    };
+  }
+
+  const clientPhone = resolution.phone;
+  let text = '';
+  if (clientPhone) {
+    const thread = await getThread(db, {
+      last4: needle,
+      clientPhone,
+      limit: 8,
+      minutes: windowMin,
+    });
     const lastAssistant = [...(thread.turns || [])].reverse().find((t) => t.role === 'assistant');
     text = lastAssistant?.snippet || '';
   }
-  const [events, mutations] = await Promise.all([
-    listEvents(db, { minutes: windowMin, last4: needle }),
-    listMutations(db, { minutes: windowMin }),
-  ]);
-  const verdict = classifyVerify({ assistantText: text, events, mutations });
+
+  let events = [];
+  let mutations = [];
+  if (clientPhone) {
+    [events, mutations] = await Promise.all([
+      listEvents(db, { minutes: windowMin, clientPhone }),
+      listMutations(db, { minutes: windowMin, clientPhone }),
+    ]);
+  }
+
+  const verdict = clientPhone
+    ? classifyVerify({ assistantText: text, events, mutations })
+    : { verdict: 'CONCERNS', invariant: 'I1', reason: 'last4_sem_cliente' };
+
   return {
     last4: needle,
-    assistant_snippet: redactSnippet(text, 180),
+    assistant_snippet: redactSnippet(text, 180) || null,
     events,
     mutations: mutations.slice(0, 12),
     ...verdict,
@@ -268,6 +372,7 @@ async function patrolLive(db, { minutes = 15, health = {} } = {}) {
     listMutations(db, { minutes: windowMin }),
   ]);
   const failedMutations = mutations.filter((m) => m.failed);
+  const p0Timeout = events.filter((e) => e.event === 'tess.timeout').length;
   return {
     window_min: windowMin,
     generated_at: new Date().toISOString(),
@@ -281,8 +386,9 @@ async function patrolLive(db, { minutes = 15, health = {} } = {}) {
       p0_orphans: orphans.length,
       p0_mutation_fail: failedMutations.length,
       p0_leaks: events.filter((e) => e.event === 'tags.leaked' || e.event === 'tess.empty').length,
+      p0_timeout: p0Timeout,
     },
-    next_action: stuck.length || orphans.length || failedMutations.length
+    next_action: stuck.length || orphans.length || failedMutations.length || p0Timeout
       ? 'activate-peer'
       : 'standby',
   };
@@ -294,6 +400,8 @@ module.exports = {
   SUCCESS_COPY_RE,
   last4FromPhone,
   normalizeLast4,
+  normalizePhoneDigits,
+  resolveLast4ToPhone,
   redactSnippet,
   clampMinutes,
   listEvents,
