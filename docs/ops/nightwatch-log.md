@@ -180,3 +180,21 @@ Nenhuma mensagem WhatsApp, POST/PATCH Trinks ou smoke mutável foi executado nes
 - Não houve evento operacional pós-deploy na janela. O smoke WhatsApp mutável da Story 13 continua não executado.
 - **Follow-up PROPOSTO (P-STUCK):** triar os 20 fios históricos e avaliar lookback/filtro de allowlist, `human_only` e silêncio em `listStuckThreads`; enquanto isso, `activate-peer` deve ser lido como baseline histórico, não como timeout.
 
+## 2026-09-03 19:55:18 UTC (16:55:18 BRT) — OPEN para novas mensagens (autorização Victor)
+
+Corte operacional: `2026-09-03T19:55:18Z` / `2026-09-03T16:55:18 -03`. Escopo: aceitar **novas** mensagens de todos os contatos; **não** processar nem resumir backlog histórico (lista auditada aguarda aprovação individual).
+
+**Before:** `BOT_ACCEPT_ALL=false`, modo **WHITELIST**, `accept_all=false`. `bot_toggles.global=true` (chave técnica, `updated_at` 15:11:37Z — sem update). Whitelist: 1 allow (last4 `0007`), 9 block, 7 human_only (17 total). Backend StartedAt 19:03:50Z (Story 13).
+
+**Change:** somente `.env` `BOT_ACCEPT_ALL=false` → `true`. Backup datado no VPS (`.env.preopen20260903T195518Z`). `BOT_ALLOWED_PHONES`, KAPSO, TESS, Trinks, prompt e demais env **intocados**. `bot_toggles.global` já era `true` — nenhum UPDATE. Whitelist/denylist **sem alteração**.
+
+**Deploy:** `docker compose up -d --force-recreate backend` (sem build, rsync, nginx, migrations, volumes). Backend StartedAt **19:55:32Z** (após corte).
+
+**After:** health interno/público HTTP **200**, `status=ok`, `trinks_ping=ok`, TESS **46589**, `accept_all=true`, `mode=OPEN`. `bot_toggles.global=true`. Whitelist inalterada: 1 allow / 9 block / 7 human_only. Log startup: `Bot mode: OPEN (responde todos)`.
+
+**Zero backlog automático:** `bot_operational_events` pós-corte = 0 (sem resume, outbound, inbound processado). Nenhuma mensagem WhatsApp enviada; nenhum POST/PATCH Trinks.
+
+**Limites preservados:** block/human_only continuam valendo sobre OPEN. Backlog histórico depende de aprovação individual — não resume nesta execução.
+
+**Rollback (não executado):** restaurar backup → `BOT_ACCEPT_ALL=false` → `docker compose up -d --force-recreate backend`; manter `bot_toggles`, whitelist e volumes.
+
