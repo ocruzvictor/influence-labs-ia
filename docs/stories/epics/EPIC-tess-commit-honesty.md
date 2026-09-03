@@ -1,6 +1,6 @@
 # EPIC: Commit e fala da Tess são a mesma fonte (I1/I2/I3)
 
-**Status:** Done (1–13) · gates @qa PASS · piloto allowlist/customer-wide não liberado
+**Status:** Done (1–13) · gates @qa PASS · operação OPEN (novas mensagens) por autorização de Victor — **separada** do DoD; backlog não retomado
 **Criado em:** 2026-09-03  
 **Rev. 1:** 2026-09-03 — @pm `*create-epic` YOLO; stories detalhadas = @sm  
 **Rev. 2:** 2026-09-03 — @sm `*draft` stories 8–11 (Orion smoke `0007`)
@@ -9,6 +9,7 @@
 **Rev. 5:** 2026-09-03 — @devops publicou `a413e16` com dependências runtime autocontidas; health VPS **200/ok**; smoke posterior restrito ao allowlist `0007`
 **Rev. 6:** 2026-09-03 — story 13 Nightwatch registrada como Done; gate @qa **PASS** (unit); deploy pendente na redação
 **Rev. 7:** 2026-09-03 — story 13 **live** em `07f59cb`; docs pós-deploy `ca1b4af`; smoke WhatsApp da 13 **não** executado; customer-wide bloqueado
+**Rev. 8:** 2026-09-03 — operação OPEN para **novas** mensagens (`BOT_ACCEPT_ALL=true`, corte `2026-09-03T19:55:18Z` / 16:55:18 BRT) por autorização explícita de Victor; **não** autorizada pelo gate/story 13. Health 200, `mode=OPEN`, TESS 46589. Denylist preservada (1 allow `0007`, 9 block, 7 human_only — block/human_only valem em OPEN). 25 fios antigos aguardam aprovação individual (16 CANDIDATA_PENDENTE + 9 REVISÃO_MANUAL; 4 NÃO RETOMAR). Smoke mutável da Story 13 **ainda não** executado. Docs atuais `975ee1f`.
 **Owner:** @pm  
 **Handoff SOT (1–7):** [docs/handoffs/2026-09-02-aria-rca-correcao.md](../../handoffs/2026-09-02-aria-rca-correcao.md) (Aria rev. 3)
 
@@ -17,6 +18,12 @@
 **Incidente:** `tess-46589-nova-versao-errou` — versão nova: `POST /clientes` sem `TipoId` derruba CREATE (`0101`); o turno seguinte afirma o que failed/blocked recusou; PUT 204 pode gravar Barba quando o Rosa era Corte (`2185`, `0160`).  
 **ACK Orion (esta missão):** Dex pode **planejar e implementar no repo**. Sem rsync, sem git push, sem POST Trinks, sem colar prompt TESS 46589.  
 **Branch sugerida:** `feature/tess-commit-honesty`
+
+## Operação atual (separada do DoD)
+
+Corte: `2026-09-03T19:55:18Z` / 16:55:18 BRT. A story 13 e o gate `tess-commit.13` **não** autorizam `BOT_ACCEPT_ALL` nem abertura customer-wide por si só. Victor autorizou o corte operacional à parte: `BOT_ACCEPT_ALL` false→true no VPS + recreate do backend. Health 200, `mode=OPEN`, TESS 46589; `bot_toggles.global=true` já estava ativo.
+
+Vale só para **novas** mensagens. Não houve resume/backlog automático, mensagem WhatsApp nem mutação Trinks nesta habilitação. Customer-wide no sentido de aceitar novos não-allowlisted está ativo, com denylist preservada (block/human_only continuam valendo em OPEN). 25 fios antigos (16 CANDIDATA_PENDENTE + 9 REVISÃO_MANUAL; 4 NÃO RETOMAR) aguardam aprovação individual; P-STUCK=20 histórico segue follow-up. Smoke mutável da Story 13 ainda não executado. Deploy **não** fecha o DoD deste epic. Histórico até Rev. 7 (OPEN proibido / fora de escopo) permanece válido.
 
 ## Objetivo
 
@@ -88,7 +95,7 @@ Stories **8–11 Done** — @dev implementou e @qa aprovou em 2026-09-03 (SOT Or
 
 **Validação story 13:** AC1–AC12 aprovados; 39/39 focados Nightwatch+Trinks, 531/531 backend, 79/79 prompts, lint/typecheck/syntax/diff PASS e CodeRabbit 0 findings. `tess.timeout` passa a `p0_timeout` separado; `patrolLive` continua global; `verifyCommit`/`listOrphans` correlacionam internamente por telefone completo e janela temporal, com fail-closed `ambiguous_last4`; metadata whitelisted, saída LGPD-safe e operação read-only.
 
-**Gate e limites operacionais:** o gate [`tess-commit.13`](../../qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml) registra `deployed_revision: 07f59cb` (publicado ~19:04 UTC). Continua **sem** autorizar `BOT_ACCEPT_ALL`, alteração de allowlist ou abertura customer-wide; smoke WhatsApp da 13 **não** foi executado. `tess.context_bytes` e mudanças de display em `getThread`/`listStuckThreads` permanecem fora.
+**Gate e limites operacionais:** o gate [`tess-commit.13`](../../qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml) registra `deployed_revision: 07f59cb` (publicado ~19:04 UTC). O gate/story **não** autoriza `BOT_ACCEPT_ALL`, alteração de allowlist ou abertura customer-wide — isso permanece fora do DoD. A operação OPEN para novas mensagens foi habilitada **separadamente** por autorização explícita de Victor em `2026-09-03T19:55:18Z` (docs `975ee1f`); **não** houve retomada de backlog. Smoke WhatsApp/mutável da 13 **não** foi executado. `tess.context_bytes` e mudanças de display em `getThread`/`listStuckThreads` permanecem fora.
 
 ### PO validation — 2026-09-03
 
@@ -126,7 +133,7 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 - [x] **P0 (story 12):** CANCEL high em modo FULL não carrega grade; timeout TESS gera fallback honesto + `tess.timeout`, sem mutação ou silêncio automático.
 - [x] `@sm` stories 8–11 no disco; File List / Dev Agent Record preenchidos pelo @dev (2026-09-03). Gate @qa **PASS**; stories 8–11 Done.
 - [x] Story 12 implementada, testada e validada no smoke restrito `0007`; abertura customer-wide continua bloqueada.
-- [x] **Story 13:** AC1–AC12 e gate @qa **PASS**; **`07f59cb` live** (docs `ca1b4af`); `p0_timeout` separado, patrol global preservado, correlação client-scoped/temporal fail-closed, metadata whitelisted e superfícies LGPD-safe/read-only. Allowlist `0007`-only preservada; smoke WhatsApp **não** executado; customer-wide bloqueado.
+- [x] **Story 13:** AC1–AC12 e gate @qa **PASS**; **`07f59cb` live** (docs atuais `975ee1f`); `p0_timeout` separado, patrol global preservado, correlação client-scoped/temporal fail-closed, metadata whitelisted e superfícies LGPD-safe/read-only. Allowlist `0007`-only **preservada** (1 allow / 9 block / 7 human_only). Smoke WhatsApp/mutável **não** executado. A story/gate **não** autoriza customer-wide; OPEN para novas mensagens é ato operacional separado (Victor, 19:55:18Z) — backlog não retomado.
 - [ ] Deploy VPS / rsync / ACK Supervisor no `nightwatch-log` **não** são DoD desta entrega (Aria §5 itens 1–3 continuam gate de **próximo** deploy, outro rito). Live `0007` **não** fecha DoD; se live, **outro slot**, não 03/09 10:30 André.
 
 ## Decisões
@@ -142,6 +149,7 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 9. **7 stories** (acima do guia 1–3 do task brownfield): tabela travada pelo spawn + ondas P0+P1 já sequenciadas no RCA. Sem PRD greenfield.
 10. **DoD = unit.** Live VPS e ACK Supervisor pós-itens-1–2-no-ar ficam para o rito de deploy, não para fechar este epic.
 11. **Smoke `0007` (Orion 2026-09-03):** I1 armadilha Fefe 9h + 2-phase + CREATE André 10:30 (08:15) + `tess.empty` credits=0 **PASS**. Bugs **novos** B1–B4 não reabrem 1–7. last4 `0007` = evidência, não replay. TipoId **não** exercitado — não replay `0101`.
+12. **OPEN operacional ≠ DoD do epic (2026-09-03, Victor):** `BOT_ACCEPT_ALL=true` / `mode=OPEN` para novas mensagens foi habilitado por autorização explícita de Victor às `19:55:18Z`, não pelo gate/story 13. Histórico até Rev. 7 (OPEN proibido / fora de escopo) permanece válido. Backlog não retomado; smoke mutável da 13 não executado. Deploy continua sem fechar o DoD.
 
 ## Risk (existente)
 
@@ -172,10 +180,11 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 - 2026-09-03 — @dev/@qa: story 13 `tess-commit.13` concluída e gate formal **PASS** (AC1–AC12): 39/39 focados Nightwatch+Trinks, 531/531 backend, 79/79 prompts, lint/typecheck/syntax/diff PASS e CodeRabbit 0 findings. Escopo limitado a observabilidade LGPD-safe/read-only; sem deploy, push, Hostinger/rsync, allowlist ou abertura customer-wide.
 - 2026-09-03 — @devops (Gage): publicou `07f59cb` no worktree VPS; health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589, allowlist `0007`-only preservada; `patrol_live` com `p0_timeout` no live. Sem smoke WhatsApp nesta execução.
 - 2026-09-03 — @devops (Gage): docs pós-deploy `ca1b4af` + registro auditável final no epic/gate/dossiê; smoke WhatsApp da 13 continua pendente; customer-wide bloqueado.
+- 2026-09-03 — @pm (Morgan): Rev. 8 — registra operação OPEN para novas mensagens (`2026-09-03T19:55:18Z` / 16:55:18 BRT) por autorização explícita de Victor (`BOT_ACCEPT_ALL` false→true, backend recriado; health 200, `mode=OPEN`, TESS 46589). Story/gate 13 **não** autorizam a mudança. Whitelist intacta; block/human_only valem em OPEN. 25 fios antigos aguardam aprovação (16+9; 4 NÃO RETOMAR); P-STUCK=20 histórico. Sem resume/WhatsApp/Trinks nesta habilitação. Smoke mutável da 13 pendente. Docs `975ee1f`. DoD do epic permanece unit; deploy não fecha. Sem código. Sem git commit.
 
 ---
 
-**Handoff concluído:** Quinn aprovou stories **8–13** no unit gate. Fatia 8–11: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`; story 12: `tess-context-profiles.test.js`, `tess-context-cancel-full.test.js`, `tess-timeout.test.js`, `server-tess-timeout.test.js`; story 13: `nightwatch-ops.test.js`, `trinks-api.test.js`. Gate story 12: **103/103** focados, **512/512** backend, **79/79** prompts. Gate story 13: **39/39** focados, **531/531** backend, **79/79** prompts. Código live: **`07f59cb`** (Story 13 Nightwatch); docs remote: **`ca1b4af`**. Smoke restrito `0007` (Story 12, 17:17–17:28 UTC) **PASS**; smoke WhatsApp da Story 13 **não** executado. `BOT_ACCEPT_ALL=false`, somente `0007` em `allow`; customer-wide bloqueado.
+**Handoff concluído:** Quinn aprovou stories **8–13** no unit gate. Fatia 8–11: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`; story 12: `tess-context-profiles.test.js`, `tess-context-cancel-full.test.js`, `tess-timeout.test.js`, `server-tess-timeout.test.js`; story 13: `nightwatch-ops.test.js`, `trinks-api.test.js`. Gate story 12: **103/103** focados, **512/512** backend, **79/79** prompts. Gate story 13: **39/39** focados, **531/531** backend, **79/79** prompts. Código live: **`07f59cb`** (Story 13 Nightwatch); docs atuais: **`975ee1f`**. Smoke restrito `0007` (Story 12, 17:17–17:28 UTC) **PASS**; smoke WhatsApp/mutável da Story 13 **não** executado. Operação: `BOT_ACCEPT_ALL=true`, `mode=OPEN` para **novas** mensagens (Victor, `2026-09-03T19:55:18Z`); whitelist intacta (1 allow `0007`, 9 block, 7 human_only). Sem resume/backlog automático. 25 fios antigos aguardam aprovação individual.
 
 ---
 
@@ -186,3 +195,4 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 *[AUTO-DECISION] @sm *draft 2026-09-03: ClickUp skip; code-intel skip; gotchas.json ausente; branch `feature/tess-commit-honesty` documentada, não criada (worktree suja em `feature/resume-ia-pos-handoff`).*
 *[AUTO-DECISION] @sm *draft 8–11 2026-09-03: ClickUp skip; code-intel skip; gotchas.json ausente; elicit pulada (YOLO + SOT Orion 0007). Sem código. Sem git commit. B4 P1 depois de 8+9.*
 *[AUTO-DECISION] Orion implementou 8–11 2026-09-03: CodeRabbit `-t uncommitted` skip (worktree 327 arquivos fora do epic). Gate = Quinn unit. Sem rsync. Sem git commit. Sem Hostinger.*
+*[AUTO-DECISION] Rev. 8 2026-09-03: registrar OPEN como operação atual **separada** do DoD (não reabrir stories, não alterar ACs, não apagar Rev. 1–7 / OUT / changelog histórico). Motivo: Victor autorizou `BOT_ACCEPT_ALL` às 19:55:18Z; gate/story 13 não autorizam a mudança.*

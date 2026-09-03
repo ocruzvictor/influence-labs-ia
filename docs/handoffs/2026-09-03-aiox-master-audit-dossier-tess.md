@@ -5,7 +5,7 @@
 **Quando:** 2026-09-03  
 **Propósito:** dar à próxima sessão um mapa autocontido para procurar **padrões de falha** e propor **controles preventivos/preditivos**. Este arquivo substitui a leitura da conversa.
 
-**Não é autorização de novo deploy.** Story 13 já está live. Não é PRD. Não fecha DoD do epic (deploy não é DoD). Recomendações da §8 são **PROPOSTA**.
+**Não é autorização de novo deploy de código.** Story 13 já está live (`07f59cb`). OPEN de **novas** mensagens foi autorizado pelo proprietário (~19:55:18Z). Não é PRD. Não fecha DoD do epic. Recomendações da §8 são **PROPOSTA**. **Não** afirma que conversas antigas foram retomadas.
 
 ---
 
@@ -14,24 +14,27 @@
 | Campo | Valor conhecido nesta sessão |
 |---|---|
 | Branch | `feature/tess-commit-honesty` alinhada com `origin/feature/tess-commit-honesty` |
-| Código Story 13 no VPS | `07f59cb` — `fix: harden Nightwatch verification scope [Story 13]` |
-| Docs pós-deploy no remote | `80cb950` — baseline final da patrulha (registro inicial `ca1b4af`, auditoria `b796b44`) |
-| Publicado anterior | `0b39035` — Story 12 (CANCEL lean + timeout) + smoke `0007`/`8440` |
-| Locais **ainda não publicados** | **311** entradas fora da fatia 13 (resume-ia, AIOX/skills, admin, ops, KB, infra). **Particionar.** Não tratar o tree como release |
-| Pronto para deploy do resto? | **Não.** Só a fatia 13 subiu. Demais workstreams continuam locais |
+| Código live (VPS) | **`07f59cb`** — Story 13 Nightwatch (não mudou no corte OPEN) |
+| Docs remotos | **`975ee1f`** — `docs: record OPEN activation for new inbound messages` (sobre `80cb950` / `ca1b4af` / `b796b44`) |
+| Publicado anterior | `0b39035` — Story 12 + smoke restrito `0007`/`8440` |
+| Modo **atual** | **OPEN** desde `2026-09-03T19:55:18Z` (`16:55:18 BRT`) — só **novas** mensagens |
+| Locais **ainda não publicados** | **311** entradas fora da fatia 13. **Particionar.** Não tratar o tree como release |
+| Pronto para deploy do resto? | **Não.** Código 13 já no ar; demais workstreams locais |
 
 ### Publicado versus local
 
 ```text
-VPS / origin ── 07f59cb ── Story 13 LIVE (Nightwatch p0_timeout + verify/orphans scoped)
-docs remote ── 80cb950 ── baseline final da patrulha (branch alinhada)
-anterior ───── 0b39035 ── Story 12 no ar + smoke 0007/8440 (honesty 1–12)
-working tree ─ 311 entradas fora da 13 (resume-ia, AIOX, admin, ops, KB, infra)
+VPS código ── 07f59cb ── Story 13 LIVE (inalterada no corte OPEN)
+docs remote ── 975ee1f ── registro OPEN novas mensagens (branch alinhada)
+modo atual ── OPEN 19:55:18Z / 16:55:18 BRT ── BOT_ACCEPT_ALL=true; block/human_only valem
+anterior ──── 0b39035 + WHITELIST 0007 ── Story 12 + smokes restritos
+working tree ─ 311 entradas fora da 13
 ```
 
-- **No ar (1–13):** TipoId, sanitize C3, reschedule SKU, empty-handoff, createKeys, cancel-SKU, abort+booking, cancel-intent, CANCEL lean + timeout, Nightwatch `p0_timeout` / verify client-scoped / metadata whitelist.
-- **Só no working tree:** outras ondas. **Não empacotar** com a 13 (já publicada).
-- **Validação desta publicação:** health + `patrol_live` read-only (~19:11:20Z). **Sem** smoke WhatsApp mutável da Story 13, **sem** POST/PATCH/PUT Trinks nesta execução.
+- **No ar (1–13):** honesty + Nightwatch scoped. Código **não** mudou no OPEN.
+- **Só no working tree:** outras ondas. **Não empacotar.**
+- **Validação código 13:** health + `patrol_live` ~19:11:20Z. **Smoke WhatsApp pós-Story 13 ainda não executado.**
+- **Corte OPEN:** backend recriado ~19:55:32Z; **0** eventos automáticos; **0** resume/outbound/Trinks; `whatsapp_window.status=red` esperado até o 1º inbound real.
 
 [AUTO-DECISION] gotchas.json ausente → skip; SOT = fatos de publicação confirmados + handoff Orion + epic + gate 13.
 
@@ -39,7 +42,7 @@ working tree ─ 311 entradas fora da 13 (resume-ia, AIOX, admin, ops, KB, infra
 
 ## 2. Executive summary
 
-A Tess 46589 já **fala o que a Trinks gravou** nos smokes restritos de hoje (CREATE/CANCEL/cliente novo, Story 12). A Story 13 (Nightwatch) está **publicada e live** em `07f59cb`. Patrulha read-only ~19:11:20Z: `p0_timeout=0`, `p0_orphans=0`, `p0_leaks=0`, `p0_mutation_fail=0`; `next_action=activate-peer` veio **só** de `p0_stuck=20` (baseline histórico, não regressão evidenciada da 13). **Smoke WhatsApp mutável da 13 não ocorreu.** Residuais: UNCERTAIN/FULL grande, `tess.context_bytes` só log, outbox/trace/`catch` genérico, **311** alterações locais, e o lookback fixo de stuck (§2.1 / **P-STUCK**).
+A Tess 46589 já **fala o que a Trinks gravou** nos smokes restritos de hoje (Story 12). Código **`07f59cb`** (Story 13) está live. O proprietário autorizou **OPEN só para novas mensagens** em `19:55:18Z` (`BOT_ACCEPT_ALL=true`, health `mode=OPEN`). Denylist **intacta** (9 block + 7 `human_only`); OPEN **não** as remove. Backlog antigo (29 last4, §2.2) **aguarda aprovação individual** via resume admin — **não** foi retomado. Patrulha ~19:11:20Z: demais P0=0, `activate-peer` só por `p0_stuck=20`. Após o corte: eventos = 0. **Smoke WhatsApp pós-Story 13 ainda não executado.** Residuais: UNCERTAIN/FULL, `tess.context_bytes`, outbox/trace/`catch`, **311** locais, **P-STUCK** + triagem dos 25 (16+9).
 
 ### Gates — testes locais versus validação live
 
@@ -51,29 +54,38 @@ A Tess 46589 já **fala o que a Trinks gravou** nos smokes restritos de hoje (CR
 | lint / typecheck / syntax / diff | **PASS** (local) | `npm run lint`, `npm run typecheck`, `node --check`, diff de escopo negativo |
 | CodeRabbit CLI | **0 findings** (local) | revisão final do backend da Story 13 |
 | Gate formal | **PASS** | `docs/qa/gates/tess-commit.13-nightwatch-monitoring-scope.yml` — `deployed_revision: 07f59cb` |
-| Health live | HTTP **200** interno e público | `status=ok`, `trinks_ping=ok`, TESS **46589** |
-| Nightwatch live | `patrol_live` read-only ~19:11:20Z | `p0_timeout=0`; `p0_stuck=20` → `activate-peer`; ver §2.1 |
-| Smoke WhatsApp da 13 | **não executado** | não alegar I1/I2 live desta publicação |
+| Health live | HTTP **200** interno e público | `status=ok`, `trinks_ping=ok`, TESS **46589**; **`mode=OPEN`** após 19:55:32Z |
+| Nightwatch pré-OPEN | `patrol_live` ~19:11:20Z | `p0_timeout=0`; `p0_stuck=20` → `activate-peer`; ver §2.1 |
+| Pós-corte OPEN | eventos automáticos **0** | sem resume, outbound ou Trinks; `whatsapp_window.status=red` até 1º inbound |
+| Smoke WhatsApp pós-Story 13 | **não executado** | não alegar I1/I2 live da 13; OPEN ≠ smoke |
 
 Story 12 (já no ar antes): 103/103 focados, 512/512 backend, 79/79 prompts, CodeRabbit 0, smoke `0007`/`8440` PASS.
 
 ### Publicação VPS (concluída ~19:04 UTC)
 
-**Feita.** Código live = `07f59cb`. Docs = `ca1b4af`. Branch/remote alinhados. Allowlist **não** alterada. Sem Hostinger. Sem rsync da máquina local.
+**Feita (~19:04 UTC).** Código live permanece **`07f59cb`**. Docs de OPEN = **`975ee1f`**. Allowlist/denylist **não** alteradas no corte. Sem Hostinger. Sem rsync da máquina local.
 
 **Desvio operacional:** o runbook desta sessão pedia “sem rsync”. A publicação usou `git fetch`/`reset` no worktree VPS e **`rsync` somente dentro do VPS** (worktree → contexto Docker), depois `docker compose build --no-cache backend`, `up -d backend` e nginx reload. Registrar o fato; na próxima operação preferir cópia sem rsync ou documentar o rsync interno como passo explícito do rito.
 
-### Configuração live conhecida (após smokes 0007 / 8440)
+### Configuração **histórica** (pré-OPEN, até ~19:55:18Z)
 
-| Controle | Valor conhecido | Verificar antes/depois de qualquer mudança |
+Piloto restrito após smokes `0007`/`8440`: `BOT_ACCEPT_ALL=false`, health `mode=WHITELIST`, único `allow` = last4 `0007`, `8440` removido, `global=true` só como chave técnica. Esse estado **não** é o live atual — ficou registrado para não misturar evidência de smoke com o corte.
+
+### Configuração **live atual** (OPEN novas mensagens)
+
+Autorização explícita do proprietário: `2026-09-03T19:55:18Z` / `16:55:18 BRT`. Backend recriado ~`19:55:32Z`. Demais envs, prompt, volumes e Trinks **não** alterados.
+
+| Controle | Valor atual | Nota |
 |---|---|---|
-| `BOT_ACCEPT_ALL` | `false` | Env do compose + `/health` (`mode=WHITELIST`) |
-| Modo técnico | allowlist / `WHITELIST` | `bot_toggles.global=true` é só a chave técnica; **não** significa customer-wide |
-| Allow | somente last4 **`0007`** | `bot_whitelist.mode='allow'`; fallback `BOT_ALLOWED_PHONES` também `0007`-only |
-| `8440` | removido após smoke de cliente novo | Não deve reaparecer sem autorização explícita |
-| Customer-wide | **bloqueado** | Não ligar `BOT_ACCEPT_ALL=true`. Antes de abrir: triar baseline `p0_stuck=20` (§2.1) |
+| `BOT_ACCEPT_ALL` | **`true`** | health `mode=OPEN`; vale para **novas** mensagens inbound |
+| `bot_toggles.global` | `true` (já estava) | Kill switch admin **ativo e reversível**; OPEN **não** fura `global=false` |
+| Whitelist | **inalterada** | 1 `allow` (`0007`), **9 `block`**, **7 `human_only`** |
+| Denylist | **vence OPEN** | `block`/`human_only` **não** foram removidos; **não** remover |
+| `8440` | ausente | não recolocar sem autorização |
+| Backlog antigo | **não** retomado | sem resume automático, sem outbound, sem POST/PATCH/PUT Trinks; eventos pós-corte = 0 |
+| `whatsapp_window.status` | `red` | esperado após restart até o 1º inbound real |
 
-**Exigir verificação before/after** de `BOT_ACCEPT_ALL`, `bot_toggles.global`, linhas `allow` (last4) e health interno/público. O cache de whitelist no backend é **5s** (`backend/lib/bot-state.js`).
+Cache de whitelist no backend: **5s** (`backend/lib/bot-state.js`). OPEN **não** significa que as 25 candidatas/revisões voltaram a falar, nem que P-STUCK foi fechado.
 
 ### 2.1 Patrulha read-only pós-publicação (~19:11:20Z)
 
@@ -93,7 +105,27 @@ Os 20 stuck têm **última mensagem de user antes** do backend Story 13 iniciar 
 
 `listStuckThreads` (`backend/lib/nightwatch-ops.js`) usa lookback **fixo de 12h** (default; `patrolLive` chama sem `minutes`) **independentemente** de `window_min`, e **não** filtra allowlist / `human_only` / `silenced_until`. Por isso o alerta pode permanecer aceso com fio histórico (piloto fechado, handoff, takeover). Isso **não** é AC da Story 13 nem bug comprovado dela — follow-up **P-STUCK** (§8).
 
-Para **abertura customer-wide**, triar esse baseline (fechar, silenciar ou classificar os 20) é necessário; senão `activate-peer` fica **permanentemente** ligado e mascara timeout/órfão/leak novos.
+OPEN de novas mensagens **não** fecha P-STUCK. Os 20 stuck históricos + a auditoria de 29 fios (§2.2) continuam pendência operacional: senão `activate-peer` fica **permanentemente** ligado e mascara timeout/órfão/leak novos.
+
+### 2.2 Backlog triado (auditoria conservadora — **não** retomado)
+
+Janela **`02:35:52Z → 19:52:51Z`**. 29 last4. Classificação **só last4**. Lista **aguarda aprovação individual** (resume admin, um a um). OPEN **não** processa esse backlog.
+
+**Regra de classificação**
+
+| Categoria | Regra |
+|---|---|
+| **CANDIDATA_PENDENTE** | último turno = user, sem assistant/staff depois → candidato a resume **se** aprovado |
+| **REVISÃO_MANUAL** | sinais conflitantes (handoff, humano, silêncio, ambiguidades) → não retomar cego |
+| **NÃO RETOMAR** | resolvidos, smokes ou replay proibido |
+
+| Categoria | n | last4 |
+|---|---|---|
+| CANDIDATA_PENDENTE | 16 | `6388`, `7504`, `9002`, `6932`, `5953`, `9800`, `9117`, `5031`, `4467`, `7625`, `6397`, `2062`, `7051`, `1000`, `4657`, `6361` |
+| REVISÃO_MANUAL | 9 | `3653`, `8290`, `3300`, `8085`, `7153`, `7016`, `6153`, `8741`, `1944` |
+| NÃO RETOMAR | 4 | `0007`, `8440`, `0101`, `8194` |
+
+Os **25** (16+9) são pendência operacional **além** de P-STUCK. **Não** afirmar que conversas antigas foram retomadas. Sem telefones completos, sem nomes.
 
 ---
 
@@ -253,7 +285,7 @@ flowchart TD
 | O horário existe na agenda do salão? | **Trinks API** 2xx + appointment | Fala da Tess, tag, snapshot atrasado, Set `createKeys` |
 | O que oferecer / o que bloquear? | Snapshot local (`trinks_slots`, `trinks_appointments`) + guards | Grade “lembrada” pela Tess |
 | O cliente ouviu sucesso? | Outbound Kapso **depois** do 2xx (2-phase) | Texto da Tess antes do commit |
-| O bot deve responder? | `bot_toggles` + `bot_whitelist` + `bot_thread_state` | `BOT_ACCEPT_ALL` sozinho |
+| O bot deve responder? | `bot_toggles` + `bot_whitelist` (`block`/`human_only` vencem OPEN) + `bot_thread_state` | `BOT_ACCEPT_ALL=true` sozinho (não fura denylist nem silêncio) |
 | Houve timeout / órfão / leak? | `bot_operational_events` + ledger + Nightwatch scoped (live `07f59cb`) | last4 global sem resolução (bug **corrigido e publicado**; smoke mutável da 13 ainda não revalidou) |
 
 ### Invariantes
@@ -350,7 +382,8 @@ Prompt I.8/I.12: diff no repo (Story 5); **cola no dashboard = Victor**, fora do
 5. **`conversation_history.trace_id`** — coluna existe (`infra/schema.sql`); inbound não amarra request/turn ponta a ponta.
 6. **Catch genérico do webhook** (~2763) — não-timeout ainda pode virar silêncio sem evento.
 7. **Working tree 311** — risco de publicar AIOX/resume-ia/admin **depois** da 13; não empacotar.
-8. **`p0_stuck` histórico (baseline ~19:11:20Z)** — 20 fios com último user **antes** de ~19:03:50Z; `0007` ausente; lookback 12h independente de `window_min`; sem filtro allowlist/`human_only`/silenced. **Não** é regressão evidenciada da 13. Triagem obrigatória antes de customer-wide, senão `activate-peer` fica sempre aceso. **P-STUCK** = PROPOSTA, não AC.
+8. **`p0_stuck` histórico (baseline ~19:11:20Z)** — 20 fios com último user **antes** de ~19:03:50Z; `0007` ausente; lookback 12h independente de `window_min`; sem filtro allowlist/`human_only`/silenced. **Não** é regressão evidenciada da 13. OPEN **não** resolve isso. **P-STUCK** = PROPOSTA, não AC.
+9. **Backlog 25 last4** (§2.2) — 16 candidatas + 9 revisões aguardam resume **individual**. OPEN de novas mensagens ≠ retomada. 4 explicitamente **não** retomar (`0007`, `8440`, `0101`, `8194`).
 
 ---
 
@@ -369,7 +402,7 @@ Não são requisitos aprovados. Não abrir story só porque estão aqui. Cada um
 | **P-SNAP** | Contrato de frescura do snapshot vs API; webhook/markSlot e worker como SLO de consistência | I3 nasce de slot stale | Dados + negócio |
 | **P-REL** | Release/rollback por **fatia** (hash + health + allowlist intacta); **evitar rsync** (mesmo interno VPS) ou torná-lo passo explícito do rito; Hostinger fora; não rsync da máquina local | 311 arquivos locais; `MODULE_NOT_FOUND` no 1º publish do dia; desvio rsync interno na 13 | DevOps |
 | **P-PRIV** | Privacy-by-design: last4 na saída; telefone completo só SQL interno; metadata whitelist; sem PII em erro; retenção do ledger | Controles da 13 **já live**; ampliar retenção/orçamento ainda é proposta | Segurança / LGPD |
-| **P-STUCK** | Alinhar stuck ao `window_min` e/ou filtrar allowlist / `human_only` / `silenced_until`; triar o baseline de 20 antes de customer-wide | `listStuckThreads` = 12h fixas sem filtro; patrulha 19:11:20Z deu `activate-peer` só por histórico | Ops / observabilidade |
+| **P-STUCK** | Alinhar stuck ao `window_min` e/ou filtrar allowlist / `human_only` / `silenced_until`; triar baseline 20 + 25 last4 (§2.2) | `listStuckThreads` = 12h fixas; OPEN não apaga alerta histórico | Ops / observabilidade |
 
 Trade-off: orçamento de contexto vs. oferta rica (I3). Fail-closed de last4 vs. “verify sempre PASS”. Outbox vs. duplicar mensagem. **Squad escolhe; Architect não fecha.**
 
@@ -377,13 +410,13 @@ Trade-off: orçamento de contexto vs. oferta rica (I3). Fail-closed de last4 vs.
 
 ## 9. Runbook de auditoria e publicação
 
-Sem Hostinger. Sem rsync da **máquina local**. Sem colar prompt. Sem POST/PATCH/PUT Trinks no lugar do cliente. last4 only. Story 13 **já publicada**; este runbook registra o que ocorreu e o que falta.
+Sem Hostinger. Sem rsync da **máquina local**. Sem colar prompt. Sem POST/PATCH/PUT Trinks no lugar do cliente. last4 only. Story 13 **já publicada**. OPEN de **novas** mensagens **já cortado**. Backlog antigo **não** entra sem aprovação individual.
 
 ### 9.1 Pré-check de diff / escopo (próxima fatia)
 
 ```text
 git status -sb
-git log --oneline -8                  # HEAD esperado: ca1b4af (docs) sobre 07f59cb
+git log --oneline -8                  # docs OPEN: 975ee1f; código live: 07f59cb
 git rev-parse HEAD
 git diff 07f59cb --stat               # o que ainda NÃO é a 13 — não misturar
 ```
@@ -404,7 +437,7 @@ CodeRabbit no **diff da fatia**, não nas 311 entradas. Gate: `docs/qa/gates/tes
 
 ### 9.3 Commit / push da 13 — **concluído**
 
-`07f59cb` + `ca1b4af` em `origin/feature/tess-commit-honesty`. Próximo push = @devops com ACK. Architect/Dev **não** pusham.
+Código `07f59cb` + docs OPEN `975ee1f` em `origin/feature/tess-commit-honesty`. Próximo push de **código** = @devops com ACK. Architect/Dev **não** pusham.
 
 ### 9.4 Deploy VPS da 13 — **concluído** (~19:04 UTC)
 
@@ -415,35 +448,43 @@ CodeRabbit no **diff da fatia**, não nas 311 entradas. Gate: `docs/qa/gates/tes
 
 Histórico do dia: 1º publish honesty quebrou com `MODULE_NOT_FOUND` (`tess-context-slots`); rollback + `a413e16`.
 
-### 9.5 Health — **validado nesta publicação**
+### 9.5 Health
 
-| Check | Resultado conhecido |
-|---|---|
-| Interno `:3001/health` | HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 |
-| Público `https://api.studiotirra.com.br/health` | idem |
-| Modo | `BOT_ACCEPT_ALL=false`, `WHITELIST`, `global=true` técnico, allow só `0007`, `8440` ausente |
+| Check | Pré-OPEN (publicação 13) | Após corte ~19:55:32Z |
+|---|---|---|
+| Interno / público | HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 | idem |
+| Modo | `BOT_ACCEPT_ALL=false`, `WHITELIST` | **`BOT_ACCEPT_ALL=true`, `OPEN`** |
+| Denylist | 9 block + 7 human_only | **inalterada** (vence OPEN) |
+| `whatsapp_window` | n/a neste dossiê | `status=red` até 1º inbound real |
 
-Não logar tokens. last4 only. **Não alterar** essa config.
+Não logar tokens. last4 only. **Não** remover block/human_only. Kill switch admin continua reversível.
 
-### 9.6 Smoke WhatsApp — **não executado** nesta publicação
+### 9.6 Smoke WhatsApp pós-Story 13 — **ainda não executado**
 
-Não alegar PASS de CREATE/CANCEL da 13. Se a sessão nova autorizar smoke:
+OPEN **não** substitui smoke. Não alegar PASS I1/I2 da 13 no tráfego aberto. Se autorizarem prova pontual:
 
-- Somente last4 **`0007`**. Outro slot. **Proibido:** 03/09 10:30 André, replay `0101`, `BOT_ACCEPT_ALL=true`.
-- Observar `tess.timeout` → `p0_timeout`; `verify_commit` no last4 do fio; órfão não some por last4 alheio.
-- Cliente novo: allow temporário + remoção (padrão `8440`).
+- Evitar replay `0101` e o slot 03/09 10:30 André.
+- Observar `tess.timeout` → `p0_timeout`; `verify_commit` no last4 do fio.
+- `0007`/`8440`/`0101`/`8194` = **NÃO RETOMAR** (§2.2).
 
-Validação feita: health + `patrol_live` ~19:11:20Z (`p0_timeout=0`; `p0_stuck=20` histórico → `activate-peer`). Sem POST/PATCH/PUT Trinks. **Smoke WhatsApp mutável da 13 não ocorreu.**
+Validação código 13: health + patrol ~19:11:20Z. Pós-OPEN: eventos = 0.
+
+### 9.6b OPEN novas mensagens — **concluído** (~19:55:18Z)
+
+1. Proprietário autorizou. `BOT_ACCEPT_ALL=true`; backend recriado ~19:55:32Z.
+2. **Sem** backlog automático, **sem** resume, **sem** outbound WhatsApp, **sem** POST/PATCH/PUT Trinks.
+3. Retomar fio antigo: **só** resume admin **individual** após aprovação da categoria (§2.2). **Não** afirmar que as 29 foram retomadas.
+4. Reverter OPEN: `BOT_ACCEPT_ALL=false` e/ou kill switch `global=false` (admin). Whitelist permanece.
 
 ### 9.7 Rollback (se a 13 quebrar)
 
-Rebuild no commit anterior saudável da honesty: `0b39035` (Story 12). Não mexer `.env`, volume, `bot_toggles`, `bot_whitelist`. Health 200 + allow `0007` = rollback ok. Registrar em `docs/ops/nightwatch-log.md`.
+Código 13: rebuild em `0b39035` se só a Nightwatch quebrar. Reverter **OPEN** (sem rollback de código): `BOT_ACCEPT_ALL=false` e/ou `global=false`. **Não** apagar os 9 block / 7 human_only. Registrar em `docs/ops/nightwatch-log.md`.
 
 ### 9.8 Auditoria no live atual
 
 MCP: `patrol_live`, `get_thread`, `verify_commit`, `list_orphans` em `https://api.studiotirra.com.br/mcp` (Bearer; não colar token). O código Nightwatch **é** o da 13.
 
-Baseline ~19:11:20Z (60 min; 15/180 iguais em stuck): `p0_stuck=20`, demais P0 = 0, `next_action=activate-peer` **somente** por stuck. `listStuckThreads` ignora `window_min` (12h) e não filtra allow/silence — não tratar os 20 como incidente novo da 13. `p0_timeout=0` não prova ausência futura de timeout. Sem smoke mutável da 13.
+Baseline ~19:11:20Z (pré-OPEN): `p0_stuck=20`, demais P0 = 0, `activate-peer` **somente** por stuck. Após OPEN: **0** eventos automáticos. `listStuckThreads` ignora `window_min` (12h) e não filtra allow/silence. Sem smoke mutável da 13. OPEN **não** significa que block/human_only sumiram nem que o backlog foi retomado.
 
 ---
 
@@ -451,36 +492,38 @@ Baseline ~19:11:20Z (60 min; 15/180 iguais em stuck): `p0_stuck=20`, demais P0 =
 
 ### Estado já respondido (não reabrir sem evidência nova)
 
-1. VPS / código live = **`07f59cb`**. Docs remote = **`80cb950`** (registro deploy `ca1b4af`, auditoria `b796b44`). Branch alinhada. Hashes dos módulos 13 conferidos.
-2. Config: **`BOT_ACCEPT_ALL=false`**, WHITELIST, allow só last4 **`0007`**, **`8440` ausente**, `global=true` só técnico. **Não alterar.**
-3. Story 13 **já live**. Auditoria agora é de padrões + residuais; **não** republicar a 13. As outras **311** mudanças **não** sobem juntas.
-4. Smoke WhatsApp mutável da 13 **não** ocorreu. Validação = health + `patrol_live` ~19:11:20Z.
-5. Patrulha: `p0_timeout=0` / orphans / leaks / mutation_fail = 0; `activate-peer` **só** por `p0_stuck=20` (último user **antes** de ~19:03:50Z; `0007` ausente; zero eventos pós-deploy). **Não** é regressão evidenciada da 13.
-6. Desvio: rsync **interno** VPS (worktree → Docker). Sem rsync local, sem Hostinger. Evitar na próxima ou tornar explícito.
+1. Código live = **`07f59cb`**. Docs OPEN = **`975ee1f`**. Branch alinhada.
+2. **OPEN** desde `19:55:18Z` / `16:55:18 BRT`: `BOT_ACCEPT_ALL=true`, `mode=OPEN`, `global=true` (kill switch reversível). Whitelist **inalterada**: 1 allow (`0007`), 9 block, 7 human_only. OPEN **não** ignora denylist. `8440` ausente.
+3. Story 13 **já live**. **311** mudanças locais **não** sobem juntas.
+4. Smoke WhatsApp **pós-Story 13 ainda não executado.** OPEN ≠ prova I1/I2 da 13.
+5. Patrulha ~19:11:20Z (pré-OPEN): demais P0=0; `activate-peer` só por `p0_stuck=20`. Pós-OPEN: eventos = 0. Sem regressão evidenciada.
+6. Backlog 29 last4 (§2.2) **não** retomado. Resume só com aprovação individual. 4 NÃO RETOMAR.
+7. Desvio rsync interno VPS na publicação da 13: registrado; sem Hostinger.
 
 ### A sessão nova ainda deve responder
 
-1. Autorizar smoke mutável `0007` da 13 (timeout/verify/órfão), ou ficar só em read-only?
-2. Triar o baseline de 20 stuck (**P-STUCK**) antes de qualquer customer-wide, para o alerta não ficar permanente?
-3. Como particionar as **311** entradas? Honesty residual vs. resume-ia vs. AIOX vs. ruído?
-4. Squads: um técnico (tracing, outbox, budget, SLO, stuck) e um de negócio (I1/I2/I3, synthetic, floor), ou um único wave?
-5. Alguma **PROPOSTA** da §8 (incl. **P-STUCK**) vira story, ou ficam no radar?
-6. Quem cola prompt 46589 se I.8/I.12 ainda ensinarem afirmar na tag? (Victor; não o master.)
-7. Critério para **sair** do piloto `0007` — não é “gates verdes”, “13 no ar” nem `p0_timeout=0`.
+1. Quais das **16 CANDIDATA_PENDENTE** (e quais das 9 REVISÃO_MANUAL) recebem resume admin individual?
+2. Smoke pontual no tráfego OPEN, ou só read-only até o 1º inbound real?
+3. Triar **P-STUCK** (20) para o alerta não ficar permanente com OPEN ligado?
+4. Como particionar as **311** entradas?
+5. Alguma **PROPOSTA** da §8 vira story?
+6. Quem cola prompt 46589 se I.8/I.12 ainda ensinarem afirmar na tag? (Victor.)
+7. Critério de “liberado de verdade”: OPEN **já** está on, mas **não** removeu block/human_only; os **25** + P-STUCK **continuam** pendências. `whatsapp_window=red` até inbound real é esperado.
 
 ### Limites explícitos desta sessão / deste dossiê
 
-- **Não** Hostinger. **Não** rsync da máquina local. **Não** religar n8n/Chatwoot. Rsync interno VPS = desvio já ocorrido; não repetir sem registro.
-- **Não** `BOT_ACCEPT_ALL=true` / customer-wide. **Não** alterar allowlist `0007`.
-- **Não** replay `0101`. **Não** slot 03/09 10:30 André.
-- **Não** POST/PATCH/PUT Trinks no lugar do cliente (a publicação da 13 também não fez).
-- **Não** commit/push/deploy por Architect (este dossiê). Push = @devops com ACK.
-- **Não** inventar `TipoId`. Valor vivo = `6` (contrato enumerado Trinks).
-- **Não** tratar as 311 entradas como release. Story 13 **já** está publicada.
-- **Não** promover §8 (incl. **P-STUCK**) a requisito. **Não** alegar smoke WhatsApp da 13. **Não** tratar `p0_stuck=20` como bug comprovado da 13.
-- **Não** PII completa; last4 only; sem tokens, sem `.env` real.
-- Epic honesty: DoD de **unit**. Deploy **não** fecha o epic (`EPIC-tess-commit-honesty.md`).
-- Supervisor 46590 e resume-ia Wave0 **fora**, salvo se contaminarem um próximo diff.
+- **Não** Hostinger. **Não** rsync da máquina local. **Não** religar n8n/Chatwoot.
+- **Não** remover os 9 `block` / 7 `human_only`. OPEN **não** as ignora.
+- **Não** resume em lote. **Não** afirmar que conversas antigas voltaram.
+- **Não** replay `0101`. **Não** slot 03/09 10:30 André. **Não** retomar `0007`/`8440`/`8194` como backlog.
+- **Não** POST/PATCH/PUT Trinks no lugar do cliente (o corte OPEN também não fez).
+- **Não** commit/push/deploy por Architect. Push = @devops com ACK.
+- **Não** inventar `TipoId`. Valor vivo = `6`.
+- **Não** tratar as 311 entradas como release.
+- **Não** promover §8 a requisito. **Não** alegar smoke WhatsApp da 13. **Não** tratar `p0_stuck=20` como bug da 13.
+- **Não** PII completa; last4 only; sem tokens, sem nomes identificáveis, sem `.env` real.
+- Epic honesty: DoD de **unit**. Deploy/OPEN **não** fecham o epic.
+- Supervisor 46590 e resume-ia Wave0 **fora**, salvo resume **individual** aprovado da §2.2.
 
 ### SOT para colar na sessão
 
@@ -497,9 +540,9 @@ Baseline ~19:11:20Z (60 min; 15/180 iguais em stuck): `p0_stuck=20`, demais P0 =
 
 ---
 
-*[AUTO-DECISION] YOLO: patrulha ~19:11:20Z incorporada sem outros arquivos (reason: spawn limitou o diff ao dossiê).*
-*[AUTO-DECISION] P-STUCK = PROPOSTA, não AC nem bug da 13 (reason: lookback 12h + fios pré-19:03:50Z; usuário pediu essa marcação).*
-*[AUTO-DECISION] 311 = `git status --short \| wc -l` no momento da revisão anterior; recontar antes do próximo release.*
+*[AUTO-DECISION] YOLO: OPEN 19:55:18Z + backlog 29 last4 no dossiê apenas (reason: spawn limitou o diff a este arquivo).*
+*[AUTO-DECISION] OPEN ≠ retomada; 25 last4 = pendência, não AC (reason: usuário: aprovação individual, sem afirmar resume).*
+*[AUTO-DECISION] P-STUCK permanece PROPOSTA (reason: lookback 12h; não é bug da 13).*
 *[AUTO-DECISION] Propostas §8 permanecem PROPOSTA (reason: usuário pediu não inventar requisito).*
 
 — Aria, arquitetando o futuro
