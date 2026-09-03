@@ -1,0 +1,20 @@
+{
+  "name": "Influence Labs IA — Studio Tirra Webchat",
+  "install": "npm install && npm --prefix backend ci",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "npm --prefix backend start",
+      "description": "Express webchat API (studio-tirra-webchat-backend). Serves GET /health and POST /webhook/demo-chat on port 3001. TESS_API_TOKEN and TRINKS_API_KEY are optional secrets; without them the API runs and degrades gracefully."
+    },
+    {
+      "name": "frontend",
+      "command": "python3 -m http.server 8080 --directory frontend",
+      "description": "Static server for the WhatsApp-style demo chat UI. Open http://localhost:8080/demo-chat.html — it auto-targets the local backend at http://localhost:3001/webhook/demo-chat."
+    }
+  ],
+  "ports": [
+    { "name": "backend api", "port": 3001 },
+    { "name": "frontend web", "port": 8080 }
+  ]
+}
