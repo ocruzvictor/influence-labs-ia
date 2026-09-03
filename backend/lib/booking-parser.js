@@ -258,6 +258,16 @@ const COMBO_FUSION_PATTERNS = [
   /\b(?:franja|escova|corte|barba|manicure)[^\n]*\b(?:\+| e )\b[^\n]*(?:franja|escova|corte|barba|manicure)[^\n]*(?:est[aá]|marcad)/gi,
 ];
 
+const CREATE_SKIP_CONFIRM_PATTERNS = [
+  /\bconfirmo aqui\b[^\n]*/gi,
+];
+
+const HONEST_CREATE_SKIP_COPY =
+  'Esse horário já está na sua agenda. Se quiser outro dia ou horário, me fala.';
+
+const HONEST_CANCEL_FAIL_COPY =
+  'Não consegui localizar/cancelar seu horário automaticamente 😕\nVou pedir pra recepção resolver com você. Um momento!';
+
 function sanitizePrematureConfirm(text, options = {}) {
   let s = text;
   for (const re of PREMATURE_CONFIRM_PATTERNS) s = s.replace(re, '');
@@ -267,8 +277,36 @@ function sanitizePrematureConfirm(text, options = {}) {
   if (options.comboSecondBlocked) {
     for (const re of COMBO_FUSION_PATTERNS) s = s.replace(re, '');
   }
+  if (options.createIdempotentSkip) {
+    for (const re of CREATE_SKIP_CONFIRM_PATTERNS) s = s.replace(re, '');
+  }
   s = s.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   return s || 'Deixa eu conferir esse horário na agenda.';
+}
+
+function selectOutboundBlocks({
+  formattedResponses = [],
+  finalMessages = [],
+  createIdempotentSkip = false,
+  bookingCreatedThisTurn = null,
+  bookingResult = null,
+  cancelsToRun = [],
+  cancelSuccessCount = 0,
+} = {}) {
+  if (Array.isArray(cancelsToRun)
+    && cancelsToRun.length
+    && cancelSuccessCount < cancelsToRun.length) {
+    if (finalMessages.length) return [...finalMessages];
+    return formattedResponses.length ? [...formattedResponses] : [HONEST_CANCEL_FAIL_COPY];
+  }
+  const hasCreateCommit = bookingCreatedThisTurn === null
+    ? Boolean(bookingResult)
+    : Boolean(bookingCreatedThisTurn);
+  if (createIdempotentSkip && !hasCreateCommit) {
+    if (finalMessages.length) return [...finalMessages];
+    return [HONEST_CREATE_SKIP_COPY];
+  }
+  return [...formattedResponses, ...finalMessages];
 }
 
 function resolveServiceName(servicesData, serviceId) {
@@ -617,6 +655,55 @@ function serviceSkuMatches(appointment, serviceName, serviceId) {
   return a === b || a.includes(b) || b.includes(a);
 }
 
+function isKnownServiceSkuNotBookingId(requestedId, { knownServiceIds = [], futureBookings = [] } = {}) {
+  const id = String(requestedId || '');
+  if (!id) return false;
+  const rosa = Array.isArray(futureBookings) ? futureBookings : [];
+  if (rosa.some((b) => String(b.trinks_id) === id)) return false;
+  const known = new Set((knownServiceIds || []).map((sku) => String(sku)));
+  for (const b of rosa) {
+    if (b?.service_id != null) known.add(String(b.service_id));
+  }
+  return known.has(id);
+}
+
+/**
+ * Resolve agendamentoId para PATCH cancel — só trinks_id de AGENDAMENTOS FUTUROS (B2 / 0007).
+ * SKU de serviço nunca é o id do PATCH. Remap SKU→trinks_id só se exatamente 1 futuro tem aquele service_id.
+ */
+function resolveCancelAgendamentoId({
+  cancelTag,
+  futureBookings,
+  knownServiceIds = [],
+} = {}) {
+  const rosa = Array.isArray(futureBookings) ? futureBookings : [];
+  const requested = cancelTag?.agendamento_id != null && String(cancelTag.agendamento_id) !== ''
+    ? String(cancelTag.agendamento_id)
+    : '';
+
+  if (!requested) {
+    return { agendamentoId: null, reason: 'unresolved' };
+  }
+
+  const owned = rosa.find((b) => String(b.trinks_id) === requested);
+  if (owned && isBookingOwnedByClient(requested, rosa)) {
+    return { agendamentoId: requested, reason: null };
+  }
+
+  if (isKnownServiceSkuNotBookingId(requested, { knownServiceIds, futureBookings: rosa })) {
+    const skuHits = rosa.filter((b) => String(b.service_id) === requested);
+    if (skuHits.length === 1) {
+      return { agendamentoId: String(skuHits[0].trinks_id), reason: null };
+    }
+    if (skuHits.length > 1) {
+      return { agendamentoId: null, reason: 'sku_ambiguous' };
+    }
+    return { agendamentoId: null, reason: 'sku_not_booking' };
+  }
+
+  return { agendamentoId: null, reason: 'not_owned' };
+}
+
 /**
  * Resolve agendamentoId para PUT reschedule — bind SKU Rosa (P0.6).
  * Retorna { agendamentoId, reason } — reason preenchido quando 0 PUT.
@@ -690,6 +777,9 @@ module.exports = {
   stripUnknownTags,
   stripModelScratch,
   sanitizePrematureConfirm,
+  selectOutboundBlocks,
+  resolveCancelAgendamentoId,
+  isKnownServiceSkuNotBookingId,
   sanitizeInventedClientTurns,
   resolveServiceName,
   applyOperationalHabilitacao,
@@ -722,4 +812,7 @@ module.exports = {
   HABILITACAO_HEADER,
   PREMATURE_CONFIRM_PATTERNS,
   POST_FAIL_CONFIRM_PATTERNS,
+  CREATE_SKIP_CONFIRM_PATTERNS,
+  HONEST_CREATE_SKIP_COPY,
+  HONEST_CANCEL_FAIL_COPY,
 };

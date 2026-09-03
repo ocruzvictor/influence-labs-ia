@@ -38,7 +38,8 @@ const {
 const { summarizeFailedTessResponse } = require('./lib/tess-errors');
 const {
   createIdempotencyKey,
-  findDuplicateAppointment,
+  decideCreateIdempotency,
+  forgetCreateKeyForAppointment,
   buildCreateSuccessMessage,
   pickCreateGuard,
   comboOverlaps,
@@ -118,6 +119,7 @@ const {
   stripBookingTags,
   stripResidualBookingTags,
   sanitizePrematureConfirm,
+  selectOutboundBlocks,
   resolveServiceName,
   applyOperationalHabilitacao,
   renderHabilitacaoMap,
@@ -133,6 +135,7 @@ const {
   isConsultiveColorService,
   isFreeAllowlistedService,
   isBookingOwnedByClient,
+  resolveCancelAgendamentoId,
   resolveRescheduleAgendamentoId,
   formatRescheduleRefusalMessage,
   needsReferenceService,
@@ -321,7 +324,8 @@ async function loadClientFutureBookings(phone) {
   if (!digits) return [];
   try {
     const r = await db.query(
-      `SELECT trinks_id, service_name, professional_name, scheduled_at, status
+      `SELECT trinks_id, service_id, service_name, professional_id,
+              professional_name, scheduled_at, duration_min, status
          FROM trinks_appointments
         WHERE client_phone = $1 AND scheduled_at > NOW() AND status IN ('scheduled','confirmed')
         ORDER BY scheduled_at ASC LIMIT 10`,
@@ -1519,6 +1523,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
   // 4. Executar acao no Trinks de acordo com tag emitida pelo TESS
   let bookingResult = null;
+  let bookingCreatedThisTurn = false;
   // Prioriza phone do canal (kapso/meta sabe quem mandou) — historico so quando webchat sem identificacao
   const clientPhone = phone || extractPhoneFromHistory(state.history);
 
@@ -1777,27 +1782,28 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       break;
     }
     const idemKey = createIdempotencyKey(bookingData);
-    if (state.createKeys.has(idemKey)) {
+    let existing = [];
+    if (clientPhone && bookingData.date) {
+      const dayStart = new Date(`${bookingData.date}T00:00:00-03:00`);
+      const dayEnd = new Date(`${bookingData.date}T23:59:59-03:00`);
+      existing = await trinksLocalStore.listAppointmentsByClient(clientPhone, {
+        from: dayStart,
+        to: dayEnd,
+      });
+    }
+    const createIdem = decideCreateIdempotency({
+      createKeys: state.createKeys,
+      bookingData,
+      existingRows: existing,
+    });
+    if (createIdem.skip) {
       console.log(`[idempotency] create duplicado ignorado ${idemKey}`);
       createIdempotentSkip = true;
       continue;
     }
-    if (clientPhone && bookingData.date) {
-      const dayStart = new Date(`${bookingData.date}T00:00:00-03:00`);
-      const dayEnd = new Date(`${bookingData.date}T23:59:59-03:00`);
-      const existing = await trinksLocalStore.listAppointmentsByClient(clientPhone, {
-        from: dayStart,
-        to: dayEnd,
-      });
-      if (findDuplicateAppointment(existing, bookingData)) {
-        state.createKeys.add(idemKey);
-        createIdempotentSkip = true;
-        console.log(`[idempotency] create duplicado ignorado ${idemKey}`);
-        continue;
-      }
-    }
     try {
       bookingResult = await createBookingInTrinks(bookingData, profsData);
+      bookingCreatedThisTurn = true;
       state.createKeys.add(idemKey);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
       const servicoNome = resolveServicoNomeFrom201(
@@ -1908,29 +1914,44 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       clienteId = await getClientId(clientPhone);
       if (!clienteId) throw new Error('clienteId nao encontrado para cancelamento');
 
+      const knownServiceIds = (svcPayload?.data || []).map((s) => s.id);
       for (const cancelTag of cancelsToRun) {
-        let agendamentoId = cancelTag.agendamento_id || null;
-        if (!agendamentoId && cancelTag.date) {
-          agendamentoId = (await findClientBooking(clienteId, cancelTag.date, cancelTag.professional_id))?.id || null;
+        const resolved = resolveCancelAgendamentoId({
+          cancelTag,
+          futureBookings,
+          knownServiceIds,
+        });
+        let agendamentoId = resolved.agendamentoId;
+        if (!agendamentoId && !cancelTag.agendamento_id && cancelTag.date) {
+          const found = await findClientBooking(clienteId, cancelTag.date, cancelTag.professional_id);
+          const foundId = found?.id || found?.trinks_id || null;
+          if (foundId && isBookingOwnedByClient(foundId, futureBookings)) {
+            agendamentoId = String(foundId);
+          }
         }
-        if (!agendamentoId) {
-          console.warn(`[${sessionId}] Cancel skip: agendamento nao resolvido`, JSON.stringify(cancelTag));
-          continue;
-        }
-        if (!isBookingOwnedByClient(agendamentoId, futureBookings)) {
-          console.warn(`[${sessionId}] Cancel not_owned: bookingId=${agendamentoId}`);
+        if (!agendamentoId || !isBookingOwnedByClient(agendamentoId, futureBookings)) {
+          console.warn(
+            `[${sessionId}] Cancel not_owned: bookingId=${cancelTag.agendamento_id || agendamentoId} reason=${resolved.reason || 'unresolved'}`,
+          );
           emitOperationalEvent(db, {
             event: 'cancel.not_owned',
             clientPhone,
             kapsoConversationId,
-            payload: { requestedId: String(agendamentoId) },
+            payload: { requestedId: String(cancelTag.agendamento_id || agendamentoId || '') },
           }).catch(() => {});
           continue;
         }
         try {
+          const ownedRow = (futureBookings || []).find((b) => String(b.trinks_id) === String(agendamentoId));
           bookingResult = await cancelBookingInTrinks(agendamentoId, cancelTag.motivo);
           cancelSuccessCount += 1;
           console.log(`[${sessionId}] Booking cancelled in Trinks: agendamentoId ${agendamentoId}`);
+          if (state.createKeys) {
+            forgetCreateKeyForAppointment(state.createKeys, {
+              clientPhone,
+              appointment: ownedRow,
+            });
+          }
         } catch (err) {
           console.error(`[${sessionId}] Booking cancel FAILED id=${agendamentoId}:`, err.message);
         }
@@ -2106,10 +2127,15 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
   // Anexa mensagens finais (sucesso/falha 2-phase) como blocos extras apos o reply principal.
   // AC11: cancel falhou → não enviar texto prematuro ("Cancelando...") antes da msg de erro.
-  let allBlocks = [...formatted.responses, ...finalMessages];
-  if (cancelsToRun.length && cancelSuccessCount === 0) {
-    allBlocks = finalMessages.length ? finalMessages : formatted.responses;
-  }
+  // B1: createIdempotentSkip sem 2xx → não deixar "Confirmo aqui" da 2-phase.
+  const allBlocks = selectOutboundBlocks({
+    formattedResponses: formatted.responses,
+    finalMessages,
+    createIdempotentSkip,
+    bookingCreatedThisTurn,
+    cancelsToRun,
+    cancelSuccessCount,
+  });
   const result = {
     response: allBlocks[0],
     responses: allBlocks,

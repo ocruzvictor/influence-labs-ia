@@ -36,6 +36,57 @@ function findDuplicateAppointment(rows, booking) {
   return (Array.isArray(rows) ? rows : []).find((row) => isDuplicateAppointment(row, booking)) || null;
 }
 
+/**
+ * Skip CREATE só com duplicata ATIVA no snapshot.
+ * `state.createKeys.has` sozinho NÃO skipa — cancel ops não limpa o Set da sessão (B1 / 0007).
+ */
+function shouldSkipCreateIdempotent({ duplicateRow } = {}) {
+  return Boolean(duplicateRow);
+}
+
+function brtDateTimeFromIso(iso) {
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const date = d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  const time = d.toLocaleTimeString('en-GB', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return { date, time: String(time || '').slice(0, 5) };
+}
+
+/** Remove a idemKey do slot cancelado. Cancel ops não chama isto — o skip consulta o snapshot. */
+function forgetCreateKeyForAppointment(createKeys, { clientPhone, appointment } = {}) {
+  if (!createKeys || typeof createKeys.delete !== 'function' || !appointment) return false;
+  const dt = appointment.scheduled_at
+    ? brtDateTimeFromIso(appointment.scheduled_at)
+    : (appointment.date && appointment.time
+      ? { date: String(appointment.date).slice(0, 10), time: String(appointment.time).slice(0, 5) }
+      : null);
+  if (!dt) return false;
+  const key = createIdempotencyKey({
+    clientPhone,
+    serviceId: appointment.service_id,
+    professionalId: appointment.professional_id,
+    date: dt.date,
+    time: dt.time,
+  });
+  const had = createKeys.has(key);
+  createKeys.delete(key);
+  return had;
+}
+
+function decideCreateIdempotency({ createKeys, bookingData, existingRows } = {}) {
+  const booking = bookingData || {};
+  const idemKey = createIdempotencyKey(booking);
+  const sessionHasKey = Boolean(createKeys && typeof createKeys.has === 'function' && createKeys.has(idemKey));
+  const duplicateRow = findDuplicateAppointment(existingRows, booking);
+  const skip = shouldSkipCreateIdempotent({ sessionHasKey, duplicateRow });
+  return { idemKey, sessionHasKey, duplicateRow, skip, wouldPost: !skip };
+}
+
 function parseCreateStartMs(create) {
   const dateTime = create?.date_time
     || (create?.date && create?.time ? `${create.date}T${String(create.time).slice(0, 5)}:00-03:00` : null);
@@ -180,6 +231,9 @@ module.exports = {
   createIdempotencyKey,
   findDuplicateAppointment,
   isDuplicateAppointment,
+  shouldSkipCreateIdempotent,
+  forgetCreateKeyForAppointment,
+  decideCreateIdempotency,
   buildCreateSuccessMessage,
   pickCreateGuard,
   comboOverlaps,

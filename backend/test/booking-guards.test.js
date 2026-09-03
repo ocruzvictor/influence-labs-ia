@@ -223,3 +223,84 @@ test('pickCreateGuard — appointmentConflict → ocupado', () => {
   });
   assert.equal(guard.kind, 'ocupado');
 });
+
+test('0007-class B1 — createKeys no Set + row cancelled → POST de novo (não skip)', () => {
+  const { decideCreateIdempotency, createIdempotencyKey } = require('../lib/booking-guards');
+  const booking0007 = {
+    clientPhone: '5511999900007',
+    serviceId: 14232906,
+    professionalId: 827200,
+    date: '2026-09-03',
+    time: '10:30',
+  };
+  const idemKey = createIdempotencyKey(booking0007);
+  const createKeys = new Set([idemKey]);
+  const cancelledOnly = [{
+    status: 'cancelled',
+    service_id: 14232906,
+    professional_id: 827200,
+    scheduled_at: '2026-09-03T10:30:00-03:00',
+    trinks_id: '526039154',
+  }];
+  const decision = decideCreateIdempotency({
+    createKeys,
+    bookingData: booking0007,
+    existingRows: cancelledOnly,
+  });
+  assert.equal(decision.sessionHasKey, true);
+  assert.equal(decision.skip, false);
+  assert.equal(decision.wouldPost, true);
+  assert.equal(decision.duplicateRow, null);
+});
+
+test('0007-class B1 — duplicata ativa real ainda skipa', () => {
+  const { decideCreateIdempotency } = require('../lib/booking-guards');
+  const booking0007 = {
+    clientPhone: '5511999900007',
+    serviceId: 14232906,
+    professionalId: 827200,
+    date: '2026-09-03',
+    time: '10:30',
+  };
+  const createKeys = new Set();
+  const active = [{
+    status: 'scheduled',
+    service_id: 14232906,
+    professional_id: 827200,
+    scheduled_at: '2026-09-03T10:30:00-03:00',
+    trinks_id: '526039154',
+  }];
+  const decision = decideCreateIdempotency({
+    createKeys,
+    bookingData: booking0007,
+    existingRows: active,
+  });
+  assert.equal(decision.skip, true);
+  assert.equal(decision.wouldPost, false);
+});
+
+test('0007-class B1 — cancel 4b esquece a idemKey do slot', () => {
+  const {
+    createIdempotencyKey,
+    forgetCreateKeyForAppointment,
+  } = require('../lib/booking-guards');
+  const booking0007 = {
+    clientPhone: '5511999900007',
+    serviceId: 14232906,
+    professionalId: 827200,
+    date: '2026-09-03',
+    time: '10:30',
+  };
+  const key = createIdempotencyKey(booking0007);
+  const createKeys = new Set([key]);
+  const dropped = forgetCreateKeyForAppointment(createKeys, {
+    clientPhone: booking0007.clientPhone,
+    appointment: {
+      service_id: 14232906,
+      professional_id: 827200,
+      scheduled_at: '2026-09-03T10:30:00-03:00',
+    },
+  });
+  assert.equal(dropped, true);
+  assert.equal(createKeys.has(key), false);
+});

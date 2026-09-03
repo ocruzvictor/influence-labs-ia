@@ -163,6 +163,14 @@ function hasAbortDismissSignal(norm) {
   return ABORT_DISMISS_RE.test(norm);
 }
 
+function hasFreshBookingSignal(norm) {
+  return hasServiceSignal(norm)
+    || hasDateSignal(norm)
+    || hasProfessionalSignal(norm)
+    || hasSchedulingAsk(norm)
+    || isSimpleBookingBundle(norm);
+}
+
 function isDraftSchedulingContext(history) {
   if (isSchedulingInProgress(history)) return true;
   const historyNorm = (history || [])
@@ -203,6 +211,13 @@ function classifyTessIntent(messageText, history = [], futureBookings = [], opts
     }
   }
 
+  if (hasAbortDismissSignal(norm)
+    && !hasHandoffSignal(norm)
+    && !hasRescheduleSignal(norm)
+    && hasFreshBookingSignal(norm)) {
+    return { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['abort_then_booking'] };
+  }
+
   if (textLen > 120) {
     if (isSimpleBookingBundle(norm) || hasSchedulingAsk(norm)) {
       signals.push('long_but_booking');
@@ -237,7 +252,7 @@ function classifyTessIntent(messageText, history = [], futureBookings = [], opts
     if (!noFutureBookings) {
       return { intent: INTENTS.CANCEL, confidence: 'high', signals: ['cancel', 'future_bookings'] };
     }
-    if (draftActive) {
+    if (draftActive && hasAbortDismissSignal(norm)) {
       return { intent: INTENTS.FAQ, confidence: 'high', signals: ['abort_draft'] };
     }
     return { intent: INTENTS.CANCEL, confidence: 'high', signals: ['cancel_no_bookings'] };
@@ -342,6 +357,7 @@ module.exports = {
   hasPriceSignal,
   hasFaqSignal,
   hasAbortDismissSignal,
+  hasFreshBookingSignal,
   isDraftSchedulingContext,
   hasSchedulingAsk,
   isSimpleBookingBundle,

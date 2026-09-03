@@ -139,6 +139,59 @@ describe('classifyTessIntent', () => {
     assert.ok(r.signals.includes('cancel_no_bookings'));
   });
 
+  test('0007-class B3 — Esquece + corte André na mesma frase → SCHEDULING', () => {
+    const { buildContextProfile, PROFILES } = require('../lib/tess-context-profiles');
+    const history = [
+      { role: 'user', content: 'quero cortar amanhã' },
+      { role: 'assistant', content: 'Com quem prefere?' },
+    ];
+    const r = classifyTessIntent(
+      'Esquece isso então. Agora só um corte com o André',
+      history,
+      [],
+    );
+    assert.equal(r.intent, INTENTS.SCHEDULING);
+    assert.equal(r.confidence, 'high');
+    assert.ok(r.signals.includes('abort_then_booking'));
+    assert.ok(!r.signals.includes('abort_draft'));
+    const profile = buildContextProfile(r, { effectiveMode: 'scoped', slotContextDays: 10 });
+    assert.equal(profile.profile, PROFILES.BOOKING);
+    assert.equal(profile.fetchSlots, true);
+    assert.notEqual(profile.profile, PROFILES.FAQ);
+  });
+
+  test('abort + pedido explícito de humano → HANDOFF_LIKELY', () => {
+    const r = classifyTessIntent('Esquece isso. Quero um corte, mas falar com um humano', [], []);
+    assert.equal(r.intent, INTENTS.HANDOFF_LIKELY);
+    assert.equal(r.confidence, 'high');
+  });
+
+  test('abort + remarcar → RESCHEDULE', () => {
+    const r = classifyTessIntent('Esquece isso. Quero mudar horário para sábado', [], []);
+    assert.equal(r.intent, INTENTS.RESCHEDULE);
+    assert.equal(r.confidence, 'high');
+  });
+
+  test('0007-class B4 — Pode cancelar esse que a gente acabou de marcar → CANCEL', () => {
+    const { buildContextProfile, PROFILES } = require('../lib/tess-context-profiles');
+    const history = [
+      { role: 'user', content: 'quero cortar amanhã' },
+      { role: 'assistant', content: 'Com quem prefere?' },
+    ];
+    const r = classifyTessIntent(
+      'Pode cancelar esse que a gente acabou de marcar',
+      history,
+      [],
+    );
+    assert.equal(r.intent, INTENTS.CANCEL);
+    assert.ok(r.signals.includes('cancel_no_bookings'));
+    assert.ok(!r.signals.includes('abort_draft'));
+    const profile = buildContextProfile(r, { effectiveMode: 'scoped', slotContextDays: 10 });
+    assert.equal(profile.profile, PROFILES.CANCEL);
+    assert.equal(profile.fetchFutureBookings, true);
+    assert.equal(profile.fetchSlots, false);
+  });
+
   test('long noisy multi-intent → UNCERTAIN', () => {
     const msg = 'oi preciso saber quanto custa a camuflagem e se tem horario amanha de tarde com a Gi por favor';
     const r = classifyTessIntent(msg, [], []);
