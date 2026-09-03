@@ -1,6 +1,6 @@
 # EPIC: Commit e fala da Tess são a mesma fonte (I1/I2/I3)
 
-**Status:** Code Done (1–12 unit) · correção 12 local não publicada · VPS restrito ao allowlist `0007`
+**Status:** Code Done (1–12 unit) · correção 12 publicada em `0b39035` · smoke restrito pendente
 **Criado em:** 2026-09-03  
 **Rev. 1:** 2026-09-03 — @pm `*create-epic` YOLO; stories detalhadas = @sm  
 **Rev. 2:** 2026-09-03 — @sm `*draft` stories 8–11 (Orion smoke `0007`)
@@ -78,7 +78,7 @@ No caminho de agenda (cadastro, CREATE, reschedule, empty-TESS), o **commit Trin
 | 9 | [Cancel só `trinks_id` — 0 PATCH SKU](../salon-whatsapp-tess-commit-9-cancel-sku-id.md) | P0 B2 | — | 5 | Done | Gate PASS (`tess-commit.9`) |
 | 10 | [Abort + booking novo → SCHEDULING](../salon-whatsapp-tess-commit-10-abort-draft-scheduling.md) | P0 B3 | — | 5 | Done | Gate PASS (`tess-commit.10`) |
 | 11 | [“Pode cancelar esse…” → CANCEL](../salon-whatsapp-tess-commit-11-cancel-intent-faq.md) | P1 B4 | #8 + #9 | 3 | Done | Gate PASS (`tess-commit.11`) |
-| 12 | [CANCEL enxuto + fallback de timeout](../salon-whatsapp-tess-commit-12-cancel-timeout-fallback.md) | P0 | — | 5 | Done (unit) | Gate PASS (`tess-commit.12`); smoke live pendente |
+| 12 | [CANCEL enxuto + fallback de timeout](../salon-whatsapp-tess-commit-12-cancel-timeout-fallback.md) | P0 | — | 5 | Deployed (unit PASS) | `0b39035` health verde; smoke live pendente |
 
 **Soma:** 62 pts (39 + 18 + 5). Ordem: **(1 ∥ 2 ∥ 3 ∥ 4) → (5 ∥ 6)** · **7 ∥ 1** · **(8 ∥ 9 ∥ 10) → 11** · **12**.
 Stories **8–11 Done** — @dev implementou e @qa aprovou em 2026-09-03 (SOT Orion `0007`). File List / Dev Agent Record preenchidos. Executor @dev Composer · gate @qa PASS. Deploy **não** é DoD e permanece fora desta wave.
@@ -156,11 +156,12 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 - 2026-09-03 — @qa (Quinn): re-gate stories 8–11 **PASS**. Fatia 144/144, backend 502/502, prompts 79/79; CodeRabbit CLI 0 findings após correções de outbound parcial e prioridade B3. Stories 8–11 → Done. Repo não está conectado a uma organização CodeRabbit, então a revisão usou a franquia CLI gratuita. Deploy/rsync continuam fora.
 - 2026-09-03 — @devops (Gage): publicou `de044a7` + `a413e16` em `origin/feature/tess-commit-honesty`; primeiro worktree crashou por dependências runtime não versionadas, rollback restaurou `706e6e7`, e o segundo deploy autocontido entrou no ar às `14:51:59Z`. Health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589; `bot_toggles.global=false`, sem `.env`/POST/PATCH/WhatsApp. CodeRabbit no segundo commit: 0 critical, 4 major e 2 minor advisory, registrados para follow-up.
 - 2026-09-03 — Orion: abriu story 12 após o smoke `0007` revelar timeout de CANCEL em contexto FULL. Correção planejada: perfil CANCEL enxuto + fallback honesto com `tess.timeout`; customer-wide permanece bloqueado.
-- 2026-09-03 — @dev/@qa: story 12 implementada no working tree. Gate `tess-commit.12` **PASS**: 103/103 focados, 512/512 backend, 79/79 prompts, lint/typecheck PASS e CodeRabbit 0 findings. Patch ainda não publicado; smoke live continua pendente.
+- 2026-09-03 — @dev/@qa: story 12 implementada no working tree. Gate `tess-commit.12` **PASS**: 103/103 focados, 512/512 backend, 79/79 prompts, lint/typecheck PASS e CodeRabbit 0 findings.
+- 2026-09-03 — @devops (Gage): publicou `0b39035` no worktree VPS e reconstruiu somente o backend; health interno/público HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 e allowlist exclusivo `0007` confirmados. Smoke manual ainda pendente; customer-wide continua bloqueado.
 
 ---
 
-**Handoff concluído:** Quinn aprovou stories **8–12** no unit gate. Fatia 8–11: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`; story 12: `tess-context-profiles.test.js`, `tess-context-assembler.test.js`, `tess-timeout.test.js`, `server-tess-timeout.test.js`. Gate story 12: **103/103** focados, **512/512** backend, **79/79** prompts, lint/typecheck PASS e CodeRabbit 0 findings. Publicação anterior em `a413e16` permanece no VPS com health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589. Smoke restrito: `global=true` como chave técnica, `BOT_ACCEPT_ALL=false`, somente `0007` em `allow`; demais números silenciosos. A correção 12 ainda não foi publicada; sem abertura a clientes, sem Hostinger, sem replay `0101`, e live seguinte = outro slot, não 03/09 10:30 André.
+**Handoff concluído:** Quinn aprovou stories **8–12** no unit gate. Fatia 8–11: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`; story 12: `tess-context-profiles.test.js`, `tess-context-cancel-full.test.js`, `tess-timeout.test.js`, `server-tess-timeout.test.js`. Gate story 12: **103/103** focados, **512/512** backend, **79/79** prompts, lint/typecheck PASS e CodeRabbit 0 findings. A correção `0b39035` foi publicada no worktree VPS e validada com health interno/público HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 e hashes dos módulos conferindo. Smoke restrito: `global=true` como chave técnica, `BOT_ACCEPT_ALL=false`, somente `0007` em `allow`; demais números silenciosos. Smoke manual ainda pendente; sem abertura a clientes, sem Hostinger, sem replay `0101`, e live seguinte = outro slot, não 03/09 10:30 André.
 
 ---
 

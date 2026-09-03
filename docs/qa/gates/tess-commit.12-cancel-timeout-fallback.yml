@@ -5,6 +5,7 @@ gate: PASS
 status_reason: 'CANCEL high em modo full usa somente reservas futuras; processMessage captura TimeoutError, persiste user+assistant, emite tess.timeout e devolve fallback sem mutação ou silêncio automático.'
 reviewer: 'Quinn (Test Architect)'
 reviewed_revision: 'working-tree:story-12-timeout-fallback@bee5cf5'
+deployed_revision: '0b39035'
 updated: '2026-09-03T16:58:40Z'
 top_issues: []
 waiver: { active: false }
@@ -27,7 +28,7 @@ evidence:
   timeout_path: 'PASS — TimeoutError simulado em processMessage; fallback CANCEL, tess.timeout, user+assistant persistidos, sem tags.parsed/booking.cancelled/Trinks/bot_thread_state UPDATE'
   cancel_context: 'PASS — profile CANCEL, fetchSlots/catalog/professionals false, future bookings only; payload local ~496 tokens no fixture'
   regressions: 'PASS — FULL permanece para UNCERTAIN/SCHEDULING; B1/B2/B3/B4, tess.empty, C1/C2/C3 e 8397 intactos'
-  smoke_live: 'PENDING — patch local ainda não publicado; manter allowlist 0007'
+  smoke_live: 'PENDING — revisão 0b39035 publicada; manter allowlist 0007 até o smoke manual'
 
 nfr_validation:
   security:

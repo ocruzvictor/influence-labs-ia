@@ -2,7 +2,7 @@
 
 **Epic:** [EPIC-tess-commit-honesty](epics/EPIC-tess-commit-honesty.md)  
 **Tipo:** Brownfield  
-**Status:** **Done (unit) · smoke live pending**  
+**Status:** **Deployed (unit PASS) · smoke live pending**  
 **Agente executor:** @dev (Composer 2.5 Fast) · gate @qa  
 **Prioridade:** P0  
 **Branch:** `feature/tess-commit-honesty`
@@ -85,7 +85,7 @@ O silêncio não foi `silenced_until` nem bloqueio da allowlist. Foi uma falha d
 - Timeout/abort TESS retorna copy honesta, persiste user+assistant, atualiza a sessão, emite `tess.timeout` e não chama Trinks nem `markHumanHandled`.
 - Quinn: gate unitário **PASS**; 103/103 focados, 512/512 backend, 79/79 prompts; lint/typecheck/sintaxe/whitespace PASS.
 - CodeRabbit CLI 0.7.5: doctor 9/9 e review final 0 findings; relatório versionado no repositório.
-- Smoke live ainda pendente porque esta correção local não foi publicada; manter allowlist exclusivo `0007`.
+- Revisão `0b39035` publicada no VPS pelo @devops; health interno/público HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 e allowlist exclusivo `0007` confirmados. Smoke live ainda pendente.
 
 ## Quality Gate
 

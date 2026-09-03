@@ -106,5 +106,13 @@ Cancelamos `526039154` às 09:30 via PATCH `agent_mutation_cancel` **204** (ops,
 - Causa confirmada: `CANCEL` high era desviado para `FULL` quando `TESS_CONTEXT_MODE=full`; a grade, catálogo e profissionais chegaram a ~91k caracteres / ~22k tokens e `callTESS` expirou em 25s.
 - Efeito observado: o ACK do webhook já tinha sido enviado; sem resposta TESS não houve tag, `tags.parsed`, PATCH Trinks ou outbound. A thread não ficou `silenced_until`; foi silêncio aparente por exceção não tratada no caminho assíncrono.
 - Critérios P0: CANCEL high usa perfil enxuto com reservas futuras; timeout/abort emite `tess.timeout`, envia copy honesta, não afirma cancelamento, não muta Trinks e não marca `human-handled`.
-- Estado desta correção: implementação local concluída e gate unitário **PASS** — 103/103 focados, 512/512 backend, 79/79 prompts, lint/typecheck PASS e CodeRabbit 0 findings. A correção ainda não foi publicada; nenhuma nova mensagem WhatsApp, POST/PATCH Trinks, Hostinger ou `rsync`.
+- Estado desta correção: implementação concluída e gate unitário **PASS** — 103/103 focados, 512/512 backend, 79/79 prompts, lint/typecheck PASS e CodeRabbit 0 findings.
 - Decisão operacional: manter somente o allowlist `0007` e não abrir para clientes até os gates automatizados e o smoke controlado passarem.
+
+## Publicação restrita da correção 12 (2026-09-03 ~17:10 UTC)
+
+- Commit publicado: `0b39035` (`fix: CANCEL timeout fallback with lean profile [Story 12]`) em `origin/feature/tess-commit-honesty`.
+- O worktree VPS foi atualizado e o backend reconstruído. A primeira tentativa usou cache desatualizado; o deploy foi corrigido com cópia do worktree para o contexto local do Docker e rebuild `--no-cache`. Não houve `rsync`.
+- Validação: container **Up**, health interno e público HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589 e hashes dos módulos da story conferindo.
+- Configuração preservada: `BOT_ACCEPT_ALL=false`, modo **WHITELIST**, único `allow` terminado em `0007`; `.env`, `bot_toggles` e `bot_whitelist` não foram alterados.
+- Nenhum WhatsApp, POST/PATCH Trinks, Hostinger, replay `0101` ou slot 03/09 10:30 André foi executado. Próximo passo: smoke manual no `0007`, em outro slot, e conclusão do B3.

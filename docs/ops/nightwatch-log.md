@@ -110,5 +110,13 @@ Story 12 implementada no working tree: `CANCEL` high em modo `full` agora carreg
 
 Gate @qa **PASS**: 103/103 focados, 512/512 backend, 79/79 prompts, lint/typecheck/sintaxe/whitespace PASS. CodeRabbit CLI 0.7.5: doctor 9/9 e review do backend com arquivos não rastreados: **0 findings**. Relatório: `docs/qa/coderabbit-reports/epic-tess-commit-honesty-timeout-2026-09-03.jsonl`.
 
-Esta correção ainda é local e não foi publicada no VPS. Não houve nova mensagem WhatsApp, POST/PATCH Trinks, replay `0101`, exercício 03/09 10:30 André ou abertura para clientes. Próximo passo live, se autorizado, permanece smoke restrito no `0007` em outro slot e conclusão do B3.
+Antes da publicação, a correção foi validada localmente sem nova mensagem WhatsApp, POST/PATCH Trinks, replay `0101`, exercício 03/09 10:30 André ou abertura para clientes. O próximo passo permanece smoke restrito no `0007` em outro slot e conclusão do B3.
+
+## 2026-09-03 ~17:10 UTC — publicação Story 12
+
+Commit `0b39035` publicado em `origin/feature/tess-commit-honesty` e aplicado ao worktree VPS. O backend foi reconstruído sem `rsync`; uma primeira build com cache desatualizado foi corrigida com atualização do contexto Docker e rebuild `--no-cache`.
+
+Health interno/público **200**, `status=ok`, `trinks_ping=ok`, TESS 46589, hashes dos módulos da Story 12 conferindo. Modo **WHITELIST**, `BOT_ACCEPT_ALL=false`, `bot_toggles.global=true` como chave técnica e único `allow` terminado em `0007`; `.env`, whitelist e toggles não foram alterados.
+
+Nenhuma mensagem WhatsApp, mutação Trinks, replay `0101` ou abertura customer-wide foi executada. Próximo passo: smoke manual restrito no `0007`, em outro slot, e B3 completo.
 
