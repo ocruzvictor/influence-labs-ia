@@ -1,12 +1,12 @@
 # EPIC: Commit e fala da Tess são a mesma fonte (I1/I2/I3)
 
-**Status:** Code Done (1–11 unit) · publicado no VPS 2026-09-03 · bot GLOBAL OFF
+**Status:** Code Done (1–11 unit) · publicado no VPS 2026-09-03 · smoke restrito ao allowlist `0007`
 **Criado em:** 2026-09-03  
 **Rev. 1:** 2026-09-03 — @pm `*create-epic` YOLO; stories detalhadas = @sm  
 **Rev. 2:** 2026-09-03 — @sm `*draft` stories 8–11 (Orion smoke `0007`)
 **Rev. 3:** 2026-09-03 — Orion/Dex implementou 8–11 no repo (unit); Quinn gate **PASS**
 **Rev. 4:** 2026-09-03 — re-gate pós-CodeRabbit: 144/144 focused, 502/502 backend, 79/79 prompts; CodeRabbit **0 findings**
-**Rev. 5:** 2026-09-03 — @devops publicou `a413e16` com dependências runtime autocontidas; health VPS **200/ok**; bot GLOBAL permanece **OFF**
+**Rev. 5:** 2026-09-03 — @devops publicou `a413e16` com dependências runtime autocontidas; health VPS **200/ok**; smoke posterior restrito ao allowlist `0007`
 **Owner:** @pm  
 **Handoff SOT (1–7):** [docs/handoffs/2026-09-02-aria-rca-correcao.md](../../handoffs/2026-09-02-aria-rca-correcao.md) (Aria rev. 3)
 
@@ -154,7 +154,7 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 
 ---
 
-**Handoff concluído:** Quinn aprovou stories **8–11**. Fatia: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`. Unit gate: **144/144** focused, **502/502** backend, **79/79** prompts. Publicação autorizada pelo @devops em `a413e16`: health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589; `bot_toggles.global=false`. CodeRabbit do commit de dependências: **0 critical, 4 major, 2 minor advisory**; report versionado no repo. Sem Hostinger. Sem replay `0101`. Live seguinte = outro slot, não 03/09 10:30 André. Deploy continua não sendo o DoD unitário das stories.
+**Handoff concluído:** Quinn aprovou stories **8–11**. Fatia: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`. Unit gate: **144/144** focused, **502/502** backend, **79/79** prompts. Publicação autorizada pelo @devops em `a413e16`: health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589. Smoke restrito ativado: `global=true` como chave técnica, `BOT_ACCEPT_ALL=false`, somente `0007` em `allow`; demais números silenciosos. CodeRabbit do commit de dependências: **0 critical, 4 major, 2 minor advisory**; report versionado no repo. Sem Hostinger. Sem replay `0101`. Live seguinte = outro slot, não 03/09 10:30 André. Deploy continua não sendo o DoD unitário das stories.
 
 ---
 

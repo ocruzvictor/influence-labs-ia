@@ -92,3 +92,10 @@ Cancelamos `526039154` às 09:30 via PATCH `agent_mutation_cancel` **204** (ops,
 - Validação final: container `backend` **Up**, sem `MODULE_NOT_FOUND`, `/health` HTTP **200**, `status=ok`, `trinks_ping=ok`, TESS/agent **46589**. Nginx recebeu apenas reload para atualizar upstream; não houve restart da stack.
 - Nenhum POST/PATCH Trinks, mensagem WhatsApp, replay `0101`, exercício do slot 03/09 10:30 André ou teste live `0007` foi executado. O global permanece **OFF**; a versão está publicada, mas ainda não está habilitada para smoke.
 - CodeRabbit CLI 0.6.1 no commit `a413e16`: **0 critical, 4 major, 2 minor advisory**. Os findings foram mantidos como follow-up de ops/slots/créditos e estão registrados em `docs/qa/coderabbit-reports/epic-tess-commit-honesty-runtime-a413e16-2026-09-03.jsonl`.
+
+## Allowlist exclusiva ativada para o smoke (2026-09-03 ~15:11 UTC)
+
+- Victor autorizou o smoke restrito. `bot_toggles.global=true` é apenas a chave técnica; `BOT_ACCEPT_ALL=false`; somente o número terminado em `0007` está em `allow`.
+- Os 8 `allow` anteriores foram mudados para `block`; o fallback `BOT_ALLOWED_PHONES` também contém somente o telefone terminado em `0007`. Nenhum outro telefone deve receber resposta.
+- Backend recriado e validado: HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589. Nginx recebeu reload; `.env` original foi preservado em `/opt/influence-labs/infra/.env.pre-0007-20260903T151136Z`.
+- Até este registro, nenhum inbound/outbound WhatsApp, POST/PATCH Trinks ou exercício de agenda foi executado. Roteiro permitido: outro slot; não repetir 03/09 10:30 André nem replay `0101`.

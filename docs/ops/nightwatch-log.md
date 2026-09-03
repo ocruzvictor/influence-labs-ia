@@ -72,3 +72,21 @@ Ainda quebra na versão nova: I1 `9605` 21:43Z manicure “tudo certo” sem POS
 
 Mutations: 2 POST 201, 1 PUT 204, 1 POST /clientes 400. Orphans OPEN 9 / desta versão 1. Não POST. Não resume. Handoff `docs/handoffs/2026-09-02-nox-patrol-audit.yaml`.
 
+## 2026-09-03 ~04:18 UTC — Orion ACK + Victor rsync `6b4fa07`
+
+Victor autorizou opção 2. Dex rsync lib+server.js + `docker compose up -d --build backend` + nginx. StartedAt `2026-09-03T04:18:08Z`. Health ok, trinks_ping=ok, 46589 OPEN. MD5 live=repo: server.js `e3f8c9d2`, trinks-mapping `8126693d`, tess-empty-handoff `c3528031`, booking-parser `e01ef978`. `TELEFONE_TIPO_ID.WHATSAPP=6` no container. Zero POST Trinks. Zero resume. Prompt v3.2.2 Victor colou (dashboard). I1/I2 vivo ainda CONCERNS até last4 novo — não replay `0101`.
+
+## 2026-09-03 ~13:12 UTC — smoke `0007` + GLOBAL OFF
+
+Whitelist só `0007` + global on de manhã. CREATE 08:15 André 10:30 `trinksId=526039154` 201 (PASS). Ato 1 I1 Fefe 9h PASS. P0.7 tess.empty→handoff PASS. Ops cancel 09:30 204.
+
+Bugs: B1 createKeys sessão trata slot cancelado como duplicata + “Confirmo aqui” sem POST; B2 cancel tag SKU `14232906` → not_owned; B3 “Esquece… agora só um corte” → FAQ abort + dado_indisponivel. TipoId não exercitado.
+
+Ops 10:12 BRT: `bot_toggles.global=false` (silêncio total). 8 allows smoke restaurados. `BOT_ACCEPT_ALL=true`. Handoff plano: `docs/handoffs/2026-09-03-orion-smoke-0007-bugs.md` → sessão madrugada `3dceb1a7-f9d4-4149-9731-dd341cc58bba`. Sem rsync. Sem religar Chatwoot/n8n.
+
+## 2026-09-03 ~15:11 UTC — smoke exclusivo `0007`
+
+Victor autorizou a ativação restrita para o teste. `bot_toggles.global=true` apenas como chave técnica; `BOT_ACCEPT_ALL=false`; exatamente um telefone terminado em `0007` permanece `allow`, e os 8 `allow` anteriores foram mudados para `block`. Fallback `.env` também ficou com somente o sufixo `0007`.
+
+Backend recriado sem build de código, health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589; nginx recebeu reload para atualizar upstream. Nenhuma mensagem WhatsApp, mutação Trinks ou outro smoke foi executado. Backup do `.env` no VPS: `/opt/influence-labs/infra/.env.pre-0007-20260903T151136Z`.
+
