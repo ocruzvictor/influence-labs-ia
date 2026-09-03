@@ -1,11 +1,12 @@
 # EPIC: Commit e fala da Tess são a mesma fonte (I1/I2/I3)
 
-**Status:** Code Done (1–11 unit) · cola TESS / deploy fora
+**Status:** Code Done (1–11 unit) · publicado no VPS 2026-09-03 · bot GLOBAL OFF
 **Criado em:** 2026-09-03  
 **Rev. 1:** 2026-09-03 — @pm `*create-epic` YOLO; stories detalhadas = @sm  
 **Rev. 2:** 2026-09-03 — @sm `*draft` stories 8–11 (Orion smoke `0007`)
 **Rev. 3:** 2026-09-03 — Orion/Dex implementou 8–11 no repo (unit); Quinn gate **PASS**
 **Rev. 4:** 2026-09-03 — re-gate pós-CodeRabbit: 144/144 focused, 502/502 backend, 79/79 prompts; CodeRabbit **0 findings**
+**Rev. 5:** 2026-09-03 — @devops publicou `a413e16` com dependências runtime autocontidas; health VPS **200/ok**; bot GLOBAL permanece **OFF**
 **Owner:** @pm  
 **Handoff SOT (1–7):** [docs/handoffs/2026-09-02-aria-rca-correcao.md](../../handoffs/2026-09-02-aria-rca-correcao.md) (Aria rev. 3)
 
@@ -149,10 +150,11 @@ Honestidade: **unit / classe `0101`**, não live VPS. Deploy **não** fecha este
 - 2026-09-03 — @sm (River): `*draft` YOLO stories 8–11 (SOT Orion smoke `0007` B1–B4). Status Ready. Executor @dev Composer · gate @qa. last4 `0007` só evidência. Sem código. Sem git commit. Sem rsync. Sem Hostinger. Sem replay `0101`. Live ≠ 03/09 10:30 André. Deploy não é DoD até unit.
 - 2026-09-03 — Orion/Dex: implementou stories 8–11 no repo. Status ready-for-review. Unit classe `0007` (guards + cancel-sku + intent) PASS. Sem rsync. Sem git commit. Sem Hostinger. Sem replay `0101`. Live ≠ 03/09 10:30 André. Gate @qa pendente. Deploy **não** é DoD.
 - 2026-09-03 — @qa (Quinn): re-gate stories 8–11 **PASS**. Fatia 144/144, backend 502/502, prompts 79/79; CodeRabbit CLI 0 findings após correções de outbound parcial e prioridade B3. Stories 8–11 → Done. Repo não está conectado a uma organização CodeRabbit, então a revisão usou a franquia CLI gratuita. Deploy/rsync continuam fora.
+- 2026-09-03 — @devops (Gage): publicou `de044a7` + `a413e16` em `origin/feature/tess-commit-honesty`; primeiro worktree crashou por dependências runtime não versionadas, rollback restaurou `706e6e7`, e o segundo deploy autocontido entrou no ar às `14:51:59Z`. Health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589; `bot_toggles.global=false`, sem `.env`/POST/PATCH/WhatsApp. CodeRabbit no segundo commit: 0 critical, 4 major e 2 minor advisory, registrados para follow-up.
 
 ---
 
-**Handoff concluído:** Quinn aprovou stories **8–11**. Fatia: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`. CodeRabbit CLI final: **0 findings**. Sem rsync. Sem Hostinger. Sem replay `0101`. Live seguinte = outro slot, não 03/09 10:30 André. Deploy **não** é DoD desta entrega.
+**Handoff concluído:** Quinn aprovou stories **8–11**. Fatia: `booking-guards.test.js`, `cancel-sku.test.js`, `tess-context-intent.test.js`, `booking-parser.test.js`, `reschedule-sku.test.js`. Unit gate: **144/144** focused, **502/502** backend, **79/79** prompts. Publicação autorizada pelo @devops em `a413e16`: health HTTP 200, `status=ok`, `trinks_ping=ok`, TESS 46589; `bot_toggles.global=false`. CodeRabbit do commit de dependências: **0 critical, 4 major, 2 minor advisory**; report versionado no repo. Sem Hostinger. Sem replay `0101`. Live seguinte = outro slot, não 03/09 10:30 André. Deploy continua não sendo o DoD unitário das stories.
 
 ---
 

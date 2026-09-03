@@ -82,3 +82,13 @@ Cancelamos `526039154` às 09:30 via PATCH `agent_mutation_cancel` **204** (ops,
 - Gates finais: focused **144/144**, backend **502/502**, prompts **79/79**, lint/typecheck/sintaxe/whitespace **PASS**.
 - CodeRabbit CLI 0.6.1: `doctor` **9/9 PASS**; review final do backend **0 findings**. O repositório ainda não está conectado a uma organização CodeRabbit, então foi usada a franquia CLI gratuita.
 - Nenhum deploy, rsync, Hostinger, POST/PATCH Trinks real, replay `0101` ou exercício 03/09 10:30 André foi executado. O live continua no código anterior até publicação autorizada.
+
+## Publicação autorizada e validação (2026-09-03)
+
+- @devops recebeu autorização explícita para publicar, sem Hostinger e sem `rsync`.
+- Commit `de044a7` foi enviado para `origin/feature/tess-commit-honesty`. A primeira tentativa em worktree limpo revelou dependências runtime não versionadas (`MODULE_NOT_FOUND: ./lib/tess-context-slots`); nenhum dirty file foi apagado.
+- Rollback emergencial reconstruiu o backend a partir do último checkout saudável `706e6e7`; `/health` voltou a HTTP 200, sem alterar `.env`, Postgres/volume ou `bot_toggles.global=false`.
+- Commit `a413e16` adicionou as dependências runtime e testes necessários. Deploy final no worktree `/opt/influence-labs/worktrees/tess-commit-honesty` às `2026-09-03T14:51:59Z`; `server.js` e módulos runtime conferem por SHA256.
+- Validação final: container `backend` **Up**, sem `MODULE_NOT_FOUND`, `/health` HTTP **200**, `status=ok`, `trinks_ping=ok`, TESS/agent **46589**. Nginx recebeu apenas reload para atualizar upstream; não houve restart da stack.
+- Nenhum POST/PATCH Trinks, mensagem WhatsApp, replay `0101`, exercício do slot 03/09 10:30 André ou teste live `0007` foi executado. O global permanece **OFF**; a versão está publicada, mas ainda não está habilitada para smoke.
+- CodeRabbit CLI 0.6.1 no commit `a413e16`: **0 critical, 4 major, 2 minor advisory**. Os findings foram mantidos como follow-up de ops/slots/créditos e estão registrados em `docs/qa/coderabbit-reports/epic-tess-commit-honesty-runtime-a413e16-2026-09-03.jsonl`.
