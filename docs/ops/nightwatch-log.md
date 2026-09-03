@@ -198,3 +198,17 @@ Corte operacional: `2026-09-03T19:55:18Z` / `2026-09-03T16:55:18 -03`. Escopo: a
 
 **Rollback (não executado):** restaurar backup → `BOT_ACCEPT_ALL=false` → `docker compose up -d --force-recreate backend`; manter `bot_toggles`, whitelist e volumes.
 
+## 2026-09-03 20:50:57 UTC (17:50:57 BRT) — retomada backlog aprovado (14 last4)
+
+Autorização Victor após revisão da lista. Story **resume-ia.6** live (`4dcbf4e`). Fluxo: `POST /admin/conversations/:phone/resume` individual, `force=true`, `actor=admin`, nota operacional 229 chars. Janela de resolução auditada: 02:35:52Z–19:52:51Z. Sem Trinks, sem alteração env/whitelist/global, sem redeploy.
+
+**Janela:** `20:50:57Z` → `20:53:58Z` (~3 min). Backend Story 6 StartedAt 20:48:16Z.
+
+**14 aprovados — todos `200 sent`:** `6388`, `7504`, `9002`, `6932`, `9800`, `5031`, `4467`, `7625`, `6397`, `2062`, `1000`, `3653`, `8290`, `8085`. Cada um: 1× `resume.requested` + 1× `resume.sent`. Resolução única por last4 na janela auditada (colisões jun/6388,7625,8085 resolvidas para inbound 03/09). Zero SKIP/HOLD/409/422/503.
+
+**15 HOLD intactos — zero resume/outbound:** `9117`, `5953`, `7051`, `4657`, `6361`, `3300`, `7153`, `7016`, `6153`, `8741`, `1944`, `0007`, `8440`, `0101`, `8194`.
+
+**Pós-op:** health **200**, `status=ok`, `trinks_ping=ok`, TESS **46589**, `mode=OPEN`, `accept_all=true`, `global=true`. Whitelist inalterada: 1 allow / 9 block / 7 human_only.
+
+**Totais:** 14 enviados / 0 window_closed / 0 skipped / 0 hold / 0 pendente nesta execução. 15 hold aguardam decisão futura.
+
