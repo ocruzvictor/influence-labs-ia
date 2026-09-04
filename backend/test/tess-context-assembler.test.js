@@ -300,4 +300,36 @@ describe('assembleTessContext', () => {
     assert.equal(result.snapshotStale, true);
     assert.match(result.blocks.horarios, /SNAPSHOT: atualizado há 90 min/);
   });
+
+  test('scoped BOOKING abaixo do teto — trimMeta sem corte', async () => {
+    const deps = mockDeps({
+      messageText: 'quero cortar amanhã',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-03',
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'BOOKING');
+    assert.equal(result.trimMeta?.trimmed, false);
+    assert.deepEqual(result.trimMeta?.steps_applied, []);
+  });
+
+  test('mode=full horarios gordo — budget reduz slotDates', async () => {
+    const fat = 'HORARIOS VAGOS:\n' + '10:00 '.repeat(2800);
+    const deps = mockDeps({
+      messageText: 'quero cortar',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      config: parseTessContextConfig({ TESS_CONTEXT_MODE: 'full' }),
+      getSlots: async () => {
+        deps.calls.slots++;
+        return fat;
+      },
+      getNextBusinessDays: (n) => Array.from({ length: n }, (_, i) => `2026-09-${String(i + 1).padStart(2, '0')}`),
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'FULL');
+    assert.equal(result.trimMeta?.trimmed, true);
+    assert.ok(result.trimMeta?.steps_applied.includes('drop_slot_days'));
+    assert.ok(result.slotDates.length < 10);
+    assert.ok(result.trimMeta.after_chars <= 24000);
+  });
 });

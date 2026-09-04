@@ -4,6 +4,7 @@
 
 const { buildContextProfile, PROFILES } = require('./tess-context-profiles');
 const { logContextBytes } = require('./tess-context-bytes');
+const { applyContextBudget, parseContextCaps } = require('./tess-context-budget');
 const {
   compactBookingSlotsBlock,
   resolveOfferDurationMin,
@@ -20,6 +21,38 @@ const PENTEADO_DISAMBIGUA = [
   'DISAMBIGUA: neste turno "penteado" pode ser corte de cabelo (tesoura / dia a dia),',
   'nao o SKU Penteado da Gi. Pergunte uma vez qual dos dois.',
 ].join(' ');
+
+function buildContextBlocks({
+  dynamicContext,
+  slotsAll,
+  svcPayload,
+  habilitacaoText,
+  profsPayload,
+  historyForModel,
+  futureBookings,
+  userMessageWithContext,
+}) {
+  const shellEstimate = dynamicContext
+    .replace(slotsAll || '', '')
+    .replace(svcPayload.text || '', '')
+    .replace(habilitacaoText || '', '')
+    .replace(profsPayload.text || '', '');
+
+  const historicoPart = historyForModel?.length
+    ? historyForModel.map((m) => m.content).join('\n')
+    : '';
+
+  return {
+    shell: shellEstimate,
+    horarios: slotsAll,
+    servicos: svcPayload.text || '',
+    habilitacao: habilitacaoText,
+    profissionais: profsPayload.text || '',
+    historico: historicoPart,
+    future_bookings: futureBookings.length ? JSON.stringify(futureBookings) : '',
+    user_payload: userMessageWithContext,
+  };
+}
 
 function historyAsText(historyForModel) {
   return (historyForModel || []).map((m) => m.content).join('\n');
@@ -84,7 +117,6 @@ async function assembleTessContext(params) {
     config,
     slotContextDays,
     requestedDate,
-    historyForModel,
     persistedForModel,
     trinksCanonicalName,
     operatorResumeNote,
@@ -116,10 +148,16 @@ async function assembleTessContext(params) {
   };
 
   let slotDates = [];
+  let slotDayTexts = [];
   let slotsAll = '';
   let profsPayload = { text: '', data: [] };
   let svcPayload = { text: '', data: [] };
   let futureBookings = [];
+  let historyForModel = [...(params.historyForModel || [])];
+
+  const todayIso = typeof getNextBusinessDays === 'function'
+    ? getNextBusinessDays(1)[0]
+    : null;
 
   if (profileSpec.fetchFutureBookings && phone) {
     fetchMeta.futureBookingsRequested = true;
@@ -159,9 +197,6 @@ async function assembleTessContext(params) {
   }
 
   if (profileSpec.fetchSlots) {
-    const todayIso = typeof getNextBusinessDays === 'function'
-      ? getNextBusinessDays(1)[0]
-      : null;
     const refreshDates = [...new Set([todayIso, requestedDate].filter(Boolean))];
     for (const date of refreshDates) {
       try {
@@ -177,13 +212,13 @@ async function assembleTessContext(params) {
     if (slotDates.length) {
       fetchMeta.slotsRequested = slotDates.length;
       if (useCompactBooking) {
-        const historyText = (historyForModel || []).map((m) => m.content).join('\n');
+        const historyText = historyAsText(historyForModel);
         const allowedProfessionalNames = [...new Set(
           (svcPayload.data || [])
             .flatMap((s) => (Array.isArray(s.profissionais) ? s.profissionais : []))
             .filter(Boolean),
         )];
-        const groupedBlocks = await Promise.all(
+        slotDayTexts = await Promise.all(
           slotDates.map(async (date) => {
             const grouped = await getSlotsGrouped(date);
             const age = Number(grouped.snapshotAgeMin);
@@ -203,10 +238,10 @@ async function assembleTessContext(params) {
             });
           }),
         );
-        slotsAll = groupedBlocks.join('\n');
+        slotsAll = slotDayTexts.join('\n');
       } else {
-        const slotTexts = await Promise.all(slotDates.map((date) => getSlots(date)));
-        slotsAll = slotTexts.join('\n');
+        slotDayTexts = await Promise.all(slotDates.map((date) => getSlots(date)));
+        slotsAll = slotDayTexts.join('\n');
       }
     }
   }
@@ -230,11 +265,49 @@ async function assembleTessContext(params) {
     profsPayload = await getProfessionals();
   }
 
-  const habilitacaoText = profileSpec.fetchHabilitacao && svcPayload.data?.length
+  let habilitacaoText = profileSpec.fetchHabilitacao && svcPayload.data?.length
     ? renderHabilitacaoMap(svcPayload.data)
     : '';
 
-  const dynamicContext = buildDynamicContext(
+  const clientLine = operatorResumeTrigger || messageText;
+  const caps = parseContextCaps(process.env);
+
+  function rebuildBudgetState(state) {
+    const nextSlotsAll = state.slotsAll ?? state.slotDayTexts.join('\n');
+    const nextDynamicContext = buildDynamicContext(
+      state.slotDates,
+      nextSlotsAll,
+      state.profsPayload.text || '',
+      state.historyForModel,
+      state.svcPayload.text || '',
+      persistedForModel,
+      state.futureBookings,
+      state.habilitacaoText,
+      phone,
+      requestedDate,
+      trinksCanonicalName,
+      operatorResumeNote,
+    );
+    const nextUserMessage = `${nextDynamicContext}\n\nMENSAGEM DO CLIENTE: ${clientLine}`;
+    const nextBlocks = buildContextBlocks({
+      dynamicContext: nextDynamicContext,
+      slotsAll: nextSlotsAll,
+      svcPayload: state.svcPayload,
+      habilitacaoText: state.habilitacaoText,
+      profsPayload: state.profsPayload,
+      historyForModel: state.historyForModel,
+      futureBookings: state.futureBookings,
+      userMessageWithContext: nextUserMessage,
+    });
+    return {
+      dynamicContext: nextDynamicContext,
+      blocks: nextBlocks,
+      slotsAll: nextSlotsAll,
+      userMessageWithContext: nextUserMessage,
+    };
+  }
+
+  let dynamicContext = buildDynamicContext(
     slotDates,
     slotsAll,
     profsPayload.text || '',
@@ -249,29 +322,51 @@ async function assembleTessContext(params) {
     operatorResumeNote,
   );
 
-  const clientLine = operatorResumeTrigger || messageText;
-  const userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${clientLine}`;
+  let userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${clientLine}`;
+  let blocks = buildContextBlocks({
+    dynamicContext,
+    slotsAll,
+    svcPayload,
+    habilitacaoText,
+    profsPayload,
+    historyForModel,
+    futureBookings,
+    userMessageWithContext,
+  });
 
-  const shellEstimate = dynamicContext
-    .replace(slotsAll || '', '')
-    .replace(svcPayload.text || '', '')
-    .replace(habilitacaoText || '', '')
-    .replace(profsPayload.text || '', '');
+  const budgeted = applyContextBudget({
+    profile: profileSpec.profile,
+    intent: intentResult.intent,
+    confidence: intentResult?.confidence || null,
+    mode: config.effectiveMode,
+    dynamicContext,
+    blocks,
+    slotDates,
+    slotDayTexts,
+    requestedDate,
+    todayIso,
+    historyForModel,
+    futureBookings,
+    svcPayload,
+    profsPayload,
+    habilitacaoText,
+    messageText,
+    caps,
+    rebuild: (state) => rebuildBudgetState(state),
+  });
 
-  const historicoPart = historyForModel?.length
-    ? historyForModel.map((m) => m.content).join('\n')
-    : '';
-
-  const blocks = {
-    shell: shellEstimate,
-    horarios: slotsAll,
-    servicos: svcPayload.text || '',
-    habilitacao: habilitacaoText,
-    profissionais: profsPayload.text || '',
-    historico: historicoPart,
-    future_bookings: futureBookings.length ? JSON.stringify(futureBookings) : '',
-    user_payload: userMessageWithContext,
-  };
+  dynamicContext = budgeted.dynamicContext;
+  blocks = budgeted.blocks;
+  slotDates = budgeted.slotDates;
+  slotDayTexts = budgeted.slotDayTexts;
+  historyForModel = budgeted.historyForModel;
+  futureBookings = budgeted.futureBookings;
+  svcPayload = budgeted.svcPayload;
+  profsPayload = budgeted.profsPayload;
+  habilitacaoText = budgeted.habilitacaoText;
+  slotsAll = slotDayTexts.join('\n');
+  userMessageWithContext = `${dynamicContext}\n\nMENSAGEM DO CLIENTE: ${clientLine}`;
+  blocks.user_payload = userMessageWithContext;
 
   return {
     dynamicContext,
@@ -289,6 +384,7 @@ async function assembleTessContext(params) {
     snapshotStale: fetchMeta.snapshotAgeMin != null
       && fetchMeta.snapshotAgeMin >= SNAPSHOT_STALE_OFFER_MIN,
     confidence: intentResult?.confidence || null,
+    trimMeta: budgeted.trimMeta,
   };
 }
 

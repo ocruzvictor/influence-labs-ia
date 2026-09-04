@@ -193,7 +193,7 @@ const {
   extractTessCredits,
   logTessTurnTelemetry,
 } = require('./lib/tess-context-assembler');
-const { persistContextBytesEvent, persistTessTurnEvent } = require('./lib/tess-context-bytes');
+const { persistContextBytesEvent, persistContextTrimmedEvent, persistTessTurnEvent } = require('./lib/tess-context-bytes');
 const { saveConversationTurns: persistConversationTurns } = require('./lib/conversation-history');
 const { newTraceId, withTrace } = require('./lib/tess-trace');
 const { startOutboundWatchdog } = require('./lib/outbound-outbox');
@@ -1221,6 +1221,18 @@ async function runOperatorResumeTurn(phone, operatorNote) {
     nextSaturdayDates,
   });
 
+  if (assembledCtx.trimMeta?.trimmed) {
+    persistContextTrimmedEvent(db, {
+      intent: assembledCtx.intent,
+      confidence: assembledCtx.confidence,
+      context_profile: assembledCtx.contextProfile,
+      tess_context_mode: TESS_CONTEXT_CONFIG.effectiveMode,
+      sessionId,
+      trace_id: newTraceId(),
+      ...assembledCtx.trimMeta,
+    }, phone).catch(() => {});
+  }
+
   console.log(`[${sessionId}] operator_resume TESS turn (note_len=${operatorNote.length})`);
 
   const tessRaw = await callTESS([
@@ -1450,6 +1462,17 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       { confidence: intentResult.confidence, traceId: turnTraceId },
     );
     persistContextBytesEvent(db, assembledBytes, phone).catch(() => {});
+    if (assembledCtx.trimMeta?.trimmed) {
+      persistContextTrimmedEvent(db, {
+        intent: assembledCtx.intent,
+        confidence: assembledCtx.confidence,
+        context_profile: assembledCtx.contextProfile,
+        tess_context_mode: TESS_CONTEXT_CONFIG.effectiveMode,
+        sessionId,
+        trace_id: turnTraceId,
+        ...assembledCtx.trimMeta,
+      }, phone).catch(() => {});
+    }
     if (assembledCtx.snapshotStale) {
       emitOperationalEvent(db, {
         event: 'snapshot.stale',

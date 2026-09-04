@@ -1,0 +1,303 @@
+schema: 1
+slice: '2026-09-04-fatia-item7'
+slice_title: 'Fatia operacional — item 7 P-BUDGET (teto duro de chars por perfil)'
+scope_type: 'operational-slice'   # NÃO é story formal; SOT = Aria tetos + pacote Orion
+gate: PASS
+status_reason: >
+  Tetos, predicado, ordem de degradação, pisos protegidos e evento tess.context_trimmed
+  batem com a tabela Aria. 46/46 verdes no recorte. Nenhum blocker de payload ilimitado
+  nem de bloco protegido esvaziado.
+reviewer: 'Quinn (Test Architect)'
+sot_handoff: 'docs/handoffs/2026-09-04-orion-fatia-item7-qa.md'
+sot_decisions: 'docs/analysis/2026-09-04-aria-p-budget-tetos.md'
+reviewed_revision: 'uncommitted-on-9cb5834'
+reviewed_worktree: 'dirty — item 7 uncommitted em cima de 9cb5834'
+deployed_revision: 'not-verified-this-gate'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T14:20:00Z'
+expires: '2026-09-18T14:20:00Z'
+quality_score: 91
+waiver: { active: false }
+
+# ---------------------------------------------------------------------------
+# 1. VERIFICAÇÕES PEDIDAS — resultado por item
+# ---------------------------------------------------------------------------
+requested_checks:
+  caps_match_aria_table:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-budget.js:13-20 — DEFAULT_CAPS MIN 8000, FAQ 8000, PRICE 10000, BOOKING 16000, CANCEL 10000, FULL 24000.'
+      - 'backend/lib/tess-context-budget.js:74-77 — resolveCap: perfil ausente/desconhecido → PROFILES.FULL, nunca ilimitado.'
+      - 'backend/test/tess-context-budget.test.js:74-76 — UNKNOWN → FULL cap.'
+    notes: >
+      Sem flag de unlimited. FORCE_FULL continua mudando o perfil, não o teto FULL.
+
+  predicate_dynamic_context_length:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-budget.js:83-91 — measureBudgetChars usa dynamicContext.length quando string; senão soma BUDGET_KEYS. user_payload fora da lista.'
+      - 'backend/lib/tess-context-budget.js:169,227 — applyContextBudget mede com (blocks, dynamicContext).'
+      - 'backend/test/tess-context-budget.test.js:80-93 e :200-212 — user_payload 90k não entra; trimmed false em MIN ~2000.'
+    notes: >
+      measureContextBlocks().total em tess-context-bytes.js ainda soma user_payload
+      (telemetria, SOT §7). Não é predicado do teto.
+
+  degrade_order:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-budget.js:286-310 — passo 1 drop_slot_days.'
+      - 'backend/lib/tess-context-budget.js:312-371 — passo 2 filter_catalog (+ piso 3/stub).'
+      - 'backend/lib/tess-context-budget.js:373-402 — passo 3 shrink_habilitacao (re-render SKUs, depois "").'
+      - 'backend/lib/tess-context-budget.js:404-412 — passo 4 drop_profissionais (texto → "").'
+      - 'backend/lib/tess-context-budget.js:414-422 — passo 5 shorten_history (índice 0 até [] se ainda > cap).'
+      - 'backend/lib/tess-context-budget.js:424-447 — passo 6 truncate_future_bookings (3 → 1 → 0, CANCEL piso 1).'
+      - 'backend/lib/tess-context-budget.js:449-450 — passo 7 hit_protected_floor se after_chars > cap.'
+    notes: >
+      steps_applied só recebe os nomes estáveis do SOT §3. Um passo no-op não entra
+      (push só depois de mudar estado).
+
+  protected_floors:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-budget.js:49-52 e :288-289 — BOOKING/FULL minDays=1 se havia ≥1 dia; pin requestedDate||todayIso não é dropado.'
+      - 'backend/test/tess-context-budget.test.js:132-137 — 8.2 pin 2026-09-03 permanece; horarios não vazio; after ≤ 16000.'
+      - 'backend/lib/tess-context-budget.js:139-144 e :435 — CANCEL originalCount>0 força Math.max(1, nextCount).'
+      - 'backend/test/tess-context-budget.test.js:228-252 — CANCEL gordo ≥1 future booking.'
+      - 'backend/lib/tess-context-budget.js:41,119-131,361-370 — PRICE/BOOKING/FULL: 3 SKUs ou stub SERVICOS: lista truncada…; não zera se havia catálogo.'
+      - 'backend/test/tess-context-budget.test.js:255-278 — PRICE 20k filter_catalog e servicos.length > 0; after ≤ 10000.'
+    notes: >
+      Commit de cancel/CREATE não lê assembledCtx.futureBookings — server.js:1673
+      recarrega loadClientFutureBookings. Truncar o array do assembler não fura o
+      commit.
+
+  client_line_never_trimmed:
+    status: PASS
+    evidence:
+      - 'backend/server.js:419-453 — buildDynamicContext não concatena MENSAGEM DO CLIENTE.'
+      - 'backend/lib/tess-context-assembler.js:272,325,368 — clientLine = operatorResumeTrigger||messageText; sufixo depois do teto, reanexado pós-budget.'
+      - 'backend/lib/tess-context-budget.js:83-86 — predicado = dynamicContext.length, não userMessageWithContext.'
+    notes: >
+      clientLine fora da soma e fora do trim, como Aria §2.1 / §4.1.
+
+  event_tess_context_trimmed:
+    status: PASS
+    evidence:
+      - 'backend/server.js:1224-1234 — runOperatorResumeTurn persiste se trimMeta.trimmed.'
+      - 'backend/server.js:1457-1475 — processMessage: emitContextBytesLog (pós-trim) depois persist trimmed se trimmed.'
+      - 'backend/lib/tess-context-bytes.js:101-137 — payload whitelist (intent, caps, steps, days, turns, floor, sessionId, trace_id). Sem texto de bloco. Telefone só em clientPhone → coluna.'
+      - 'backend/lib/operational-events.js:31-42 — client_phone na coluna; JSON.stringify(payload) sem phone.'
+      - 'backend/test/tess-context-bytes-persist.test.js:61-95 — event tess.context_trimmed; params[1]=phone; motivo …:trimmed; sem chave horarios.'
+      - 'backend/lib/tess-context-budget.js:241,270,463 — trimmed só se before_chars > after_chars. Under-cap: steps_applied [].'
+    notes: >
+      approx_tokens omitido no emit live (SOT opcional). persistContextTrimmedEvent
+      aceita se vier; Dex não envia. Não é blocker.
+      operator_resume não emite tess.context_bytes (pré-existente) — ver OBS-01.
+
+  env_cap_parse:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-budget.js:32-39,57-68 — TESS_CONTEXT_CAP_{MIN,FAQ,PRICE,BOOKING,CANCEL,FULL}; 1000≤n≤100000; 0/abc/vazio → default.'
+      - 'backend/test/tess-context-budget.test.js:62-71 — BOOKING=12000 aplica; FULL=0 e MIN=abc → defaults 24000/8000.'
+      - 'infra/.env.example:63-69 — seis nomes comentados ao lado de TESS_CONTEXT_MODE, faixa 1000–100000.'
+      - 'Grep allowlist: zero TESS_CONTEXT_BUDGET=off.'
+    notes: >
+      TESS_CONTEXT_FORCE_FULL=1 intacto (muda perfil). Sem kill-switch de budget.
+
+  uncertain_min_untouched:
+    status: PASS
+    evidence:
+      - 'git diff backend/lib/tess-context-profiles.js → vazio.'
+      - 'backend/lib/tess-context-profiles.js:26-38 — UNCERTAIN → MIN antes do dump full; slotDays: 0.'
+      - 'backend/test/tess-context-profiles.test.js:67-83 — UNCERTAIN scoped e full → MIN (item 6).'
+      - 'backend/test/tess-context-assembler.test.js:198-207 — UNCERTAIN scoped → zero fetch grade/catálogo.'
+    notes: >
+      Item 6 não reabre. Budget não altera rota.
+
+  fetch_not_shrunk:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-profiles.js:117-127 — BOOKING slotDays continua 1 se data explícita, senão min(slotContextDays, 3). Diff do arquivo vazio.'
+      - 'backend/lib/tess-context-assembler.js:167-176,199-246 — resolveSlotDates + fetch intactos; slotDayTexts alinhado a slotDates (SOT: parar join-only).'
+      - 'backend/lib/tess-context-assembler.js:310-356 — applyContextBudget DEPOIS do fetch e do primeiro buildDynamicContext, ANTES do return.'
+    notes: >
+      Item 7 é teto da string enviada, não novo classificador nem corte de GET.
+
+  travas:
+    status: PASS
+    evidence:
+      - 'git diff backend/server.js — só import persistContextTrimmedEvent + dois if trimmed. BOT_ACCEPT_ALL em :110 intacto (=== ''true'').'
+      - 'TESS_REQUEST_TIMEOUT_MS = 25_000 (server.js:83) fora do diff.'
+      - 'Zero diff em docs/prompts/tess-conversa-v3-clean.md / archive 46589 nesta fatia.'
+      - 'Nenhum POST/PATCH/PUT Trinks novo no diff. ensureSlotSnapshot continua GET.'
+      - 'Nenhum script smoke 0007 / André 10:30 / CREATE 9800 nesta fatia. 0007 só fixture de persist (phone column).'
+      - 'Este gate não executa Hostinger nem rsync.'
+    notes: >
+      README-46589.md dirty FORA da allowlist — Gage não leva.
+
+  tests_orion_slice:
+    status: PASS
+    evidence:
+      - 'Quinn rerun: cd backend && node --test test/tess-context-budget.test.js test/tess-context-assembler.test.js test/tess-context-profiles.test.js test/tess-context-bytes-persist.test.js'
+      - '# tests 46 / # suites 8 / # pass 46 / # fail 0 (111ms)'
+      - 'node --check lib/tess-context-budget.js lib/tess-context-assembler.js lib/tess-context-bytes.js server.js — OK'
+    notes: >
+      Contratos Aria §8.1–8.6 cobertos no budget.test. Integração assembler: BOOKING
+      abaixo do teto no-op; FULL gordo drop_slot_days e after ≤ 24000.
+
+# ---------------------------------------------------------------------------
+# 2. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues:
+  - id: 'MNT-01'
+    severity: low
+    finding: >
+      infra/.env.example nesta worktree mistura o bloco TESS_CONTEXT_CAP_* (item 7)
+      com hunks alheios (TESS_CREDIT_*, HUMAN_HANDLED_TTL_HOURS, NIGHTWATCH_MCP_TOKEN)
+    evidence: >
+      git diff infra/.env.example — CAP comments nas linhas 63-69; crédito/TTL/MCP
+      a partir da linha ~88. SOT pede só os seis nomes ao lado de TESS_CONTEXT_MODE.
+    impact: >
+      git add do arquivo inteiro versionaria env docs que não são desta fatia.
+      Não muda teto live (são comentários / outras chaves).
+    suggested_action: >
+      Gage no W4: commit só o bloco CAP (7 linhas de comentário). Não levar crédito
+      Tess, TTL de human-handled nem NIGHTWATCH_MCP_TOKEN neste commit.
+    blocks_publish: false
+
+  - id: 'OBS-01'
+    severity: low
+    finding: >
+      runOperatorResumeTurn persiste tess.context_trimmed mas não emite
+      tess.context_bytes (lacuna pré-existente do caminho resume)
+    evidence: >
+      server.js:1224-1238 — trim persist + callTESS; emitContextBytesLog só no
+      processMessage :1457. SOT §2.4 descreve bytes pós-trim no fluxo inbound.
+    impact: >
+      Resume gordo ainda é cortado (assembler aplica budget). W5 vê trim no resume;
+      não vê context_bytes desse caminho.
+    suggested_action: >
+      Fora desta fatia. Não patch W2. Opcional depois: espelhar emitContextBytesLog
+      no resume, sem mudar timeout.
+    blocks_publish: false
+
+  - id: 'QUAL-01'
+    severity: low
+    finding: >
+      filter_catalog re-formata servicos via formatServicesText e descarta o prefixo
+      PENTEADO_DISAMBIGUA se o BOOKING passar do teto
+    evidence: >
+      assembler.js:194-196 prepend DISAMBIGUA no compact BOOKING.
+      tess-context-budget.js:326 — svcPayload = formatServicesText(filtered).
+      BOOKING saudável ~10k (0007) é no-op — teste assembler :304-314 trimmed false.
+    impact: >
+      Só em BOOKING > 16k com passo 2. Compact live raro nesse tamanho. 0007 intocado.
+    suggested_action: >
+      Aceitar. Se o coloquial penteado repetir em payload gordo, re-prepend no rebuild
+      numa fatia futura — sem paste 46589.
+    blocks_publish: false
+
+# ---------------------------------------------------------------------------
+# 3. EVIDÊNCIA DE TESTES
+# ---------------------------------------------------------------------------
+evidence:
+  slice_tests: 'PASS — 46/46 (4 arquivos pedidos)'
+  slice_test_command: "node --test test/tess-context-budget.test.js test/tess-context-assembler.test.js test/tess-context-profiles.test.js test/tess-context-bytes-persist.test.js"
+  slice_test_result: '# tests 46 / # suites 8 / # pass 46 / # fail 0 (111ms)'
+  syntax: 'PASS — node --check lib/tess-context-budget.js lib/tess-context-assembler.js lib/tess-context-bytes.js server.js'
+  prior_slice_regression: 'PASS — UNCERTAIN → MIN intacto; PRICE filtra por histórico; compact BOOKING durationMin/DISAMBIGUA testes pré-existentes verdes'
+  coverage_gap: 'OBS-01 — resume sem context_bytes; QUAL-01 sem assert DISAMBIGUA pós-filter_catalog (caso >16k)'
+  optional_omitted: 'before_approx_tokens / after_approx_tokens — SOT §5 opcional; Dex omitiu; NÃO é blocks_publish'
+  not_executed:
+    - 'Deploy, rsync, Hostinger, rebuild de container — fora de autoridade.'
+    - 'Smoke WhatsApp last4 0007 / replay André 10:30 / CREATE 9800 — trava do pacote.'
+    - 'Paste de prompt 46589 — trava do pacote.'
+    - 'npm run lint / typecheck — sem script correspondente no backend/package.json.'
+    - 'npm test full-repo — recorte Orion, não suíte inteira.'
+
+# ---------------------------------------------------------------------------
+# 4. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      Evento sem PII no JSON (sem telefone, nome, mensagem, histórico, grade).
+      Telefone só na coluna client_phone. BOT_ACCEPT_ALL e allowlist intocados.
+      Sem mutação Trinks nova. Sem tabela/migration nova.
+  reliability:
+    status: PASS
+    notes: >
+      Under-cap = no-op (0007 BOOKING ~10k). Over-cap degrada até o piso e envia;
+      hit_protected_floor se ainda > cap (risco residual Aria §9: 1 dia gordo).
+      Persist fire-and-forget .catch(() => {}). Timeout Tess 25s intacto.
+  maintainability:
+    status: PASS
+    notes: >
+      Módulo puro tess-context-budget.js sem db. Contratos §8 no test novo.
+      profiles.js intocado. MNT-01 é higiene de .env.example, não do hot-path.
+  performance:
+    status: PASS
+    notes: >
+      Fetch inalterado. Trim é CPU local pós-snapshot. Corta a cauda 54k/91k
+      no FULL. Não promete 13,5 cr (piso Haiku ~17–21).
+  observability:
+    status: PASS
+    notes: >
+      tess.context_trimmed só quando cortou; tess.context_bytes continua pós-trim
+      no inbound. OBS-01 = resume sem bytes. W5: grep tess.context_trimmed no
+      container após publish.
+
+# ---------------------------------------------------------------------------
+# 5. O QUE BLOQUEIA PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: yes-with-conditions
+publish_note: >
+  Zero blocker de código. Victor já ACK ("orquestra até entregarmos") = W3 feito.
+  W4 Gage PODE proceder com a allowlist abaixo, allowlist-only, sem rsync, sem
+  Hostinger neste gate. Commit de infra/.env.example = SOMENTE o bloco
+  TESS_CONTEXT_CAP_* (MNT-01). Este gate não autoriza BOT_ACCEPT_ALL, alteração
+  de allowlist, paste 46589, mutação Trinks, smoke 0007 / André 10:30 / CREATE 9800.
+
+slice_allowlist:
+  - backend/lib/tess-context-budget.js
+  - backend/lib/tess-context-assembler.js
+  - backend/lib/tess-context-bytes.js
+  - backend/server.js
+  - backend/test/tess-context-budget.test.js
+  - backend/test/tess-context-assembler.test.js
+  - backend/test/tess-context-bytes-persist.test.js
+  - infra/.env.example
+  - docs/analysis/2026-09-04-aria-p-budget-tetos.md
+  - docs/ops/2026-09-04-orion-workflow-item7.md
+  - docs/handoffs/2026-09-04-orion-fatia-item7-qa.md
+  - docs/qa/gates/2026-09-04-fatia-item7.yml
+  - docs/handoffs/2026-09-04-quinn-gate-item7.md
+
+# ---------------------------------------------------------------------------
+# 6. RECOMENDAÇÕES
+# ---------------------------------------------------------------------------
+recommendations:
+  immediate:
+    - action: 'W4 Gage: commit allowlist-only. Em infra/.env.example levar só as 7 linhas CAP (comentário + seis TESS_CONTEXT_CAP_*). Não levar TESS_CREDIT_*, HUMAN_HANDLED_TTL_HOURS, NIGHTWATCH_MCP_TOKEN.'
+      refs: ['infra/.env.example:63-69']
+    - action: 'Não commitir tess-context-profiles.js (intocado), README-46589.md, nginx, frontend, KB, nem o resto dirty.'
+      refs: ['backend/lib/tess-context-profiles.js']
+  future:
+    - action: 'W5 Orion: no container, grep tess.context_trimmed após um turno FULL/rollback ou catálogo keyword-miss. Sem André 10:30.'
+      refs: ['backend/lib/tess-context-bytes.js:101-137']
+    - action: 'Opcional: emitContextBytesLog no operator_resume (OBS-01).'
+      refs: ['backend/server.js:1224-1238']
+
+auto_decisions:
+  - '[AUTO-DECISION] Fatia sem story formal → gate emitido como scope_type=operational-slice, SOT = Aria tetos + pacote Orion (razão: @sm/@po não abriram story).'
+  - '[AUTO-DECISION] Sem transição de Status de story (razão: não há story InReview; qa-gate.md post-gate não se aplica).'
+  - '[AUTO-DECISION] Auditar só a allowlist desta fatia; worktree dirty enorme ignorado (razão: mesmo critério do gate slots+contexto).'
+  - '[AUTO-DECISION] approx_tokens omitido ≠ blocker (razão: SOT §5 opcional; missão: não pôr em blocks_publish).'
+  - '[AUTO-DECISION] MNT-01 / OBS-01 / QUAL-01 = low, não FAIL (razão: não enviam payload ilimitado nem esvaziam bloco protegido).'
+  - '[AUTO-DECISION] Veredito PASS não CONCERNS (razão: 11/11 checks pedidos PASS; findings low não violam SOT de teto/piso/evento).'
+  - '[AUTO-DECISION] W3 ACK Victor já dado nesta sessão — W4 Gage may proceed se blocks_publish vazio (razão: workflow item 7 + missão).'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, mudança de allowlist, paste de prompt 46589, smoke 0007, replay André 10:30, CREATE 9800 nem qualquer deploy.'
