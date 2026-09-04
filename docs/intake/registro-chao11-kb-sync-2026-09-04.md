@@ -14,8 +14,13 @@ Só **1** arquivo: `faq-servicos.md`.
 
 ## PATCH
 
-_(preencher após execução)_
+```
+ok faq-servicos memory=163141
+done updated=1 skipped=0 failed=0
+```
 
 ## Checagem pós-PATCH
 
-FAQ §22 live: *"Pode passar sem marcar, é de graça no intervalo."*
+FAQ §22 live: *"Pode passar sem marcar, é de graça no intervalo."*  
+Backend live: `8c9c90e` · backup `backend.bak.20260904165231`.  
+Prompt dashboard: v3.2.5 (Victor colou).

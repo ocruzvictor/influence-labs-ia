@@ -2,7 +2,7 @@
 
 **Epic:** [EPIC-tess-chao-unico](epics/EPIC-tess-chao-unico.md)  
 **Tipo:** Brownfield  
-**Status:** Live — aguardando Victor colar v3.2.5  
+**Status:** Done  
 **Executor:** @architect → @dev · Victor cola prompt v3.2.5  
 **Quality gate:** @qa  
 **Story points:** 5  
@@ -42,15 +42,15 @@ Pós publish `4356489` (chão 8+9). Smoke parcial `#2` + `#8`.
 - [x] **AC3:** Fixture André 11/09 14:00 30 min → não aparece relógio; linha “sem janela contínua” ou só 15:30+.
 - [x] **AC4:** Pezinho Ex.14 / REGRA ZERO / VALIDE 28 — resposta modelo ≤2 frases, sem “pedicure” default.
 - [x] **AC5:** Quinn PASS · `blocks_publish` vazio.
-- [ ] **AC6:** Live `8d06340` · Victor colar v3.2.5 · FAQ §22 one-liner (sync 39496 pós cola).
+- [x] **AC6:** Live `8c9c90e` · Victor colou v3.2.5 · FAQ §22 sync 39496 (163141).
 
 ## Tasks
 
 - [x] T1: Aria tetos — [2026-09-04-aria-chao-11-tetos.md](../analysis/2026-09-04-aria-chao-11-tetos.md) · Ready-for-Dex **yes**
 - [x] T2: Dex backend + prompt v3.2.5 — `resolveOfferDurationMin` narrow + `inferGrainMinutes` fix
 - [x] T3: Quinn — [2026-09-04-chao-11-oferta-60min.yml](../qa/gates/2026-09-04-chao-11-oferta-60min.yml)
-- [ ] T4: Victor cola v3.2.5 · Orion sync KB se diff  
-- [x] T5: Gage publish `8d06340` · backup `backend.bak.20260904163913`
+- [x] T4: Victor colou v3.2.5 · Orion sync FAQ §22 — `docs/intake/registro-chao11-kb-sync-2026-09-04.md`
+- [x] T5: Gage publish `8c9c90e` · backup `backend.bak.20260904165231`
 
 ## File List
 

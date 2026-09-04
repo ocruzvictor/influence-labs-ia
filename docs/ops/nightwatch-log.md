@@ -352,4 +352,12 @@ Victor ACK 14:35 BRT: orquestrar o que falta para testar no `0007`. Gates 1+2 PA
 
 **Pendente T4:** Victor cola v3.2.5 → AC6 done.
 
+## 2026-09-04 ~19:52Z — chão 11 fechado (v3.2.5 + D11.1 + FAQ sync)
+
+**Change:** Victor colou v3.2.5. Publish `8c9c90e` (D11.1 Aria-aligned `narrowServicesForOfferDuration`). Backup `backend.bak.20260904165231`. PATCH FAQ §22 memory=163141 only. Registro: `docs/intake/registro-chao11-kb-sync-2026-09-04.md`.
+
+**After:** health ok · backend `8c9c90e` · prompt v3.2.5 · memories FAQ one-liner. Story 11 AC1–AC6 done.
+
+**Smoke sugerido:** re-rodar `#2` + `#8` no `0007` se quiser validar pezinho curto + horários 60min.
+
 
