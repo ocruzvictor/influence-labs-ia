@@ -155,7 +155,7 @@ Só colunas existentes:
 |---|---|
 | `bot_whitelist.mode` ∈ {block, human_only} | Sem claim, silent |
 | `bot_thread_state.silenced_until > now()` | Sem claim, silent |
-| `last_staff_outbound_at` há < 10 min | Sem claim, silent (`STAFF_SPOKE_WINDOW_MS` do resume) |
+| `last_staff_outbound_at` há < 24h | Sem claim, silent — inclui outbound do **painel Kapso** (`cloud_api` que a Tess não enviou) |
 
 Se o staff falou há 2 dias e o TTL de human-handled expirou, o número **pode** ser claimed. Não inventar detector novo de “histórico humano”.
 

@@ -12,6 +12,8 @@ const { digitsOnly, isOwnerPhone } = require('./owner-access');
 
 const CACHE_TTL_MS = 5_000;
 const STAFF_SPOKE_WINDOW_MS = 10 * 60 * 1000;
+/** Conversa WhatsApp aberta — recepção falou no fio, independente de tag human-handled. */
+const STAFF_CONVERSATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** @type {Map<string, { silencedUntilMs: number | null, expiresAt: number }>} */
 const cache = new Map();
@@ -187,9 +189,24 @@ async function isStaffSpokeRecently(phone, windowMs = STAFF_SPOKE_WINDOW_MS) {
   return Date.now() - at < windowMs;
 }
 
+/**
+ * Recepção já falou neste fio (painel Kapso ou app). Não depende da tag human-handled.
+ *
+ * @param {string} phone
+ * @returns {Promise<boolean>}
+ */
+async function hasStaffOnConversation(phone) {
+  const digits = digitsOnly(phone);
+  if (!digits) return false;
+  if (isOwnerPhone(digits)) return false;
+  if (await isHumanHandled(digits)) return true;
+  return isStaffSpokeRecently(digits, STAFF_CONVERSATION_WINDOW_MS);
+}
+
 module.exports = {
   CACHE_TTL_MS,
   STAFF_SPOKE_WINDOW_MS,
+  STAFF_CONVERSATION_WINDOW_MS,
   invalidatePhoneCache,
   resetCacheForTests,
   markHumanHandled,
@@ -197,4 +214,5 @@ module.exports = {
   countActiveSilenced,
   persistStaffOutbound,
   isStaffSpokeRecently,
+  hasStaffOnConversation,
 };

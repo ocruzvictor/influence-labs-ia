@@ -45,7 +45,7 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 - [x] **AC5:** Dois claims concorrentes com 1 vaga → exatamente um `allow` no cohort; o outro silent (`cap_reached`).
 - [x] **AC6:** 6º número distinto não-trivial após o teto → silent, zero row de claim, whitelist inalterada.
 - [x] **AC7:** Números já claimed continuam sendo atendidos depois do teto.
-- [x] **AC8:** `human-handled` ativo, `last_staff_outbound_at` < 10 min, `human_only` ou `block` → sem claim, Tess silent.
+- [x] **AC8:** Recepção no fio (tag **ou** outbound do painel Kapso que a Tess não enviou, janela 24h), `human_only` ou `block` → sem claim, Tess silent.
 - [x] **AC9:** `isOwnerPhone` e `allow` pré-existente (ex. last4 `0007`) não incrementam `claimed_count`.
 - [x] **AC10:** `bot_toggles.global=false` silencia cohort e candidatos. Health degrada se 018 ainda não rodou (não 500).
 - [x] **AC11:** `/health` e health lite: `mode=PILOT` quando toggle ligado; `claimed_count` + `n`; sem telefone completo.

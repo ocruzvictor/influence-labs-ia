@@ -200,3 +200,11 @@ test('isStaffSpokeRecently true dentro de 10 min; false se ausente', async () =>
   await persistStaffOutbound(phone);
   assert.equal(await isStaffSpokeRecently(phone), true);
 });
+
+test('hasStaffOnConversation usa janela de 24h, não só a tag', async () => {
+  const { persistStaffOutbound, hasStaffOnConversation } = require('../lib/bot-thread-state');
+  const phone = '5511999997777';
+  assert.equal(await hasStaffOnConversation(phone), false);
+  await persistStaffOutbound(phone);
+  assert.equal(await hasStaffOnConversation(phone), true);
+});

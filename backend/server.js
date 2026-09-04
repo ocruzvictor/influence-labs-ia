@@ -68,8 +68,13 @@ const {
   isHumanHandled,
   countActiveSilenced,
   persistStaffOutbound,
-  isStaffSpokeRecently,
+  hasStaffOnConversation,
 } = require('./lib/bot-thread-state');
+const {
+  rememberBotSend,
+  extractOutboundText,
+  isStaffOutbound,
+} = require('./lib/kapso-staff-outbound');
 const { isClaimableIntent, tryClaim, getPilotStatus } = require('./lib/bot-pilot');
 const { tessAuthHeaders, tessWorkspaceConfigured, tessWorkspaceId } = require('./lib/tess-auth');
 const nightwatchOps = require('./lib/nightwatch-ops');
@@ -2634,6 +2639,7 @@ async function sendKapsoMessage(to, text, phoneNumberId) {
     if (i > 0) await sleep(BUBBLE_DELAY_MS);
     const sent = await sendKapsoSingle(to, bubbles[i], phoneNumberId);
     if (!sent) return false;
+    rememberBotSend(to, bubbles[i]);
   }
   return true;
 }
@@ -2772,17 +2778,21 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   }));
   console.log(`[kapso] events: ${JSON.stringify(summary)}`);
 
-  // 3a. Takeover humano: outbound NAO-cloud_api (app, web, etc.) → marca conversa como human-handled.
+  // 3a. Takeover humano: qualquer outbound que a Tess NÃO enviou.
+  // Painel Kapso também sai como cloud_api — o fingerprint rememberBotSend separa o eco.
   for (const e of events) {
     const m = e?.message;
     const dir = m?.kapso?.direction;
     const origin = m?.kapso?.origin;
-    if (dir === 'outbound' && origin && origin !== 'cloud_api') {
-      const targetPhone = e?.conversation?.phone_number || m?.to || m?.from;
-      if (!isOwnerPhone(targetPhone)) {
-        await markHumanHandled(targetPhone, 'business_app');
-        await persistStaffOutbound(targetPhone);
-      }
+    const targetPhone = e?.conversation?.phone_number || m?.to || m?.from;
+    if (isStaffOutbound({
+      direction: dir,
+      origin,
+      phone: targetPhone,
+      text: extractOutboundText(m),
+    }) && !isOwnerPhone(targetPhone)) {
+      await markHumanHandled(targetPhone, 'business_app');
+      await persistStaffOutbound(targetPhone);
     }
   }
 
@@ -2884,20 +2894,16 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     return res.json({ ok: true });
   }
 
-  // 4b. Human takeover: se a conversa foi marcada como human-handled, bot fica calado ate o TTL.
+  // 4b. Recepção no fio: tag human-handled OU qualquer outbound que não foi a Tess (painel Kapso).
   // Dono (Tiago): nunca silenciar — ele comanda a IA neste número.
-  if (await isHumanHandled(sessionPhone) && !ownerHere) {
-    console.log(`[kapso][${sessionId}] conversa human-handled — bot silencioso (TTL ${HUMAN_HANDLED_TTL_MS / 3600000}h)`);
+  if (!ownerHere && (await hasStaffOnConversation(sessionPhone) || await isHumanHandled(sessionPhone))) {
+    console.log(`[kapso][${sessionId}] conversa com outbound humano — bot silencioso`);
     return res.json({ ok: true });
   }
 
   // 4c. PILOT_N: candidato só segue se o claim atômico caber (texto agora; áudio-only depois).
   let pilotClaimPendingAudio = false;
   if (pilotCandidate) {
-    if (await isStaffSpokeRecently(sessionPhone)) {
-      console.log(`[kapso][${sessionId}] pilot skip staff_spoke_recently`);
-      return res.json({ ok: true });
-    }
     if (audioEvents.length === 0) {
       const intentResult = classifyTessIntent(messageText, [], []);
       if (!isClaimableIntent(intentResult.intent)) {
