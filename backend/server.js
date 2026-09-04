@@ -62,13 +62,15 @@ const {
   resolveServicoNomeFrom201,
   findActiveAppointmentConflict,
 } = require('./lib/booking-guards');
-const { getBotState, resolvePhoneAccess } = require('./lib/bot-state');
+const { getBotState, resolvePhoneAccess, invalidateCache } = require('./lib/bot-state');
 const {
   markHumanHandled: markHumanHandledPersist,
   isHumanHandled,
   countActiveSilenced,
   persistStaffOutbound,
+  isStaffSpokeRecently,
 } = require('./lib/bot-thread-state');
+const { isClaimableIntent, tryClaim, getPilotStatus } = require('./lib/bot-pilot');
 const { tessAuthHeaders, tessWorkspaceConfigured, tessWorkspaceId } = require('./lib/tess-auth');
 const nightwatchOps = require('./lib/nightwatch-ops');
 const { mountNightwatchMcp } = require('./lib/nightwatch-mcp');
@@ -2870,16 +2872,59 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     acceptAll: BOT_ACCEPT_ALL,
     allowedPhones: BOT_ALLOWED_PHONES,
   });
-  if (phoneAccess.silent) {
+  const pilotActive = Boolean(botState.toggles && botState.toggles.pilot);
+  const ownerHere = isOwnerPhone(sessionPhone);
+  const missingFromAllow = phoneAccess.silent && (
+    phoneAccess.reason === 'not_allowlisted' || phoneAccess.reason === 'env_not_allowlisted'
+  );
+  const pilotCandidate = pilotActive && missingFromAllow && !ownerHere;
+  const ownerPilotBypass = ownerHere && pilotActive && phoneAccess.silent;
+  if (phoneAccess.silent && !pilotCandidate && !ownerPilotBypass) {
     console.log(`[kapso][${sessionId}] phone ${sessionPhone} ${phoneAccess.reason} — bot inativo`);
     return res.json({ ok: true });
   }
 
   // 4b. Human takeover: se a conversa foi marcada como human-handled, bot fica calado ate o TTL.
   // Dono (Tiago): nunca silenciar — ele comanda a IA neste número.
-  if (await isHumanHandled(sessionPhone) && !isOwnerPhone(sessionPhone)) {
+  if (await isHumanHandled(sessionPhone) && !ownerHere) {
     console.log(`[kapso][${sessionId}] conversa human-handled — bot silencioso (TTL ${HUMAN_HANDLED_TTL_MS / 3600000}h)`);
     return res.json({ ok: true });
+  }
+
+  // 4c. PILOT_N: candidato só segue se o claim atômico caber (texto agora; áudio-only depois).
+  let pilotClaimPendingAudio = false;
+  if (pilotCandidate) {
+    if (await isStaffSpokeRecently(sessionPhone)) {
+      console.log(`[kapso][${sessionId}] pilot skip staff_spoke_recently`);
+      return res.json({ ok: true });
+    }
+    if (audioEvents.length === 0) {
+      const intentResult = classifyTessIntent(messageText, [], []);
+      if (!isClaimableIntent(intentResult.intent)) {
+        console.log(`[kapso][${sessionId}] pilot skip intent=${intentResult.intent}`);
+        return res.json({ ok: true });
+      }
+      const claim = await tryClaim({ phone: sessionPhone, intent: intentResult.intent });
+      if (!claim.claimed) {
+        console.log(`[kapso][${sessionId}] pilot reject ${claim.reason}`);
+        emitOperationalEvent(db, {
+          event: 'pilot.rejected',
+          clientPhone: sessionPhone,
+          motivo: claim.reason,
+          payload: { intent: intentResult.intent },
+        }).catch(() => {});
+        return res.json({ ok: true });
+      }
+      invalidateCache();
+      emitOperationalEvent(db, {
+        event: 'pilot.claimed',
+        clientPhone: sessionPhone,
+        motivo: claim.reason,
+        payload: { intent: intentResult.intent, run_id: claim.run_id || null },
+      }).catch(() => {});
+    } else {
+      pilotClaimPendingAudio = true;
+    }
   }
 
   console.log(`[kapso][${sessionId}] message recebida: "${messageText.slice(0, 80)}" pnid=${phoneNumberId}`);
@@ -2939,6 +2984,34 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
         outbox.markFinal();
         return;
       }
+    }
+
+    if (pilotClaimPendingAudio) {
+      const intentResult = classifyTessIntent(messageText, [], []);
+      if (!isClaimableIntent(intentResult.intent)) {
+        console.log(`[kapso][${sessionId}] pilot audio skip intent=${intentResult.intent}`);
+        outbox.markFinal();
+        return;
+      }
+      const claim = await tryClaim({ phone: sessionPhone, intent: intentResult.intent });
+      if (!claim.claimed) {
+        console.log(`[kapso][${sessionId}] pilot audio reject ${claim.reason}`);
+        emitOperationalEvent(db, {
+          event: 'pilot.rejected',
+          clientPhone: sessionPhone,
+          motivo: claim.reason,
+          payload: { intent: intentResult.intent, path: 'audio' },
+        });
+        outbox.markFinal();
+        return;
+      }
+      invalidateCache();
+      emitOperationalEvent(db, {
+        event: 'pilot.claimed',
+        clientPhone: sessionPhone,
+        motivo: claim.reason,
+        payload: { intent: intentResult.intent, run_id: claim.run_id || null, path: 'audio' },
+      });
     }
 
     const kapsoConversationId = firstConv?.id || events[0]?.conversation_id || null;
@@ -3588,6 +3661,28 @@ app.get('/health', async (req, res) => {
     // Health continua disponivel antes da migration 016.
   }
 
+  let healthBot = {
+    mode: BOT_ACCEPT_ALL ? 'OPEN' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT' : 'WHITELIST'),
+    pilot: { table_ready: false },
+  };
+  try {
+    const state = await getBotState();
+    const pilotStatus = await getPilotStatus();
+    const globalOff = state.toggles && state.toggles.global === false;
+    const pilotOn = Boolean(state.toggles && state.toggles.pilot);
+    healthBot = {
+      mode: globalOff ? 'OFF' : (pilotOn ? 'PILOT' : healthBot.mode),
+      pilot: {
+        table_ready: pilotStatus.table_ready !== false,
+        n: pilotStatus.n,
+        claimed_count: pilotStatus.claimed_count,
+        started_at: pilotStatus.started_at || null,
+      },
+    };
+  } catch (_) {
+    // Health continua se 018 ainda não rodou.
+  }
+
   res.json({
     status: 'ok',
     service: 'studio-tirra-webchat',
@@ -3623,9 +3718,10 @@ app.get('/health', async (req, res) => {
     bot: {
       accept_all: BOT_ACCEPT_ALL,
       whitelist_count: BOT_ALLOWED_PHONES.length,
-      mode: BOT_ACCEPT_ALL ? 'OPEN' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT' : 'WHITELIST'),
+      mode: healthBot.mode,
       whitelist_source: 'see /admin/api/whitelist (Story 1.2-DATA cutover in progress)',
       human_handled,
+      pilot: healthBot.pilot,
     },
     meta: {
       configured: Boolean(META_ACCESS_TOKEN && META_PHONE_NUMBER_ID),
@@ -3686,10 +3782,18 @@ mountNightwatchMcp(app, {
   getHealthLite: async () => {
     const trinks_ping = await pingTrinks();
     const tess_credits = await readTessCreditUsage();
+    let mode = BOT_ACCEPT_ALL ? 'OPEN' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT' : 'WHITELIST');
+    try {
+      const state = await getBotState();
+      if (state.toggles && state.toggles.global === false) mode = 'OFF';
+      else if (state.toggles && state.toggles.pilot) mode = 'PILOT';
+    } catch (_) {
+      // lite degrada para o modo env
+    }
     return {
       tess_agent: TESS_AGENT_ID,
       accept_all: BOT_ACCEPT_ALL,
-      mode: BOT_ACCEPT_ALL ? 'OPEN' : (BOT_ALLOWED_PHONES.length === 0 ? 'SILENT' : 'WHITELIST'),
+      mode,
       trinks_ping: {
         status: trinks_ping.status,
         latency_ms: trinks_ping.latency_ms,

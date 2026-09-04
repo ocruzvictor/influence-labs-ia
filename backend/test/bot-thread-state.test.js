@@ -54,6 +54,13 @@ function setupMockDb() {
           return { rows: [{ silenced_until: row.silenced_until }] };
         }
 
+        if (sql.includes('SELECT last_staff_outbound_at FROM bot_thread_state')) {
+          const phone = params[0];
+          const row = store.get(phone);
+          if (!row?.last_staff_outbound_at) return { rows: [] };
+          return { rows: [{ last_staff_outbound_at: row.last_staff_outbound_at }] };
+        }
+
         if (sql.includes('COUNT(*)')) {
           const now = Date.now();
           let cnt = 0;
@@ -184,4 +191,12 @@ test('persistStaffOutbound grava last_staff_outbound_at', async () => {
 
   assert.ok(store.get(phone)?.last_staff_outbound_at);
   assert.ok(queryLog.some((q) => q.sql.includes('last_staff_outbound_at')));
+});
+
+test('isStaffSpokeRecently true dentro de 10 min; false se ausente', async () => {
+  const { persistStaffOutbound, isStaffSpokeRecently } = require('../lib/bot-thread-state');
+  const phone = '5511999998888';
+  assert.equal(await isStaffSpokeRecently(phone), false);
+  await persistStaffOutbound(phone);
+  assert.equal(await isStaffSpokeRecently(phone), true);
 });

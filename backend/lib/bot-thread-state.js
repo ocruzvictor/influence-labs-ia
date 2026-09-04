@@ -11,6 +11,7 @@ const db = require('../db');
 const { digitsOnly, isOwnerPhone } = require('./owner-access');
 
 const CACHE_TTL_MS = 5_000;
+const STAFF_SPOKE_WINDOW_MS = 10 * 60 * 1000;
 
 /** @type {Map<string, { silencedUntilMs: number | null, expiresAt: number }>} */
 const cache = new Map();
@@ -164,12 +165,36 @@ async function persistStaffOutbound(phone) {
   }
 }
 
+/**
+ * Gate "recepção falou agora" — mesma janela de 10 min do resume.
+ *
+ * @param {string} phone
+ * @param {number} [windowMs]
+ * @returns {Promise<boolean>}
+ */
+async function isStaffSpokeRecently(phone, windowMs = STAFF_SPOKE_WINDOW_MS) {
+  const digits = digitsOnly(phone);
+  if (!digits) return false;
+  if (isOwnerPhone(digits)) return false;
+
+  const result = await db.query(
+    'SELECT last_staff_outbound_at FROM bot_thread_state WHERE phone = $1',
+    [digits],
+  );
+  if (!result?.rows?.[0]?.last_staff_outbound_at) return false;
+  const at = new Date(result.rows[0].last_staff_outbound_at).getTime();
+  if (Number.isNaN(at)) return false;
+  return Date.now() - at < windowMs;
+}
+
 module.exports = {
   CACHE_TTL_MS,
+  STAFF_SPOKE_WINDOW_MS,
   invalidatePhoneCache,
   resetCacheForTests,
   markHumanHandled,
   isHumanHandled,
   countActiveSilenced,
   persistStaffOutbound,
+  isStaffSpokeRecently,
 };
