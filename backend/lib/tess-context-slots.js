@@ -4,6 +4,11 @@
 
 const { annotateStarts, formatAnnotatedTimes, formatPickedAnnotatedTimes, uniqueSortedMs } = require('./slot-windows');
 const { normalizeText, PROFESSIONAL_RE, isDurationHourToken } = require('./tess-context-intent');
+const {
+  filterServicesByKeywords,
+  applyGenderQualifier,
+  detectGenderQualifier,
+} = require('./booking-parser');
 
 const SALON_TZ = 'America/Sao_Paulo';
 const MORNING_RE = /\b(manha|manhã|cedo|de manha|de manhã|antes do almoco|antes do almoço)\b/i;
@@ -242,12 +247,46 @@ function skuDurationFrom(services) {
   return 0;
 }
 
+/** Narrow catalog for duration when fala cita serviço (ex. cortar → família corte). */
+function narrowServicesForOfferDuration(services, messageText, genderQualifier = null) {
+  if (!Array.isArray(services) || !services.length || !messageText) return services;
+  const gq = genderQualifier || detectGenderQualifier(messageText);
+  const narrowed = filterServicesByKeywords(services, messageText, { genderQualifier: gq });
+  if (!narrowed?.length) return services;
+  return gq ? applyGenderQualifier(narrowed, gq) : narrowed;
+}
+
+function maxSkuDuration(services) {
+  if (!Array.isArray(services) || !services.length) return 0;
+  const durs = services
+    .map((s) => Number(s?.duracaoEmMinutos ?? s?.duration_min ?? 0))
+    .filter((n) => n > 0);
+  return durs.length ? Math.max(...durs) : 0;
+}
+
+function minSkuDuration(services) {
+  if (!Array.isArray(services) || !services.length) return 0;
+  const durs = services
+    .map((s) => Number(s?.duracaoEmMinutos ?? s?.duration_min ?? 0))
+    .filter((n) => n > 0);
+  return durs.length ? Math.min(...durs) : 0;
+}
+
 function resolveOfferDurationMin(services, opts) {
+  const pool = opts?.messageText
+    ? narrowServicesForOfferDuration(services, opts.messageText, opts.genderQualifier)
+    : services;
   if (!opts?.messageText) {
-    return skuDurationFrom(services);
+    return skuDurationFrom(pool);
   }
   const speech = extractSpeechDurationMin(opts.messageText);
-  const sku = skuDurationFrom(services);
+  let sku = skuDurationFrom(pool);
+  if (pool !== services && pool?.length) {
+    const minD = minSkuDuration(pool);
+    const maxD = maxSkuDuration(pool);
+    if (minD !== maxD) sku = minD;
+    else if (!sku) sku = minD;
+  }
   if (speech && sku) return Math.max(speech, sku);
   return speech || sku;
 }
@@ -587,6 +626,9 @@ module.exports = {
   pickStartsForPeriod,
   pickStartsForOffer,
   resolveOfferDurationMin,
+  narrowServicesForOfferDuration,
+  maxSkuDuration,
+  minSkuDuration,
   extractSpeechDurationMin,
   skuDurationFrom,
   startsFittingDuration,

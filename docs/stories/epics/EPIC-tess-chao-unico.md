@@ -37,7 +37,13 @@ Fechar o leftover que ainda mistura vertical no WhatsApp: horário que não cabe
 | 4 | [Memories TESS](../salon-whatsapp-chao-4-kb-memories-tess.md) | KB 39496 vs v3.2.3 | — | 5 | Quinn PASS 96 · local isolado · **sem PATCH** até ACK |
 | 5 | [Crédito por turno](../salon-whatsapp-chao-5-credito-dimensao.md) | PV-P1-2 · G-P6 | Dara SOT | 5 | Quinn CONCERNS · sem publish |
 | 6 | [Timeout por perfil](../salon-whatsapp-chao-6-timeout-perfil.md) | PV-P1-5 · G-P10 | 5 | 5 | Quinn CONCERNS · AC3 sem p95 · sem publish |
-| 7 | [Smoke único `0007`](../salon-whatsapp-chao-7-smoke-unico-0007.md) | prova no chão | 1–6 | 3 | Draft |
+| 7 | [Smoke único `0007`](../salon-whatsapp-chao-7-smoke-unico-0007.md) | prova no chão | 1–6 | 3 | Relatório · #2/#8 FAIL classificados · `global=false` |
+| 8 | [Pezinho cortesia](../salon-whatsapp-chao-8-pezinho-cortesia.md) | #2 smoke | time salão | 5 | Draft · Aria |
+| 9 | [Ausência ocupa](../salon-whatsapp-chao-9-ausencia-ocupa.md) | #8 smoke | Aria | 8 | Draft · Aria |
+| 10 | [Recorrência Trinks](../salon-whatsapp-chao-10-recorrencia-trinks.md) | painel vs IA | Dara+Aria | 5 | Discovery-STOP · Quinn PASS |
+| 11 | [Oferta 60 min + pezinho curto](../salon-whatsapp-chao-11-oferta-60min-pezinho-curto.md) | smoke #8 residual + #2 tom | chão 8+9 live | 5 | **Draft** · Victor 04/09 |
+
+**Adendo 04/09:** [pezinho / Ausência / recorrência](../../analysis/2026-09-04-orion-adendo-pezinho-ausencia-recorrencia.md). Sem religar até novo ACK.
 
 ## DoD do epic
 

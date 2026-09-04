@@ -34,8 +34,10 @@ function inferGrainMinutes(startsMs, fallback = DEFAULT_GRAIN_MIN) {
     if (delta > 0) diffs.push(delta);
   }
   if (!diffs.length) return fallback;
-  diffs.sort((a, b) => a - b);
-  const medianMs = diffs[Math.floor(diffs.length / 2)];
+  const sane = diffs.filter((d) => d <= 60 * 60000);
+  const pool = sane.length ? sane : diffs;
+  pool.sort((a, b) => a - b);
+  const medianMs = pool[Math.floor(pool.length / 2)];
   const minutes = Math.round(medianMs / 60000);
   if (minutes < 5 || minutes > MAX_GRAIN_MIN) return fallback;
   return minutes;

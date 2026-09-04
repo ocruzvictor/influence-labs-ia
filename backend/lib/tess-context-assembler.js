@@ -264,7 +264,7 @@ async function assembleTessContext(params) {
               messageText,
               historyText,
               allowedProfessionalNames,
-              durationMin: resolveOfferDurationMin(svcPayload.data, { messageText }),
+              durationMin: resolveOfferDurationMin(svcPayload.data, { messageText, genderQualifier }),
               snapshotAgeMin: Number.isFinite(age) ? age : null,
             });
           }),

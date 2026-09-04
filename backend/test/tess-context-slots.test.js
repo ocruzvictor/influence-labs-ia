@@ -302,7 +302,13 @@ describe('extractSpeechDurationMin / resolveOfferDurationMin (Chão 1)', () => {
 
   test('S1-9 — sem SKU nem duração → 0', () => {
     assert.equal(resolveOfferDurationMin([], { messageText: 'oi' }), 0);
-    assert.equal(resolveOfferDurationMin([], { messageText: 'oi' }), 0);
+  });
+
+  test('S11-1 — cortar com Tiago + catálogo gordo → 60', () => {
+    assert.equal(
+      resolveOfferDurationMin(FAT_CATALOG_11, { messageText: 'procura horario para cortar com o tiago' }),
+      60,
+    );
   });
 
   test('S1-10 — 1 SKU 120 sem opts intacto', () => {
@@ -330,6 +336,48 @@ describe('compactBookingSlotsBlock duration occupancy (Chão 1)', () => {
     assert.match(text, /sem janela contínua de 120min/);
     assert.doesNotMatch(text, /há vagas/);
     assert.doesNotMatch(text, /12:30/);
+  });
+
+  test('S11-2 — Tiago 12/09 12:30+17:00 corte 60 → só 17:00 no relógio', () => {
+    const text = compactBookingSlotsBlock({
+      label: '12/09 (sábado)',
+      professionals: [{
+        name: 'Tiago Rocha Ferreira',
+        professionalId: '818965',
+        startsAt: [
+          '2026-09-12T12:30:00-03:00',
+          '2026-09-12T17:00:00-03:00',
+          '2026-09-12T17:30:00-03:00',
+        ],
+      }],
+      messageText: 'quero cortar com o tiago no sabado',
+      historyText: 'quero cortar com o tiago',
+      durationMin: 60,
+      allowedProfessionalNames: ['Tiago Rocha Ferreira'],
+    });
+    assert.doesNotMatch(text, /12:30/);
+    assert.match(text, /17:00/);
+  });
+
+  test('S11-3 — André 11/09 14:00 só 30min → sem 14:00', () => {
+    const text = compactBookingSlotsBlock({
+      label: '11/09 (sexta)',
+      professionals: [{
+        name: 'André de Oliveira Ferreira',
+        professionalId: '827200',
+        startsAt: [
+          '2026-09-11T14:00:00-03:00',
+          '2026-09-11T15:30:00-03:00',
+          '2026-09-11T16:00:00-03:00',
+        ],
+      }],
+      messageText: 'corte com o andre sexta 14h',
+      historyText: 'quero cortar com o andre',
+      durationMin: 60,
+      allowedProfessionalNames: ['André de Oliveira Ferreira'],
+    });
+    assert.doesNotMatch(text, /14:00/);
+    assert.match(text, /15:30/);
   });
 });
 
