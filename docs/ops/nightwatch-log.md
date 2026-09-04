@@ -212,3 +212,62 @@ Autorização Victor após revisão da lista. Story **resume-ia.6** live (`4dcbf
 
 **Totais:** 14 enviados / 0 window_closed / 0 skipped / 0 hold / 0 pendente nesta execução. 15 hold aguardam decisão futura.
 
+## 2026-09-03 22:30Z — publish fatia outbox + SLA + scoped (`b42bb2b`)
+
+Victor ACK 1 (skip baseline ON) + 2 (passthrough) + 3 (assembler/nginx fora) + 4 (publicar).
+
+**Before:** worktree `07f59cb`. Processo: `TESS_CONTEXT_MODE=scoped`, `TESS_SKIP_TRIVIAL=true`, `BOT_ACCEPT_ALL=true`. Health ok.
+
+**Change:** commit `b42bb2b` → origin. Worktree reset `b42bb2b`. `git archive` só `backend/` (sem rsync, sem sobrescrever compose). Backup `backend.bak.1788474285`. `docker compose build --no-cache backend` + `up -d`. `nginx -t` ok → reload.
+
+**After:** worktree `b42bb2b`. Log: `context mode=scoped skip_trivial=true`, `Bot mode: OPEN`. Env idêntico ao baseline. Health interno/público ok, `trinks_ping=ok`, agent 46589. Libs `outbound-outbox`, `handoff-sla`, `conversation-history` no container. Zero MODULE_NOT_FOUND.
+
+**Fora:** assembler, nginx conf, allowlist, prompt, Hostinger. Smoke `0007` **não** rodou.
+
+## 2026-09-04 12:37Z — publish fatia pool Victor (`a08f23b`)
+
+Victor ACK “pode publicar”. Quinn CONCERNS 86, zero `blocks_publish`.
+
+**Before:** worktree `b42bb2b`. `TESS_CONTEXT_MODE=scoped`, `TESS_SKIP_TRIVIAL=true`, `BOT_ACCEPT_ALL=true`. Health ok.
+
+**Change:** `a08f23b` → origin. Worktree reset `a08f23b`. `git archive` só `backend/`. Backup `backend.bak.1788525408`. `docker compose build --no-cache backend` + `up -d`. `nginx -t` ok → reload.
+
+**After:** worktree `a08f23b`. Container: `UNCERTAIN profile=MIN`, `tess-trace.js` presente. Env = baseline. Health público ok, `trinks_ping=ok`, agent 46589.
+
+**Fora:** Hostinger, rsync, compose overwrite, `BOT_ACCEPT_ALL`, smoke `0007`.
+
+## 2026-09-04 14:24Z — publish item 7 P-BUDGET (`fa0ec92`)
+
+Victor ACK “orquestra até entregarmos”. Quinn PASS 91, zero `blocks_publish`.
+
+**Before:** worktree `9cb5834`. `TESS_CONTEXT_MODE=scoped`, `TESS_SKIP_TRIVIAL=true`, `BOT_ACCEPT_ALL=true`. Health ok.
+
+**Change:** `fa0ec92` → origin. Worktree reset `fa0ec92`. `git archive` só `backend/`. Backup `backend.bak.1788531845`. `docker compose build --no-cache backend` + `up -d`. `nginx -t` ok → reload. Caps no código; sem `TESS_CONTEXT_CAP_*` no `.env` VPS.
+
+**After:** worktree `fa0ec92`. Container: `lib/tess-context-budget.js`, DEFAULT_CAPS MIN 8000 / FAQ 8000 / PRICE 10000 / BOOKING 16000 / CANCEL 10000 / FULL 24000, `applyContextBudget` no assembler. Env = baseline. Health público ok, `trinks_ping=ok`, agent 46589.
+
+**Fora:** Hostinger, rsync, compose overwrite, `BOT_ACCEPT_ALL`, smoke `0007`, André 10:30, CREATE 9800.
+
+## 2026-09-04 ~15:10 UTC — Mira W3 Wave 1 amostra léxico (não crédito)
+
+Janela 01–04/09. 8 last4. Kill switch off 11:33 BRT: silêncio depois ≠ fail Tess. Sem patch, sem cola, sem POST. `0007` skip (teste).
+
+- Amostra: `2987` `4905` `4501` `4749` `0330` `3684` `1000` `2874`.
+- Top 3 language fails: `1000` pezinho→pedicure→cabelo/barba (handoff `orcamento_referencia`); `4501` pezinho `UNCERTAIN` MIN `tess.timeout` 11:05 BRT (antes do off); `4749` “Masculino”→Tess confirma Feminino + leak `TA -`.
+- Win: `0330` “quem é maquiador” → Fefe/Eli/Kamila (dono). Chão: `2874` progressiva masculina preço no 1º tiro.
+- `3684` inbound-only “pé e mão”+Fefe 11:49 BRT = kill switch. `2987` I3 2h/15:00 ocupado → handoff `conflito_agenda`. `4905` tintura ok, gloss drop.
+- Sugestão Onda 2: stems `tintura`/`gloss`/`pezinho`/`maquiador`/`masculino` no FILTER; `pezinho`≠pedicure; `DATE_RE` sense_gap `\d{1,2}h`. Relatório: `docs/handoffs/2026-09-04-mira-amostra-lexico.md`.
+
+## 2026-09-04 ~15:54Z — publish Onda 2 Fase A triagem léxico (`405b005`)
+
+Victor ACK commit/publish. Quinn CONCERNS 86, zero `blocks_publish`. Kill switch permanece off.
+
+**Before:** worktree `fa0ec92`. `TESS_CONTEXT_MODE=scoped`, `TESS_SKIP_TRIVIAL=true`, `BOT_ACCEPT_ALL=true`, `FORCE_FULL` absent, agent 46589. `bot_toggles.global=false` (enabled=f).
+
+**Change:** `405b005` → origin (`feature/tess-commit-honesty`). Worktree reset `405b005`. `git archive` só `backend/`. Backup `backend.bak.1788537207`. `docker compose build --no-cache backend` + `up -d`. `docker compose exec nginx nginx -t` ok → reload.
+
+**After:** worktree `405b005`. Container: `pezinho` em `FILTER_SERVICE_KEYWORDS`, `CATALOG_SYNONYMS`, `genderQualifier` em `server.js`. Env = baseline. Health interno/público ok, `trinks_ping=ok`, agent 46589, `accept_all=true`, `mode=OPEN`. `bot_toggles.global=false` inalterado — bot não responde (esperado).
+
+**Fora:** Hostinger, rsync, compose overwrite, `BOT_ACCEPT_ALL`, `UPDATE bot_toggles`, smoke `0007`, André 10:30, CREATE 9800, paste 46589.
+
+
