@@ -148,6 +148,7 @@ const {
   formatRescheduleRefusalMessage,
   needsReferenceService,
   hasRecentClientImageMarker,
+  detectGenderQualifier,
 } = require('./lib/booking-parser');
 const { normalizeKapsoMediaContent } = require('./lib/kapso-media');
 
@@ -1163,7 +1164,9 @@ function formatAssistantOutput(rawText, isFirstTurn) {
  */
 async function runOperatorResumeTurn(phone, operatorNote) {
   const sessionId = phone;
-  const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [], persistedMemory: null };
+  const state = sessionState.get(sessionId) || {
+    turn: 0, rootId: null, history: [], persistedMemory: null, genderQualifier: null,
+  };
 
   let trinksCanonicalName = null;
   if (state.history.length === 0 && phone) {
@@ -1176,6 +1179,14 @@ async function runOperatorResumeTurn(phone, operatorNote) {
     } catch {
       /* non-blocking */
     }
+  }
+
+  if (!state.genderQualifier) {
+    const genderHistoryBlob = [
+      ...(state.history || []),
+      ...(state.persistedMemory?.history || []),
+    ].filter((m) => m?.role === 'user').map((m) => m.content).join('\n');
+    state.genderQualifier = detectGenderQualifier(genderHistoryBlob);
   }
 
   const historyForClassify = state.history.slice(-8);
@@ -1209,6 +1220,7 @@ async function runOperatorResumeTurn(phone, operatorNote) {
     trinksCanonicalName,
     operatorResumeNote: operatorNote,
     operatorResumeTrigger: OPERATOR_RESUME_TRIGGER,
+    genderQualifier: state.genderQualifier,
     buildDynamicContext,
     getSlots,
     getSlotsGrouped,
@@ -1289,7 +1301,9 @@ async function runOperatorResumeTurn(phone, operatorNote) {
 async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw, phone = null, kapsoConversationId = null, inboundTraceId = null) {
   const startTime = Date.now();
   const turnTraceId = inboundTraceId || newTraceId();
-  const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [], persistedMemory: null };
+  const state = sessionState.get(sessionId) || {
+    turn: 0, rootId: null, history: [], persistedMemory: null, genderQualifier: null,
+  };
 
   // Cold start: load persisted memory from DB (phone sessions) or client-side history fallback (webchat)
   let trinksCanonicalName = null;
@@ -1322,6 +1336,16 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     console.log(`[${sessionId}] INTERLOCUTOR=TIAGO (dono) contact="${contactName}"`);
   }
   console.log(`[${sessionId}] ${contactName}: "${messageText}"`);
+
+  if (!state.genderQualifier) {
+    const genderHistoryBlob = [
+      ...(state.history || []),
+      ...(state.persistedMemory?.history || []),
+    ].filter((m) => m?.role === 'user').map((m) => m.content).join('\n');
+    state.genderQualifier = detectGenderQualifier(genderHistoryBlob);
+  }
+  const detectedGender = detectGenderQualifier(messageText);
+  if (detectedGender) state.genderQualifier = detectedGender;
 
   // Classificar intenção ANTES do fetch Trinks (context-on-demand)
   const historyForClassify = state.history.slice(-8);
@@ -1432,6 +1456,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       persistedForModel,
       trinksCanonicalName,
       operatorResumeNote: pendingOperatorNote,
+      genderQualifier: state.genderQualifier,
       buildDynamicContext,
       getSlots,
       getSlotsGrouped,

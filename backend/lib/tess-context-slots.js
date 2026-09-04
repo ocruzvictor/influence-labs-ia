@@ -3,7 +3,7 @@
  */
 
 const { annotateStarts, formatAnnotatedTimes, formatPickedAnnotatedTimes, uniqueSortedMs } = require('./slot-windows');
-const { normalizeText, PROFESSIONAL_RE } = require('./tess-context-intent');
+const { normalizeText, PROFESSIONAL_RE, isDurationHourToken } = require('./tess-context-intent');
 
 const SALON_TZ = 'America/Sao_Paulo';
 const MORNING_RE = /\b(manha|manhã|cedo|de manha|de manhã|antes do almoco|antes do almoço)\b/i;
@@ -57,17 +57,26 @@ function detectExactClock(text) {
   if (!norm) return null;
 
   const patterns = [
-    /\b(\d{1,2}):(\d{2})\b/,
-    /\b(\d{1,2})\s*h\b/,
-    /\b(\d{1,2})h(\d{2})\b/,
+    /\b(\d{1,2}):(\d{2})\b/g,
+    /\b(\d{1,2})\s*h\b/g,
+    /\b(\d{1,2})h(\d{2})\b/g,
   ];
+
   for (const re of patterns) {
-    const m = norm.match(re);
-    if (!m) continue;
-    const hour = parseInt(m[1], 10);
-    const minute = m[2] != null ? parseInt(m[2], 10) : 0;
-    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      return { hour, minute };
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(norm)) !== null) {
+      if (isDurationHourToken(norm, m.index)) continue;
+      const hour = parseInt(m[1], 10);
+      let minute = 0;
+      if (m[2] != null && re.source.includes(':')) {
+        minute = parseInt(m[2], 10);
+      } else if (m[2] != null && /h\d{2}/.test(m[0])) {
+        minute = parseInt(m[2], 10);
+      }
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        return { hour, minute };
+      }
     }
   }
   return null;

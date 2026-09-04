@@ -13,6 +13,80 @@ const {
   listMutations,
 } = require('./nightwatch-ops');
 
+const BR_PHONE_RE = /(?<!\d)(?:\+?55[\s().-]*\d[\s().-]*){10,}(?!\d)/g;
+const LONG_DIGIT_RUN_RE = /(?<!\d)(?:\+?\d[\s().-]*){12,}(?!\d)/g;
+
+function normalizeCorpusText(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function redactCorpusText(text) {
+  return String(text || '')
+    .replace(BR_PHONE_RE, '[phone]')
+    .replace(LONG_DIGIT_RUN_RE, '[phone]');
+}
+
+function sanitizeCorpusRow(row) {
+  const last4 = row.last4 ? String(row.last4).slice(-4) : null;
+  const safeLast4 = last4 && /^\d{4}$/.test(last4) ? last4 : null;
+  return {
+    last4: safeLast4,
+    role: row.role || null,
+    agent: row.agent || null,
+    intent: row.intent ?? null,
+    text: redactCorpusText(row.text),
+    created_at: row.created_at,
+  };
+}
+
+function computeCorpusStats(rows) {
+  const threads = new Set();
+  const tessReplied = new Set();
+  const inboundOnly = new Set();
+  const userThreads = new Set();
+  let intentNullCount = 0;
+
+  for (const row of rows) {
+    const last4 = row.last4;
+    if (!last4) continue;
+    threads.add(last4);
+    if (row.intent == null) intentNullCount += 1;
+    if (row.role === 'user') userThreads.add(last4);
+    if (row.role === 'assistant' && String(row.agent || '') !== 'passive') {
+      tessReplied.add(last4);
+    }
+  }
+
+  for (const last4 of userThreads) {
+    if (!tessReplied.has(last4)) inboundOnly.add(last4);
+  }
+
+  return {
+    threads_last4: threads.size,
+    unique_utterances: rows.length,
+    tess_replied: tessReplied.size,
+    inbound_only: inboundOnly.size,
+    intent_null_count: intentNullCount,
+  };
+}
+
+function dedupCorpusRows(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const key = `${row.last4 || ''}\0${normalizeCorpusText(row.text)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
 function last4OnlyPhone(phone) {
   return last4FromPhone(phone);
 }
@@ -394,6 +468,53 @@ async function listarFilaAtendimento(db, { horas = 12, sampleLimit = 30 } = {}) 
   };
 }
 
+async function dumpFloorCorpus(db, { fromIso, toIso, dedup = true } = {}) {
+  if (!fromIso || !toIso) {
+    return { error: 'window_required', fromIso: fromIso || null, toIso: toIso || null };
+  }
+
+  const [historyResult, staffResult] = await Promise.all([
+    db.query(
+      `SELECT
+         RIGHT(regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), 4) AS last4,
+         role,
+         agent,
+         intent,
+         content AS text,
+         created_at
+       FROM conversation_history
+      WHERE created_at >= $1::timestamp
+        AND created_at < $2::timestamp
+        AND regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') <> ''
+      ORDER BY regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), created_at`,
+      [fromIso, toIso],
+    ),
+    db.query(
+      `SELECT COUNT(*)::int AS n
+         FROM bot_thread_state
+        WHERE last_staff_outbound_at >= $1::timestamp
+          AND last_staff_outbound_at < $2::timestamp`,
+      [fromIso, toIso],
+    ),
+  ]);
+
+  const rawRows = (historyResult?.rows || []).map(sanitizeCorpusRow);
+  const statsFromRaw = computeCorpusStats(rawRows);
+  const utterances = dedup ? dedupCorpusRows(rawRows) : rawRows;
+  const stats = {
+    ...statsFromRaw,
+    unique_utterances: utterances.length,
+    staff_outbound_in_window: Number(staffResult?.rows?.[0]?.n) || 0,
+  };
+
+  return {
+    window: { from: fromIso, to: toIso },
+    dedup: Boolean(dedup),
+    stats,
+    utterances,
+  };
+}
+
 module.exports = {
   listStuckThreadsFiltered,
   listAckWithoutOutbound,
@@ -401,4 +522,7 @@ module.exports = {
   correlacionarLast4,
   relatarSloEventos,
   listarFilaAtendimento,
+  dumpFloorCorpus,
+  normalizeCorpusText,
+  redactCorpusText,
 };

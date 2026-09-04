@@ -161,6 +161,7 @@ function applyContextBudget(input) {
     profsPayload: initialProfsPayload = { text: '', data: [] },
     habilitacaoText: initialHabilitacao = '',
     messageText = '',
+    genderQualifier = null,
     caps = DEFAULT_CAPS,
     rebuild,
   } = input;
@@ -321,6 +322,7 @@ function applyContextBudget(input) {
       const filtered = filterServicesByKeywords(
         svcPayload.data,
         `${messageText}\n${historyText}`,
+        { genderQualifier },
       );
       if (filtered?.length && filtered.length < svcPayload.data.length) {
         svcPayload = formatServicesText(filtered);

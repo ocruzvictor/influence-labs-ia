@@ -1,0 +1,274 @@
+schema: 1
+slice: '2026-09-04-onda2-fase-a'
+slice_title: 'Onda 2 Fase A — dentes de triagem (léxico, relógio, gênero, strip)'
+scope_type: 'operational-slice'   # NÃO é story formal; SOT = Aria tetos
+gate: CONCERNS
+status_reason: >
+  §8 e os quatro invariantes (vinicius angeli / as 16h / pé-mão / penteado) estão
+  verdes. Dex não reescreveu identidade SKU, não meteu maquiador em PROFESSIONAL_RE,
+  não reabriu P-BUDGET nem colou 46589. Único desvio de teto: detectGenderQualifier
+  não é last-wins — se os dois gêneros aparecem, devolve sempre feminino.
+reviewer: 'Quinn (Test Architect)'
+sot: 'docs/analysis/2026-09-04-aria-onda2-triagem-tetos.md'
+reviewed_revision: 'uncommitted-on-fa0ec92'
+reviewed_worktree: 'dirty — Fase A uncommitted em cima de fa0ec92'
+deployed_revision: 'fa0ec92 — live intocado; este gate não publica'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T16:20:00-03:00'
+orion_followup: >
+  REQ-01 aplicado após este gate: detectGenderQualifier last-wins num único
+  loop; rehydrate em server.js só role=user (SKU assistant não vence).
+  Quinn não re-reviewou o follow-up. Live continua fa0ec92.
+expires: '2026-09-18T15:45:00-03:00'
+quality_score: 86
+waiver: { active: false }
+last4_only: true
+
+# ---------------------------------------------------------------------------
+# 1. HUNTS PEDIDOS
+# ---------------------------------------------------------------------------
+requested_checks:
+  identity_alias_forbidden:
+    status: PASS
+    hunt: 1
+    evidence:
+      - 'CATALOG_SYNONYMS tintura/gloss → coloracao|retoque|tonaliz. Zero hits.push(color).'
+      - 'pezinho: bloqueia peMatch, remove hit cabelo, hits.push(cort). Nunca pedicure.'
+      - 'Probe C1: Coloração Global|Retoque de Raiz|Tonalização. C4: corte sim, Pedicure/Cabelo e Barba não.'
+    notes: 'Matcher de nome, não alias de identidade. Contrato null=unfiltered intacto.'
+
+  maquiador_not_in_professional_re:
+    status: PASS
+    hunt: 2
+    evidence:
+      - 'PROFESSIONAL_RE lista de nomes intocada (tiago…eli). source sem maquiador.'
+      - 'ROLE_RE = /\\bmaquiador(?:a|es|as)?\\b/i. hasProfessionalSignal = PROF || ROLE.'
+      - 'detectNamedProfessionals(Quem é maquiador aí?) → []. N2 Fefe só fefe.'
+    notes: 'Cargo no classificador; não no picker de pessoa.'
+
+  circular_import_filter:
+    status: PASS
+    hunt: 3
+    evidence:
+      - 'booking-parser.js é folha — zero require(). intent importa FILTER; slots importa intent.'
+      - 'node require intent→parser: FILTER array, 5 stems presentes, hasServiceSignal(tintura pezinho maquiador)=true.'
+    notes: 'Testes verdes não mascararam TDZ. Load order seguro.'
+
+  server_gender_both_sites:
+    status: PASS
+    hunt: 4
+    evidence:
+      - 'runOperatorResumeTurn assembleTessContext :1210 passa genderQualifier: state.genderQualifier.'
+      - 'processMessage assembleTessContext :1447 idem. (Orion ~1199/~1423 — linhas andaram com o hunk.)'
+      - 'Cold start: se state.genderQualifier nulo, varrre history + persistedMemory.history (:1184, :1340).'
+      - 'processMessage: detected no turno atual sobrescreve; senão mantém. Nunca default feminino por omissão.'
+      - 'budget filter_catalog herda { genderQualifier } (:325). assembler passa nos dois filterCatalogForProfile.'
+    notes: 'Sem migration. Lifetime = sessionState, irmão de lastBookingOutcome.'
+
+  strip_preserves_image_marker:
+    status: PASS
+    hunt: 5
+    evidence:
+      - 'shouldKeepBracketTag: /CLIENTE ENVIOU/i. Novos regex TA/HABILITACAO/ID não casam o marcador.'
+      - 'S8 + hotfix D1: [CLIENTE ENVIOU IMAGEM] permanece.'
+    notes: 'D1 intacto.'
+
+  apply_gender_keeps_ungendered:
+    status: PASS
+    hunt: 6
+    evidence:
+      - 'applyGenderQualifier: sem masculino/feminino no nome → keep. Drop só o gênero oposto.'
+      - 'Probe G4: Manicure e Maquiagem ficam; Corte Feminino sai.'
+    notes: 'C8: hit só masculino → só SKUs com masculino no nome (filtro, não o helper).'
+
+  date_re_duration:
+    status: PASS
+    hunt: 7
+    evidence:
+      - 'DATE_RE lookahead negativo (?!\\s+(de\\s+)?(atendimento|duracao|servico|sessao)\\b).'
+      - 'hasDateSignal usa isDurationHourToken; classify não testa DATE_RE cru.'
+      - 'Probe: DATE_RE.test e hasDateSignal(não são 2h de atendimento?)=false. detectExactClock=null. as 16h={16,0}.'
+    notes: '2h isolado ainda pode ser relógio — residual Aria §9.7, aceito.'
+
+  pii_new_tests:
+    status: PASS
+    hunt: 8
+    evidence:
+      - 'Bloco Onda 2 em booking-parser / intent / slots / assembler: zero E.164 / +55.'
+      - '5511964540007 só em dados-cliente.1/.2 pré-existentes — fora do hunk Fase A.'
+      - 'ID 6+ dígitos (0330) é âncora Mira de strip, não telefone.'
+    notes: 'Gate e evidência last4 only (2987 4905 4501 4749 0330 1000 2874 3684).'
+
+  p_budget_and_46589_untouched:
+    status: PASS
+    hunt: 9
+    evidence:
+      - 'DEFAULT_CAPS intactos: MIN 8000, FAQ 8000, PRICE 10000, BOOKING 16000, CANCEL 10000, FULL 24000.'
+      - 'git diff fa0ec92 tess-context-budget.js = +2 linhas (genderQualifier plumbing). Sem UNCERTAIN→MIN.'
+      - 'profiles.js UNCERTAIN→MIN intocado. Diff scoped sem 46589.'
+    notes: 'Sem paste, sem split, sem Hostinger, sem POST Trinks.'
+
+# ---------------------------------------------------------------------------
+# 2. INVARIANTES ORION / ARIA §11
+# ---------------------------------------------------------------------------
+invariants:
+  vinicius_angeli:
+    status: PASS
+    evidence: 'booking-parser.test.js — teste pré-existente + S2–S8 estendem inline/TA/HABILITACAO/ID.'
+  as_16h:
+    status: PASS
+    evidence: 'detectExactClock(as 16h)={16,0}; I5 hasDateSignal true; K5 duração+16h → 16:00.'
+  pe_e_mao:
+    status: PASS
+    evidence: 'C5 pé sábado=Pedicure; C6 pé e mão=Pedicure+Manicure; teste catalog.filter pé/mão pré-existente.'
+  penteado:
+    status: PASS
+    evidence: 'catalog.filter penteado festa ≠ Pedicure; dia a dia inclui corte. C7 coberto pelo teste antigo.'
+
+# ---------------------------------------------------------------------------
+# 3. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues:
+  - id: 'REQ-01'
+    severity: medium
+    finding: >
+      detectGenderQualifier não é last-wins (Aria §2.1). Percorre todos os
+      masculino e depois todos os feminino — se os dois tokens existem no
+      blob, o retorno é sempre feminino.
+    evidence: >
+      booking-parser.js:566-576. Probe: "É feminino, quero masculino" → feminino;
+      "Masculino depois feminino" → feminino.
+    impact: >
+      Sessão quente 4749 (turno "Masculino" sozinho) está correta — sticky
+      grava na primeira detecção. Cold start / evict que concatena history
+      com "Corte Feminino" no turno assistant pode rehidratar feminino mesmo
+      com "Masculino" do cliente no slice. Amplifica residual Aria §9.5.
+    suggested_action: >
+      Dex: um loop em ordem de documento (último \\bmasculino\\b / \\bfeminino\\b
+      ganha). Sem migration. Sem religar. Não é FAIL — 4749 no happy-path
+      in-memory passa.
+    blocks_publish: false
+
+  - id: 'TEST-01'
+    severity: low
+    finding: >
+      I3 afirma signal ≠ unknown, não intent !== UNCERTAIN. Implementação
+      cai em SCHEDULING via hasProfessionalSignal — dente ok, assert frouxo.
+    evidence: 'tess-context-intent.test.js I3; classifyTessIntent :316-318.'
+    suggested_action: 'Opcional: assert.notEqual(r.intent, UNCERTAIN) no I3.'
+    blocks_publish: false
+
+# ---------------------------------------------------------------------------
+# 4. EVIDÊNCIA DE TESTES
+# ---------------------------------------------------------------------------
+evidence:
+  orion_rerun: 'PASS — 161/161, 0 fail (5 ficheiros; Orion independente; Quinn não reexecutou a suíte)'
+  slice_test_command: "cd backend && node --test test/booking-parser.test.js test/tess-context-intent.test.js test/tess-context-slots.test.js test/tess-context-assembler.test.js test/tess-context-budget.test.js"
+  slice_test_result: '# tests 161 / # pass 161 / # fail 0 — creditado a Orion; Dex 161/161 corroborado'
+  syntax: 'PASS — node --check nos 5 libs + server.js'
+  hunt_probes: 'PASS — require chain + C1/C4/C6/G4/S8/DATE_RE/clock/ROLE/CAPS (Quinn)'
+  coverage_gap: 'TEST-01 I3 frouxo; sem e2e processMessage sticky (Aria §8.5 dispensou)'
+  not_executed:
+    - 'Suíte completa do repo — recorte Orion; sem necessidade de rerun.'
+    - 'Deploy, rsync, Hostinger, rebuild de container.'
+    - 'Religar bot / BOT_ACCEPT_ALL / POST Trinks / CREATE 9800 / replay André 10:30.'
+    - 'Paste 46589.'
+
+# ---------------------------------------------------------------------------
+# 5. RESIDUAIS ARIA §9 — AINDA VERDADEIROS
+# ---------------------------------------------------------------------------
+residual_risks_aria_s9:
+  - id: 1
+    still_true: true
+    summary: 'Kapso recepção 9426 vazia nesta semana. Junho só âncora negativa pé e mão ≠ pezinho.'
+  - id: 2
+    still_true: true
+    summary: '383 falas longas sem keyword não fecham com 5 stems. Fase A = cauda amostrada Mira, não 80% Mary.'
+  - id: 3
+    still_true: true
+    summary: 'Pezinho sem SKU (1000). Família corte + DISAMBIGUA; sku_status pending_mira. Sem criar serviço Trinks.'
+  - id: 4
+    still_true: true
+    summary: 'Gloss sem SKU (4905). Matcher carrega química; recusa de marca continua no modelo. Drop pós-11:26Z fora.'
+  - id: 5
+    still_true: true
+    amplified_by: 'REQ-01'
+    summary: >
+      genderQualifier volátil (irmão lastBookingOutcome). Restart/evict/slice
+      sem a palavra = default feminino possível. REQ-01 piora se o blob de
+      history contém "feminino" (ex. nome de SKU no turno assistant).
+  - id: 6
+    still_true: true
+    summary: 'Strip ≠ prompt fiel. Haiku ainda gera scratch; gate é outbound. IDs no HABILITACAO injetado continuam visíveis ao modelo. renderHabilitacaoMap intocado (correto nesta onda).'
+  - id: 7
+    still_true: true
+    summary: '2h isolado ainda pode ser relógio. Helper cobre 2h de atendimento e leva 2h. Sem evidência Mira do isolado.'
+  - id: 8
+    still_true: true
+    summary: 'Ocupação 15:00 / janela 30<60 (2987 I3, 4749/2874 guard.blocked) não são léxico. Fora da Fase A.'
+  - id: 9
+    still_true: true
+    summary: 'Live fa0ec92. Tetos+código na branch. Este gate não deploya, não religa, não rsync.'
+
+# ---------------------------------------------------------------------------
+# 6. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      Sem PII nova nos testes Fase A. Strip ID 6+ no outbound. Sem migration.
+      BOT_ACCEPT_ALL intocado. Sem mutação Trinks.
+  reliability:
+    status: PASS
+    notes: >
+      Contrato null=unfiltered intacto. Relógio 16h / pé-mão / penteado verdes.
+      REQ-01 é sticky de gênero no cold start, não crash.
+  maintainability:
+    status: PASS
+    notes: 'SERVICE_KEYWORDS := FILTER (fecha drift). CATALOG_SYNONYMS freeze. ROLE_RE separado.'
+  performance:
+    status: PASS
+    notes: 'Caps P-BUDGET intactos. Sem reopen item 7.'
+  observability:
+    status: PASS
+    notes: 'Sem evento novo nesta fatia. Telemetria de intent ganha stems (hasServiceSignal).'
+
+# ---------------------------------------------------------------------------
+# 7. PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: no
+publish_note: >
+  CONCERNS não é FAIL. Fase B (linguagem 46589) pode ser planejada depois do
+  ACK Victor. Este gate NÃO autoriza religar, paste 46589, Hostinger, rsync,
+  POST Trinks, BOT_ACCEPT_ALL, CREATE 9800 nem replay André 10:30. REQ-01
+  é one-liner para Dex se Orion quiser fechar antes do publish; não bloqueia
+  desenho da Fase B.
+
+slice_allowlist:
+  - backend/lib/booking-parser.js
+  - backend/lib/tess-context-intent.js
+  - backend/lib/tess-context-slots.js
+  - backend/lib/tess-context-assembler.js
+  - backend/lib/tess-context-budget.js
+  - backend/server.js
+  - backend/test/booking-parser.test.js
+  - backend/test/tess-context-intent.test.js
+  - backend/test/tess-context-slots.test.js
+  - backend/test/tess-context-assembler.test.js
+  - docs/analysis/2026-09-04-aria-onda2-triagem-tetos.md
+  - docs/qa/gates/2026-09-04-onda2-fase-a.yml
+
+# ---------------------------------------------------------------------------
+# 8. AUTO-DECISÕES
+# ---------------------------------------------------------------------------
+auto_decisions:
+  - '[AUTO-DECISION] Fatia sem story InReview → sem transição Status (razão: qa-gate.md post-gate não se aplica).'
+  - '[AUTO-DECISION] Não rerun 161 — Orion já reexecutou; Quinn fez probes dos 9 hunts + node --check (razão: missão autoriza targeted).'
+  - '[AUTO-DECISION] Veredito CONCERNS não PASS (razão: Aria §2.1 last-wins observavelmente errado; §8 e invariantes verdes).'
+  - '[AUTO-DECISION] REQ-01 medium não FAIL (razão: 4749 in-memory ok; sem AC §8 vermelho; one-liner para Dex).'
+  - '[AUTO-DECISION] Sem patch (razão: missão — preferir documentar CONCERNS; não é FAIL-level).'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, paste 46589, smoke 0007, André 10:30, CREATE 9800 nem deploy.'

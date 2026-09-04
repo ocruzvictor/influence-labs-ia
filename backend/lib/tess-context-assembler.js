@@ -13,6 +13,7 @@ const {
 const {
   filterServicesByKeywords,
   isColloquialPenteado,
+  isColloquialPezinho,
   formatServicesText,
   renderHabilitacaoMap,
 } = require('./booking-parser');
@@ -20,6 +21,11 @@ const {
 const PENTEADO_DISAMBIGUA = [
   'DISAMBIGUA: neste turno "penteado" pode ser corte de cabelo (tesoura / dia a dia),',
   'nao o SKU Penteado da Gi. Pergunte uma vez qual dos dois.',
+].join(' ');
+
+const PEZINHO_DISAMBIGUA = [
+  'DISAMBIGUA: Pezinho do cabelo = acabamento de corte (contorno).',
+  'Nao e pedicure.',
 ].join(' ');
 
 function buildContextBlocks({
@@ -58,16 +64,17 @@ function historyAsText(historyForModel) {
   return (historyForModel || []).map((m) => m.content).join('\n');
 }
 
-function filterCatalogForProfile(profileSpec, servicesData, messageText, historyForModel) {
+function filterCatalogForProfile(profileSpec, servicesData, messageText, historyForModel, genderQualifier = null) {
   if (!profileSpec.filterCatalog || !Array.isArray(servicesData) || !servicesData.length) {
     return null;
   }
   const historyText = historyAsText(historyForModel);
+  const filterOpts = { genderQualifier };
   if (profileSpec.profile === PROFILES.BOOKING) {
-    const last = filterServicesByKeywords(servicesData, messageText);
+    const last = filterServicesByKeywords(servicesData, messageText, filterOpts);
     if (last?.length) return last;
   }
-  return filterServicesByKeywords(servicesData, `${messageText}\n${historyText}`);
+  return filterServicesByKeywords(servicesData, `${messageText}\n${historyText}`, filterOpts);
 }
 
 /**
@@ -133,6 +140,8 @@ async function assembleTessContext(params) {
     nextSaturdayDates,
   } = params;
 
+  const genderQualifier = params.genderQualifier ?? null;
+
   const profileSpec = buildContextProfile(intentResult, {
     effectiveMode: config.effectiveMode,
     slotContextDays,
@@ -187,12 +196,16 @@ async function assembleTessContext(params) {
       svcPayload.data,
       messageText,
       historyForModel,
+      genderQualifier,
     );
     if (filtered?.length) {
       svcPayload = formatServicesText(filtered);
     }
     if (isColloquialPenteado(messageText) && svcPayload.text) {
       svcPayload = { ...svcPayload, text: `${PENTEADO_DISAMBIGUA}\n${svcPayload.text}` };
+    }
+    if (isColloquialPezinho(messageText) && svcPayload.text) {
+      svcPayload = { ...svcPayload, text: `${PEZINHO_DISAMBIGUA}\n${svcPayload.text}` };
     }
   }
 
@@ -254,6 +267,7 @@ async function assembleTessContext(params) {
       svcPayload.data,
       messageText,
       historyForModel,
+      genderQualifier,
     );
     if (filtered?.length) {
       svcPayload = formatServicesText(filtered);
@@ -351,6 +365,7 @@ async function assembleTessContext(params) {
     profsPayload,
     habilitacaoText,
     messageText,
+    genderQualifier,
     caps,
     rebuild: (state) => rebuildBudgetState(state),
   });
@@ -439,6 +454,7 @@ function logTessTurnTelemetry({
 
 module.exports = {
   assembleTessContext,
+  filterCatalogForProfile,
   resolveSlotDates,
   emitContextBytesLog,
   extractTessCredits,

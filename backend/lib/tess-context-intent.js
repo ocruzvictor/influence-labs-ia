@@ -5,6 +5,7 @@
  */
 
 const { IMAGE_MARKER, STICKER_MARKER } = require('./kapso-media');
+const { FILTER_SERVICE_KEYWORDS } = require('./booking-parser');
 
 const INTENTS = Object.freeze({
   TRIVIAL: 'TRIVIAL',
@@ -24,14 +25,11 @@ const ABORT_DISMISS_RE = /\b(deixa pra la|deixa pra lá|desisto|esquece|mudei de
 const RESCHEDULE_RE = /\b(remarc|mudar horario|mudar horário|trocar horario|trocar horário|outro horario|outro horário)\b/i;
 // Alias legado: clientes ainda pedem humano pelo nome de quem atendia antes.
 const HANDOFF_RE = /\b(falar com|humano|gabriel|atendente|pessoa real)\b/i;
-const DATE_RE = /\b(amanha|amanhã|hoje|tarde|noite|segunda|terca|terça|quarta|quinta|sext[ao]|sabado|sábado|domingo|\d{1,2}[\/\-]\d{1,2}|\d{1,2}h|\d{1,2}:\d{2})\b/i;
+const DATE_RE = /\b(amanha|amanhã|hoje|tarde|noite|segunda|terca|terça|quarta|quinta|sext[ao]|sabado|sábado|domingo|\d{1,2}[\/\-]\d{1,2}|\d{1,2}h(?!\s+(de\s+)?(atendimento|duracao|servico|sessao)\b)|\d{1,2}:\d{2})\b/i;
 const PROFESSIONAL_RE = /\b(tiago|andre|andré|erick|erik|eric|fefe|fernanda|gi\b|giovanna|claudia|cláudia|bruuna|bruna|jackie|jacki|jaque|jaqueline|kamila|camila|dylan|eli)\b/i;
+const ROLE_RE = /\bmaquiador(?:a|es|as)?\b/i;
 
-const SERVICE_KEYWORDS = [
-  'cort', 'barba', 'mecha', 'escova', 'color', 'camuflag', 'progressiva', 'hidrat',
-  'manicure', 'pedicure', 'sobrancelha', 'cilio', 'cílio', 'depil', 'limpeza de pele',
-  'maquiagem', 'make', 'penteado', 'laser', 'botox', 'cauteriz', 'tonaliz',
-];
+const SERVICE_KEYWORDS = FILTER_SERVICE_KEYWORDS;
 
 const SCHEDULING_QUESTION_RE = /\b(horario|horário|qual servico|qual serviço|qual dia|qual data|que horas|prefere|escolhe|confirma|profissional|disponivel|disponível)\b/i;
 const POST_FAILED_ASSISTANT_RE = /\b(problema tecnico|problema técnico|nao consegui gravar|não consegui gravar|nao fecha na agenda|não fecha na agenda|nao fecha dentro do expediente|não fecha dentro do expediente)\b/i;
@@ -52,6 +50,22 @@ function normalizeText(text) {
     .trim();
 }
 
+function isDurationHourToken(norm, index) {
+  if (!norm || index == null || index < 0) return false;
+  const patterns = [
+    /\b\d{1,2}\s*h\s+(de\s+)?(atendimento|duracao|servico|sessao)\b/g,
+    /\b(leva|demora|dura[m]?|sao|são)\s+\d{1,2}\s*h\b/g,
+  ];
+  for (const re of patterns) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(norm)) !== null) {
+      if (index >= m.index && index < m.index + m[0].length) return true;
+    }
+  }
+  return false;
+}
+
 function hasServiceSignal(norm) {
   return SERVICE_KEYWORDS.some((kw) => norm.includes(kw));
 }
@@ -61,11 +75,18 @@ function hasPriceSignal(norm) {
 }
 
 function hasDateSignal(norm) {
-  return DATE_RE.test(norm);
+  const withoutHour = /\b(amanha|amanhã|hoje|tarde|noite|segunda|terca|terça|quarta|quinta|sext[ao]|sabado|sábado|domingo|\d{1,2}[\/\-]\d{1,2}|\d{1,2}:\d{2})\b/i;
+  if (withoutHour.test(norm)) return true;
+  const hourRe = /\b(\d{1,2})\s*h\b|\b(\d{1,2})h(\d{2})\b/g;
+  let m;
+  while ((m = hourRe.exec(norm)) !== null) {
+    if (!isDurationHourToken(norm, m.index)) return true;
+  }
+  return false;
 }
 
 function hasProfessionalSignal(norm) {
-  return PROFESSIONAL_RE.test(norm);
+  return PROFESSIONAL_RE.test(norm) || ROLE_RE.test(norm);
 }
 
 function hasFaqSignal(norm) {
@@ -342,6 +363,8 @@ function trivialSkipResponse() {
 module.exports = {
   INTENTS,
   PROFESSIONAL_RE,
+  ROLE_RE,
+  DATE_RE,
   classifyTessIntent,
   isTrivialAllowlist,
   shouldSkipTess,
@@ -351,6 +374,8 @@ module.exports = {
   isSchedulingContinuation,
   isConfirmationUtterance,
   isMediaMessage,
+  hasProfessionalSignal,
+  isDurationHourToken,
   trivialSkipResponse,
   normalizeText,
   hasServiceSignal,

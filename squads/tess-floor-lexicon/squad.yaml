@@ -1,0 +1,64 @@
+name: tess-floor-lexicon
+version: 1.0.0
+short-title: Tess Floor Lexicon — Onda 1
+description: >-
+  Mapa empírico de como clientes Studio Tirra falam no WhatsApp (esta semana e
+  ongoing): extração de corpus last4-only, catálogo de termos → intenção/SKU/dificuldade,
+  cobertura de keywords, handoff para Onda 2 (triagem). Não é crédito, prompt paste,
+  nem Hostinger.
+author: Victor Cruz / Influence Labs
+license: UNLICENSED
+slashPrefix: lexicon
+
+aios:
+  minVersion: "2.1.0"
+  type: squad
+
+components:
+  tasks:
+    - extract-week-corpus.md
+    - catalog-client-terms.md
+    - score-keyword-coverage.md
+    - handoff-triage-wave.md
+  agents:
+    - corpus-miner.md
+    - floor-lexicographer.md
+  workflows:
+    - wave-1-lexicon.yaml
+  checklists:
+    - corpus-quality-gate.md
+  templates:
+    - client-terms-catalog-tmpl.md
+  tools: []
+  scripts: []
+
+config:
+  extends: extend
+  coding-standards: config/coding-standards.md
+  tech-stack: config/tech-stack.md
+  source-tree: config/source-tree.md
+
+dependencies:
+  node: []
+  python: []
+  squads:
+    - tess-nightwatch
+    - lib-forge
+
+tags:
+  - tess
+  - whatsapp
+  - lexicon
+  - corpus
+  - floor
+  - onda-1
+
+llm:
+  planning: grok-4.6-high
+  execution: composer-2.5-fast
+  cursor_slugs:
+    planning: cursor-grok-4.6-medium
+    execution: composer-2.5-fast
+  note: >-
+    Corpus-miner e floor-lexicographer: Fast na extração/SQL; High na leitura
+    semântica e catálogo. Mira (floor-quality) vem de tess-nightwatch — não duplicar.

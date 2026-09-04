@@ -332,4 +332,27 @@ describe('assembleTessContext', () => {
     assert.ok(result.slotDates.length < 10);
     assert.ok(result.trimMeta.after_chars <= 24000);
   });
+
+  test('G5 — genderQualifier masculino exclui Corte Feminino no catálogo', async () => {
+    const { filterCatalogForProfile } = require('../lib/tess-context-assembler');
+    const { buildContextProfile, PROFILES } = require('../lib/tess-context-profiles');
+    const catalogData = [
+      { id: 1, nome: 'Corte Masculino', profissionais: ['Erick'] },
+      { id: 2, nome: 'Corte Feminino', profissionais: ['Jackie'] },
+    ];
+    const profileSpec = buildContextProfile(
+      { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      { effectiveMode: 'scoped', slotContextDays: 10, requestedDate: null },
+    );
+    assert.equal(profileSpec.profile, PROFILES.BOOKING);
+    const filtered = filterCatalogForProfile(
+      profileSpec,
+      catalogData,
+      'tem horario a tarde',
+      [{ role: 'user', content: 'Masculino' }],
+      'masculino',
+    );
+    assert.ok(filtered?.some((s) => s.nome === 'Corte Masculino'));
+    assert.ok(!filtered?.some((s) => s.nome === 'Corte Feminino'));
+  });
 });

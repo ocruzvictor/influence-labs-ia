@@ -338,3 +338,53 @@ describe('isTrivialAllowlist', () => {
     assert.ok(!isTrivialAllowlist('oi quero cortar'));
   });
 });
+
+describe('Onda 2 triagem tetos (§8 I)', () => {
+  const {
+    hasDateSignal,
+    hasServiceSignal,
+    hasProfessionalSignal,
+    normalizeText,
+  } = require('../lib/tess-context-intent');
+
+  test('I1 — pezinho do cabelo não UNCERTAIN unknown', () => {
+    const msg = 'Posso passar aí pra arrumar o pezinho do cabelo?';
+    const r = classifyTessIntent(msg, [], []);
+    assert.notEqual(r.intent, INTENTS.UNCERTAIN);
+    assert.ok(hasServiceSignal(normalizeText(msg)));
+  });
+
+  test('I2 — valor para tintura → PRICING', () => {
+    const r = classifyTessIntent('valor para tintura', [], []);
+    assert.equal(r.intent, INTENTS.PRICING);
+  });
+
+  test('I3 — quem é maquiador → hasProfessionalSignal, não unknown', () => {
+    const msg = 'Quem é maquiador aí?';
+    const r = classifyTessIntent(msg, [], []);
+    assert.ok(hasProfessionalSignal(normalizeText(msg)));
+    assert.notEqual(r.signals[r.signals.length - 1], 'unknown');
+  });
+
+  test('I4 — 2h de atendimento não é date signal', () => {
+    const norm = normalizeText('não são 2h de atendimento?');
+    assert.equal(hasDateSignal(norm), false);
+  });
+
+  test('I5 — as 16h e sábado 14h inalterados', () => {
+    assert.ok(hasDateSignal(normalizeText('as 16h')));
+    const r = classifyTessIntent('quero cortar sábado 14h com o Erick', [], []);
+    assert.equal(r.intent, INTENTS.SCHEDULING);
+  });
+
+  test('I6 — É masculino tem serviço', () => {
+    const r = classifyTessIntent('É masculino', [], []);
+    assert.ok(hasServiceSignal(normalizeText('É masculino')));
+    assert.notEqual(r.intent, INTENTS.UNCERTAIN);
+  });
+
+  test('I7 — vim pelo Studio → SCHEDULING', () => {
+    const r = classifyTessIntent('Oi, vim pelo Studio Tirra. Quero agendar', [], []);
+    assert.equal(r.intent, INTENTS.SCHEDULING);
+  });
+});

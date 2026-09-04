@@ -7,6 +7,7 @@ const {
   relatarSloEventos,
   listarFilaAtendimento,
   correlacionarLast4,
+  dumpFloorCorpus,
 } = require('../lib/salao-cli-ops');
 
 test('listStuckThreadsFiltered hides silenced and human_only', async () => {
@@ -128,6 +129,141 @@ test('listarFilaAtendimento redacts to last4 and keeps trace_id', async () => {
   assert.equal(result.threads[0].trace_id, 'trace-fila');
   assert.equal(result.threads[0].context_profile, 'BOOKING');
   assert.ok(!JSON.stringify(result).includes('5511964540007'));
+});
+
+test('dumpFloorCorpus returns last4 only and redacts E.164 in text', async () => {
+  const db = {
+    query: async (sql) => {
+      if (sql.includes('bot_thread_state')) return { rows: [{ n: 2 }] };
+      return {
+        rows: [
+          {
+            last4: '0007',
+            role: 'user',
+            agent: null,
+            intent: 'SCHEDULING',
+            text: 'meu zap 5511964540007',
+            created_at: '2026-09-02 14:00:00',
+          },
+          {
+            last4: '1111',
+            role: 'assistant',
+            agent: 'tess',
+            intent: null,
+            text: 'confirmado',
+            created_at: '2026-09-02 14:01:00',
+          },
+        ],
+      };
+    },
+  };
+  const result = await dumpFloorCorpus(db, {
+    fromIso: '2026-09-01 03:00:00',
+    toIso: '2026-09-05 03:00:00',
+    dedup: false,
+  });
+  assert.equal(result.utterances[0].last4, '0007');
+  assert.equal(result.utterances[1].last4, '1111');
+  assert.ok(!JSON.stringify(result).includes('5511964540007'));
+  assert.match(result.utterances[0].text, /\[phone\]/);
+  assert.equal(result.stats.staff_outbound_in_window, 2);
+});
+
+test('dumpFloorCorpus dedup collapses duplicate last4+same text', async () => {
+  const db = {
+    query: async (sql) => {
+      if (sql.includes('bot_thread_state')) return { rows: [{ n: 0 }] };
+      return {
+        rows: [
+          {
+            last4: '0007',
+            role: 'user',
+            agent: null,
+            intent: null,
+            text: 'Oi',
+            created_at: '2026-09-02 10:00:00',
+          },
+          {
+            last4: '0007',
+            role: 'user',
+            agent: null,
+            intent: null,
+            text: 'oi',
+            created_at: '2026-09-02 11:00:00',
+          },
+        ],
+      };
+    },
+  };
+  const result = await dumpFloorCorpus(db, {
+    fromIso: '2026-09-01 03:00:00',
+    toIso: '2026-09-05 03:00:00',
+    dedup: true,
+  });
+  assert.equal(result.utterances.length, 1);
+  assert.equal(result.stats.unique_utterances, 1);
+  assert.equal(result.stats.threads_last4, 1);
+});
+
+test('dumpFloorCorpus stats tess_replied and inbound_only', async () => {
+  const db = {
+    query: async (sql) => {
+      if (sql.includes('bot_thread_state')) return { rows: [{ n: 0 }] };
+      return {
+        rows: [
+          {
+            last4: '0007',
+            role: 'user',
+            agent: null,
+            intent: 'FAQ',
+            text: 'horário?',
+            created_at: '2026-09-02 10:00:00',
+          },
+          {
+            last4: '0007',
+            role: 'assistant',
+            agent: 'tess',
+            intent: 'FAQ',
+            text: 'abrimos 9h',
+            created_at: '2026-09-02 10:01:00',
+          },
+          {
+            last4: '2222',
+            role: 'user',
+            agent: 'passive',
+            intent: null,
+            text: 'só olhando',
+            created_at: '2026-09-02 12:00:00',
+          },
+          {
+            last4: '3333',
+            role: 'user',
+            agent: null,
+            intent: null,
+            text: 'tem vaga?',
+            created_at: '2026-09-02 13:00:00',
+          },
+          {
+            last4: '3333',
+            role: 'assistant',
+            agent: 'passive',
+            intent: null,
+            text: 'eco',
+            created_at: '2026-09-02 13:01:00',
+          },
+        ],
+      };
+    },
+  };
+  const result = await dumpFloorCorpus(db, {
+    fromIso: '2026-09-01 03:00:00',
+    toIso: '2026-09-05 03:00:00',
+    dedup: false,
+  });
+  assert.equal(result.stats.tess_replied, 1);
+  assert.equal(result.stats.inbound_only, 2);
+  assert.equal(result.stats.intent_null_count, 3);
+  assert.equal(result.stats.threads_last4, 3);
 });
 
 test('correlacionarLast4 by trace_id skips the 30min last4 window', async () => {

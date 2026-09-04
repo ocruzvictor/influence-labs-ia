@@ -204,6 +204,7 @@ function stripModelScratch(text) {
   s = s.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
   s = s.replace(/<\/?(?:function_call|tool_call|tool_use|invoke)[^>]*>/gi, '');
   s = s.replace(/^\s*\[Valid[^\n]*$/gim, '');
+  s = s.replace(/\[Valid(?:ação|acao)[^\]]*(?:\]|$)/gi, '');
   return s;
 }
 
@@ -218,7 +219,15 @@ function stripResidualBookingTags(text) {
   s = s.replace(/\[BOOKING_REQUEST\]\s*\n?{[\s\S]*?}/gi, '');
   s = stripModelScratch(s);
   s = stripUnknownTags(s);
-  s = s.replace(/\bTA\s*-\s*/g, '');
+  s = s.replace(/\(\s*TA\s*[\-–—]?\s*[^)]*\)/gi, '');
+  s = s.replace(/\bTA\s*[\-–—]\s*/g, '');
+  s = s.replace(/\(TA\)/gi, '');
+  s = s.replace(/Consultando\s+HABILITACAO[^\n]*/gi, '');
+  s = s.replace(/Consultando\s+HABILITAÇÃO[^\n]*/gi, '');
+  s = s.replace(/HABILITACAO\s*\([^\n]*/gi, '');
+  s = s.replace(/HABILITAÇÃO\s*\([^\n]*/gi, '');
+  s = s.replace(/\(\s*ID\s+\d{6,}\s*\)/g, '');
+  s = s.replace(/\bID\s+\d{6,}\b/g, '');
   s = s.replace(/^\s*[\[\]]\s*$/gm, '');
   s = s.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   if (!s) return STRIP_TAG_FALLBACK;
@@ -525,7 +534,58 @@ const FILTER_SERVICE_KEYWORDS = [
   'manicure', 'pedicure', 'sobrancelha', 'cilio', 'cílio', 'depil', 'limpeza',
   'maquiagem', 'make', 'penteado', 'laser', 'botox', 'cauteriz', 'tonaliz', 'retoque',
   'avaliacao', 'avaliação', 'global', 'combo', 'cabelo',
+  'tintura', 'gloss', 'pezinho', 'maquiador', 'masculino',
 ];
+
+/** Stem do cliente → substrings de nome de catálogo (não é identidade SKU). */
+const CATALOG_SYNONYMS = Object.freeze({
+  tintura: ['coloracao', 'retoque', 'tonaliz'],
+  gloss: ['coloracao', 'retoque', 'tonaliz'],
+  maquiador: ['maquiagem', 'make'],
+  masculino: ['masculino'],
+});
+
+function expandCatalogMatch(name, hits) {
+  const normName = normalizeServiceName(name);
+  if (!normName || !Array.isArray(hits) || !hits.length) return false;
+  return hits.some((hit) => {
+    const h = String(hit || '').toLowerCase();
+    if (!h) return false;
+    if (normName.includes(h)) return true;
+    const synonyms = CATALOG_SYNONYMS[h];
+    if (!synonyms?.length) return false;
+    return synonyms.some((syn) => normName.includes(syn));
+  });
+}
+
+function isColloquialPezinho(messageText) {
+  const norm = normalizeCatalogText(messageText);
+  return norm.includes('pezinho');
+}
+
+function detectGenderQualifier(text) {
+  const norm = normalizeCatalogText(text);
+  if (!norm) return null;
+  let last = null;
+  const re = /\b(masculino|feminino)\b/g;
+  let m;
+  while ((m = re.exec(norm)) !== null) last = m[1];
+  return last;
+}
+
+function applyGenderQualifier(services, qualifier) {
+  if (!qualifier || !Array.isArray(services)) return services;
+  const q = String(qualifier).toLowerCase();
+  return services.filter((s) => {
+    const name = normalizeServiceName(s.nome);
+    const hasMasc = name.includes('masculino');
+    const hasFem = name.includes('feminino');
+    if (!hasMasc && !hasFem) return true;
+    if (q === 'masculino' && hasFem) return false;
+    if (q === 'feminino' && hasMasc) return false;
+    return true;
+  });
+}
 
 function normalizeCatalogText(messageText) {
   return String(messageText || '')
@@ -549,28 +609,35 @@ function isColloquialPenteado(messageText) {
   );
 }
 
-function filterServicesByKeywords(servicesData, messageText) {
+function filterServicesByKeywords(servicesData, messageText, opts = {}) {
   if (!Array.isArray(servicesData) || servicesData.length === 0) return [];
-  const norm = String(messageText || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '');
+  const norm = normalizeCatalogText(messageText);
   const hits = FILTER_SERVICE_KEYWORDS.filter((kw) => norm.includes(kw));
+  const colloquialPezinho = isColloquialPezinho(messageText);
   // KB sinonimos-servicos.md: "pé" → Pedicure (default); "mão" → Manicure.
   const padded = ` ${norm} `;
-  const peMatch = /(^|[\s,.;:!?])(pe|pes)($|[\s,.;:!?])/.test(padded);
+  const peMatch = !colloquialPezinho
+    && /(^|[\s,.;:!?])(pe|pes)($|[\s,.;:!?])/.test(padded);
   const maoMatch = /(^|[\s,.;:!?])(mao|maos)($|[\s,.;:!?])/.test(padded);
-  if (peMatch) hits.push('pedicure');
-  if (maoMatch) hits.push('manicure');
+  if (colloquialPezinho) {
+    const cabeloIdx = hits.indexOf('cabelo');
+    if (cabeloIdx >= 0) hits.splice(cabeloIdx, 1);
+    if (!hits.includes('cort')) hits.push('cort');
+  } else {
+    if (peMatch) hits.push('pedicure');
+    if (maoMatch) hits.push('manicure');
+  }
   if (isColloquialPenteado(messageText) && !hits.includes('cort')) hits.push('cort');
   if (!hits.length) return null;
   const filtered = servicesData.filter((s) => {
     const name = normalizeServiceName(s.nome);
-    if (hits.some((kw) => name.includes(kw))) return true;
+    if (expandCatalogMatch(name, hits)) return true;
     if (peMatch && /depilacao de pe|spa dos pes|escalda/.test(name)) return true;
     return false;
   });
-  return filtered.length ? filtered : null;
+  const genderQualifier = opts.genderQualifier || detectGenderQualifier(messageText) || null;
+  const qualified = applyGenderQualifier(filtered, genderQualifier);
+  return qualified.length ? qualified : null;
 }
 
 function formatServicesText(servicesData) {
@@ -815,8 +882,14 @@ module.exports = {
   formatZeroPriceBlockMessage,
   formatNeedsReferenceBlockMessage,
   servicesForProfessional,
+  FILTER_SERVICE_KEYWORDS,
+  CATALOG_SYNONYMS,
   filterServicesByKeywords,
   isColloquialPenteado,
+  isColloquialPezinho,
+  detectGenderQualifier,
+  applyGenderQualifier,
+  expandCatalogMatch,
   formatServicesText,
   formatIncompatibleProfServiceMessage,
   buildPersistedSection,

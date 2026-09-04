@@ -543,3 +543,112 @@ test('faseE.imageMarker — hasRecentClientImageMarker ignora sticker', () => {
   hist.push({ role: 'user', content: `${CLIENT_IMAGE_MARKER} coque` });
   assert.equal(hasRecentClientImageMarker(hist), true);
 });
+
+// --- Onda 2 Fase A — triagem tetos (§8 C/G/S) ---
+const CATALOG_FIXTURE = [
+  { id: 1, nome: 'Corte Masculino' },
+  { id: 2, nome: 'Corte Feminino' },
+  { id: 3, nome: 'Pedicure' },
+  { id: 4, nome: 'Manicure' },
+  { id: 5, nome: 'Cabelo e Barba' },
+  { id: 6, nome: 'Coloração Global' },
+  { id: 7, nome: 'Retoque de Raiz' },
+  { id: 8, nome: 'Tonalização' },
+  { id: 9, nome: 'Maquiagem' },
+  { id: 10, nome: 'Progressiva' },
+];
+
+test('C1 — tintura filtra família química, não null', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const out = filterServicesByKeywords(CATALOG_FIXTURE, 'valor para tintura');
+  assert.ok(out);
+  assert.ok(out.some((s) => s.nome === 'Coloração Global'));
+  assert.ok(out.some((s) => s.nome === 'Retoque de Raiz'));
+  assert.ok(out.some((s) => s.nome === 'Tonalização'));
+});
+
+test('C2 — gloss filtra família química', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const out = filterServicesByKeywords(CATALOG_FIXTURE, 'trabalham com gloss?');
+  assert.ok(out);
+  assert.ok(out.some((s) => s.nome === 'Coloração Global'));
+  assert.ok(!out.some((s) => /gloss/i.test(s.nome)));
+});
+
+test('C3 — pezinho do cabelo → corte, não pedicure nem Cabelo e Barba', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const msg = 'Posso passar aí pra arrumar o pezinho do cabelo?';
+  const out = filterServicesByKeywords(CATALOG_FIXTURE, msg);
+  assert.ok(out);
+  assert.ok(out.some((s) => s.nome === 'Corte Masculino'));
+  assert.ok(!out.some((s) => s.nome === 'Pedicure'));
+  assert.ok(!out.some((s) => s.nome === 'Cabelo e Barba'));
+});
+
+test('C4 — Pezinho do cabelo isColloquialPezinho', () => {
+  const { filterServicesByKeywords, isColloquialPezinho } = require('../lib/booking-parser');
+  assert.equal(isColloquialPezinho('Pezinho do cabelo'), true);
+  const out = filterServicesByKeywords(CATALOG_FIXTURE, 'Pezinho do cabelo');
+  assert.ok(out?.some((s) => s.nome === 'Corte Masculino'));
+  assert.ok(!out?.some((s) => s.nome === 'Pedicure'));
+});
+
+test('C5 — pé sábado inalterado → Pedicure', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const out = filterServicesByKeywords(CATALOG_FIXTURE, 'queria fazer o pé sábado');
+  assert.ok(out?.some((s) => s.nome === 'Pedicure'));
+  assert.ok(!out?.some((s) => s.nome === 'Corte Masculino'));
+});
+
+test('C6 — pé e mão → Pedicure e Manicure', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const out = filterServicesByKeywords(CATALOG_FIXTURE, 'marcar um horário para pé e mão');
+  assert.ok(out?.some((s) => s.nome === 'Pedicure'));
+  assert.ok(out?.some((s) => s.nome === 'Manicure'));
+});
+
+test('C8 — masculino exclui Corte Feminino', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const out = filterServicesByKeywords(CATALOG_FIXTURE, 'Masculino', { genderQualifier: 'masculino' });
+  assert.ok(out?.some((s) => s.nome === 'Corte Masculino'));
+  assert.ok(!out?.some((s) => s.nome === 'Corte Feminino'));
+});
+
+test('C9 — progressiva masculina não regride', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const out = filterServicesByKeywords(CATALOG_FIXTURE, 'Qual valor da progressiva masculina?');
+  assert.ok(out?.some((s) => s.nome === 'Progressiva'));
+});
+
+test('G1-G4 — detectGenderQualifier e applyGenderQualifier', () => {
+  const {
+    detectGenderQualifier,
+    applyGenderQualifier,
+  } = require('../lib/booking-parser');
+  assert.equal(detectGenderQualifier('Masculino'), 'masculino');
+  assert.equal(detectGenderQualifier('É masculino'), 'masculino');
+  assert.equal(detectGenderQualifier('Tem horário a tarde'), null);
+  assert.equal(detectGenderQualifier('É feminino, quero masculino'), 'masculino');
+  assert.equal(detectGenderQualifier('Masculino depois feminino'), 'feminino');
+  const qualified = applyGenderQualifier(CATALOG_FIXTURE, 'masculino');
+  assert.ok(qualified.some((s) => s.nome === 'Corte Masculino'));
+  assert.ok(qualified.some((s) => s.nome === 'Manicure'));
+  assert.ok(!qualified.some((s) => s.nome === 'Corte Feminino'));
+});
+
+test('S2-S8 — strip TA, HABILITACAO, ID; preserva imagem', () => {
+  const { stripResidualBookingTags } = require('../lib/booking-parser');
+  assert.ok(!/TA\s*-/i.test(stripResidualBookingTags('TA - Corte Masculino no sábado')));
+  assert.match(stripResidualBookingTags('TA - Corte Masculino'), /Corte Masculino/);
+  assert.ok(!/TA\s*-/.test(stripResidualBookingTags('Corte Masculino (TA - Corte Masculino)')));
+  const inline4749 = 'tenho 17h [Validação rápida: sábado 05/09 … (TA) = 60min] Confirma?';
+  const out4749 = stripResidualBookingTags(inline4749);
+  assert.ok(!/Validação/i.test(out4749));
+  assert.ok(!/\(TA\)/i.test(out4749));
+  assert.match(out4749, /Confirma/);
+  assert.ok(!/Consultando\s+HABILITACAO/i.test(stripResidualBookingTags('Consultando HABILITACAO')));
+  assert.ok(!/HABILITACAO\s*\(/i.test(stripResidualBookingTags('HABILITACAO (só ofereça profissional listado…)')));
+  assert.ok(!/ID\s+14129543/.test(stripResidualBookingTags('Profissionais ID 14129543 disponíveis')));
+  assert.ok(!/\(ID\s+14129543\)/.test(stripResidualBookingTags('Ver (ID 14129543) agora')));
+  assert.match(stripResidualBookingTags('Referência [CLIENTE ENVIOU IMAGEM] linda'), /\[CLIENTE ENVIOU IMAGEM\]/);
+});

@@ -196,17 +196,43 @@ describe('classifySlotPeriod', () => {
   });
 });
 
-describe('detectNamedProfessionals', () => {
-  test('detecta erick e andre', () => {
-    const names = detectNamedProfessionals('quero cortar com o erick ou andré');
-    assert.ok(names.includes('erick'));
-    assert.ok(names.some((n) => n.includes('andre') || n.includes('andré')));
-  });
-});
-
 describe('detectExactClock', () => {
   test('16:00 e 16h', () => {
     assert.deepEqual(detectExactClock('prefiro 16:00'), { hour: 16, minute: 0 });
     assert.deepEqual(detectExactClock('as 16h'), { hour: 16, minute: 0 });
+  });
+
+  test('K3 — 2h de atendimento não vira relógio', () => {
+    assert.equal(detectExactClock('não são 2h de atendimento?'), null);
+  });
+
+  test('K4 — leva 2h não vira relógio', () => {
+    assert.equal(detectExactClock('leva 2h'), null);
+  });
+
+  test('K5 — duração skip, as 16h permanece', () => {
+    assert.deepEqual(
+      detectExactClock('não são 2h de atendimento, prefere as 16h'),
+      { hour: 16, minute: 0 },
+    );
+  });
+
+  test('K6 — 10h30', () => {
+    assert.deepEqual(detectExactClock('10h30'), { hour: 10, minute: 30 });
+  });
+});
+
+describe('detectNamedProfessionals Onda 2 (§8 N)', () => {
+  test('N1 — maquiador não é named person', () => {
+    assert.deepEqual(detectNamedProfessionals('Quem é maquiador aí?'), []);
+  });
+
+  test('N2 — maquiadora + Fefe → só fefe', () => {
+    const names = detectNamedProfessionals('maquiadora não é só a Fefe?');
+    assert.deepEqual(names, ['fefe']);
+  });
+
+  test('N3 — corte com Tiago inalterado', () => {
+    assert.ok(detectNamedProfessionals('corte com o Tiago').includes('tiago'));
   });
 });

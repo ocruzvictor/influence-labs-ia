@@ -1,0 +1,91 @@
+# Wave 1 — Floor lexicon pipeline
+
+workflow: wave-1-lexicon
+orchestrator: Orion (@aios-master)
+squad: tess-floor-lexicon
+version: 1.0.0
+
+phases:
+  - id: W1-extract
+    name: Extract corpus
+    task: extract-week-corpus
+    agent: corpus-miner
+    motor: composer-2.5-fast
+    checkpoint:
+      - artifact exists
+      - zero E.164
+      - stats footer present
+    veto:
+      - E.164 in artifact
+      - empty corpus without explanation
+
+  - id: W2-catalog
+    name: Catalog client terms
+    task: catalog-client-terms
+    agent: floor-lexicographer
+    motor: grok-4.6-high
+    depends_on: W1-extract
+    checkpoint:
+      - semver catalog file
+      - rankings filled
+      - gaps documented
+    veto:
+      - term without last4 evidence
+      - prompt 46589 in catalog
+
+  - id: W3-score
+    name: Score keyword coverage
+    task: score-keyword-coverage
+    agent: floor-lexicographer
+    motor: composer-2.5-fast
+    depends_on: W2-catalog
+    checkpoint:
+      - hit_rate documented
+      - top 20 misses with last4
+    veto:
+      - booking-parser.js modified
+
+  - id: W3b-mira
+    name: Qualitative thread sample
+    task: audit-floor-quality
+    agent: floor-quality
+    squad: tess-nightwatch
+    motor: grok-4.6-high
+    depends_on: W1-extract
+    optional: true
+    note: Reuse Mira — do NOT duplicate floor-quality.md
+
+  - id: W4-gate
+    name: Corpus quality gate
+    checklist: corpus-quality-gate.md
+    agent: quality-sentinel
+    squad: tess-nightwatch
+    depends_on:
+      - W2-catalog
+      - W3-score
+    veto:
+      - any FAIL in privacy or coverage
+
+  - id: W5-handoff
+    name: Handoff to Wave 2
+    task: handoff-triage-wave
+    agent: floor-lexicographer
+    depends_on: W4-gate
+    human_gate: Victor ACK
+    handoff_to: "@architect"
+    veto:
+      - gate not PASS
+      - ACK Victor missing
+
+constraints:
+  - last4_only
+  - no_prompt_46589_paste
+  - no_trinks_post
+  - kill_switch_stays_off
+  - cli_first
+  - no_hostinger
+  - no_git_add_all
+
+reference:
+  analysis: docs/analysis/2026-09-04-orion-ondas-lexico-triagem.md
+  ops: docs/ops/2026-09-04-orion-workflow-ondas-lexico.md
