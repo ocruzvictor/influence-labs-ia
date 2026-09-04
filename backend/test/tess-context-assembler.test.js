@@ -126,10 +126,11 @@ describe('assembleTessContext', () => {
     const result = await assembleTessContext(deps);
     assert.equal(result.contextProfile, 'BOOKING');
     assert.equal(deps.calls.slots, 0);
-    assert.equal(deps.calls.snapshot, 1);
+    assert.equal(deps.calls.snapshot, 2);
     assert.ok(result.slotDates.includes('2026-09-03'));
+    assert.ok(result.slotDates.includes('2026-09-02'));
     assert.match(result.blocks.horarios, /OFERTA CONSULTIVA/);
-    assert.ok(result.blocks.horarios.length < 500);
+    assert.ok(result.blocks.horarios.length < 1200);
   });
 
   test('scoped BOOKING de tarde → compact occupancy sem relógios', async () => {
@@ -170,8 +171,9 @@ describe('assembleTessContext', () => {
     });
     const result = await assembleTessContext(deps);
     assert.equal(result.contextProfile, 'FULL');
-    assert.equal(deps.calls.snapshot, 1);
+    assert.equal(deps.calls.snapshot, 2);
     assert.ok(result.slotDates.includes('2026-10-15'));
+    assert.ok(result.slotDates.includes('2026-09-02'));
   });
 
   test('scoped PRICE usa histórico para filtrar catálogo (R1.2 mais em conta)', async () => {
@@ -228,6 +230,54 @@ describe('assembleTessContext', () => {
     assert.equal(result.contextProfile, 'BOOKING');
     assert.match(result.blocks.horarios, /sem janela contínua de 120min/);
     assert.doesNotMatch(result.blocks.horarios, /14:00 \(30min/);
+  });
+
+  test('scoped BOOKING durationMin ignora corte no histórico se a fala é maquiagem', async () => {
+    const deps = mockDeps({
+      messageText: 'quero maquiagem com a Fefe no sábado',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-05',
+      historyForModel: [
+        { role: 'user', content: 'quanto custa o corte e tem horário sábado?' },
+        { role: 'assistant', content: 'Corte Masculino é R$ 90.' },
+      ],
+      catalogData: [
+        { id: 1, nome: 'Corte Masculino', profissionais: ['André'], duracaoEmMinutos: 60 },
+        { id: 2, nome: 'TA - Corte Masculino', profissionais: ['André'], duracaoEmMinutos: 60 },
+        { id: 3, nome: 'Corte Feminino', profissionais: ['Giovanna'], duracaoEmMinutos: 120 },
+        { id: 4, nome: 'Maquiagem', profissionais: ['Fefe'], duracaoEmMinutos: 120 },
+      ],
+      getSlotsGrouped: async () => ({
+        label: '05/09 (sábado)',
+        date: '2026-09-05',
+        snapshotAgeMin: 10,
+        professionals: [{
+          name: 'Fefe',
+          professionalId: '826936',
+          startsAt: ['2026-09-05T12:30:00-03:00'],
+        }],
+      }),
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'BOOKING');
+    assert.match(result.blocks.horarios, /sem janela contínua de 120min/);
+    assert.doesNotMatch(result.blocks.horarios, /12:30/);
+  });
+
+  test('scoped BOOKING penteado dia a dia anota DISAMBIGUA e inclui corte', async () => {
+    const deps = mockDeps({
+      messageText: 'Penteado para o dia a dia',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-04',
+      catalogData: [
+        { id: 1, nome: 'Penteado', profissionais: ['Giovanna'], duracaoEmMinutos: 60 },
+        { id: 2, nome: 'Corte Masculino', profissionais: ['André'], duracaoEmMinutos: 60 },
+      ],
+    });
+    const result = await assembleTessContext(deps);
+    assert.match(result.dynamicContext, /DISAMBIGUA/);
+    assert.match(result.dynamicContext, /Corte Masculino/);
+    assert.match(result.dynamicContext, /Penteado/);
   });
 
   test('snapshot velho anota o bloco HORARIOS', async () => {

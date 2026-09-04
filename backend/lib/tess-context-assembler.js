@@ -11,9 +11,31 @@ const {
 } = require('./tess-context-slots');
 const {
   filterServicesByKeywords,
+  isColloquialPenteado,
   formatServicesText,
   renderHabilitacaoMap,
 } = require('./booking-parser');
+
+const PENTEADO_DISAMBIGUA = [
+  'DISAMBIGUA: neste turno "penteado" pode ser corte de cabelo (tesoura / dia a dia),',
+  'nao o SKU Penteado da Gi. Pergunte uma vez qual dos dois.',
+].join(' ');
+
+function historyAsText(historyForModel) {
+  return (historyForModel || []).map((m) => m.content).join('\n');
+}
+
+function filterCatalogForProfile(profileSpec, servicesData, messageText, historyForModel) {
+  if (!profileSpec.filterCatalog || !Array.isArray(servicesData) || !servicesData.length) {
+    return null;
+  }
+  const historyText = historyAsText(historyForModel);
+  if (profileSpec.profile === PROFILES.BOOKING) {
+    const last = filterServicesByKeywords(servicesData, messageText);
+    if (last?.length) return last;
+  }
+  return filterServicesByKeywords(servicesData, `${messageText}\n${historyText}`);
+}
 
 /**
  * Resolve datas de slot conforme perfil.
@@ -122,26 +144,34 @@ async function assembleTessContext(params) {
   if (useCompactBooking && profileSpec.fetchCatalog) {
     fetchMeta.catalogRequested = true;
     svcPayload = await getServicesText();
-    if (profileSpec.filterCatalog && svcPayload.data?.length) {
-      const historyText = (historyForModel || []).map((m) => m.content).join('\n');
-      const filterSource = `${messageText}\n${historyText}`;
-      const filtered = filterServicesByKeywords(svcPayload.data, filterSource);
-      if (filtered?.length) {
-        svcPayload = formatServicesText(filtered);
-      }
+    const filtered = filterCatalogForProfile(
+      profileSpec,
+      svcPayload.data,
+      messageText,
+      historyForModel,
+    );
+    if (filtered?.length) {
+      svcPayload = formatServicesText(filtered);
+    }
+    if (isColloquialPenteado(messageText) && svcPayload.text) {
+      svcPayload = { ...svcPayload, text: `${PENTEADO_DISAMBIGUA}\n${svcPayload.text}` };
     }
   }
 
   if (profileSpec.fetchSlots) {
-    if (requestedDate) {
+    const todayIso = typeof getNextBusinessDays === 'function'
+      ? getNextBusinessDays(1)[0]
+      : null;
+    const refreshDates = [...new Set([todayIso, requestedDate].filter(Boolean))];
+    for (const date of refreshDates) {
       try {
-        await ensureSlotSnapshot(requestedDate);
-        if (!slotDates.includes(requestedDate)) {
-          slotDates.push(requestedDate);
+        await ensureSlotSnapshot(date);
+        if (!slotDates.includes(date)) {
+          slotDates.push(date);
           slotDates.sort();
         }
       } catch (err) {
-        console.warn(`[${sessionId}] snapshot adicional ${requestedDate} falhou:`, err.message);
+        console.warn(`[${sessionId}] snapshot adicional ${date} falhou:`, err.message);
       }
     }
     if (slotDates.length) {
@@ -184,13 +214,14 @@ async function assembleTessContext(params) {
   if (profileSpec.fetchCatalog && !fetchMeta.catalogRequested) {
     fetchMeta.catalogRequested = true;
     svcPayload = await getServicesText();
-    if (profileSpec.filterCatalog && svcPayload.data?.length) {
-      const historyText = (historyForModel || []).map((m) => m.content).join('\n');
-      const filterSource = `${messageText}\n${historyText}`;
-      const filtered = filterServicesByKeywords(svcPayload.data, filterSource);
-      if (filtered?.length) {
-        svcPayload = formatServicesText(filtered);
-      }
+    const filtered = filterCatalogForProfile(
+      profileSpec,
+      svcPayload.data,
+      messageText,
+      historyForModel,
+    );
+    if (filtered?.length) {
+      svcPayload = formatServicesText(filtered);
     }
   }
 

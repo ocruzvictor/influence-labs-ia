@@ -131,16 +131,41 @@ function createTrinksLocalStore(db) {
     return allRows(result);
   }
 
-  async function isCompatible(serviceId, professionalId) {
+  async function isCompatible(serviceId, professionalId, { sinceDays = 90 } = {}) {
+    const days = Math.min(365, Math.max(1, Number(sinceDays) || 90));
     const result = await db.query(
-      `SELECT EXISTS (
-         SELECT 1
-           FROM trinks_service_professionals
-          WHERE service_id = $1 AND professional_id = $2 AND active = TRUE
+      `SELECT (
+         EXISTS (
+           SELECT 1
+             FROM trinks_service_professionals
+            WHERE service_id = $1 AND professional_id = $2 AND active = TRUE
+         )
+         OR EXISTS (
+           SELECT 1
+             FROM trinks_appointments
+            WHERE service_id = $1
+              AND professional_id = $2
+              AND status IN ('scheduled', 'confirmed')
+              AND scheduled_at >= NOW() - ($3::TEXT || ' days')::INTERVAL
+         )
        ) AS compatible`,
-      [String(serviceId), String(professionalId)],
+      [String(serviceId), String(professionalId), String(days)],
     );
     return firstRow(result)?.compatible === true;
+  }
+
+  async function listObservedServiceProfessionals({ sinceDays = 90 } = {}) {
+    const days = Math.min(365, Math.max(1, Number(sinceDays) || 90));
+    const result = await db.query(
+      `SELECT DISTINCT service_id, professional_id, professional_name
+         FROM trinks_appointments
+        WHERE service_id IS NOT NULL
+          AND professional_id IS NOT NULL
+          AND status IN ('scheduled', 'confirmed')
+          AND scheduled_at >= NOW() - ($1::TEXT || ' days')::INTERVAL`,
+      [String(days)],
+    );
+    return allRows(result);
   }
 
   async function upsertCompatibility(compatibility, executor = db) {
@@ -508,6 +533,7 @@ function createTrinksLocalStore(db) {
     upsertService,
     listCompatibility,
     isCompatible,
+    listObservedServiceProfessionals,
     upsertCompatibility,
     replaceCompatibilitySnapshot,
     listSlots,

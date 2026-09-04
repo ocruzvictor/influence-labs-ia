@@ -527,6 +527,28 @@ const FILTER_SERVICE_KEYWORDS = [
   'avaliacao', 'avaliação', 'global', 'combo', 'cabelo',
 ];
 
+function normalizeCatalogText(messageText) {
+  return String(messageText || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}
+
+function isColloquialPenteado(messageText) {
+  const norm = normalizeCatalogText(messageText);
+  if (!norm.includes('penteado')) return false;
+  if (/\bfesta\b|\bcasamento\b|\bformatura\b/.test(norm)) return false;
+  return (
+    /\bdia a dia\b/.test(norm)
+    || /\btesoura\b/.test(norm)
+    || /\bbarbeiro\b/.test(norm)
+    || /\binstagram\b/.test(norm)
+    || /\binsta\b/.test(norm)
+    || /\bvideo\b/.test(norm)
+    || /\bcorte\b/.test(norm)
+  );
+}
+
 function filterServicesByKeywords(servicesData, messageText) {
   if (!Array.isArray(servicesData) || servicesData.length === 0) return [];
   const norm = String(messageText || '')
@@ -540,6 +562,7 @@ function filterServicesByKeywords(servicesData, messageText) {
   const maoMatch = /(^|[\s,.;:!?])(mao|maos)($|[\s,.;:!?])/.test(padded);
   if (peMatch) hits.push('pedicure');
   if (maoMatch) hits.push('manicure');
+  if (isColloquialPenteado(messageText) && !hits.includes('cort')) hits.push('cort');
   if (!hits.length) return null;
   const filtered = servicesData.filter((s) => {
     const name = normalizeServiceName(s.nome);
@@ -793,6 +816,7 @@ module.exports = {
   formatNeedsReferenceBlockMessage,
   servicesForProfessional,
   filterServicesByKeywords,
+  isColloquialPenteado,
   formatServicesText,
   formatIncompatibleProfServiceMessage,
   buildPersistedSection,

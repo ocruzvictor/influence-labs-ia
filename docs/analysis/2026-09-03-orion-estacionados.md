@@ -1,6 +1,6 @@
 # Estacionados — Orion 2026-09-03 (voltar já)
 
-Victor 23:12 autorizou o pool **1, 2, 3, 6, 8, 12, 13, 16, 18**. Código local desta fatia: `docs/analysis/2026-09-03-orion-fatia-pool-victor.md`. Sem deploy até ACK. Quinn: `docs/handoffs/2026-09-03-orion-fatia-pool-qa.md`.
+Victor 2026-09-04 10:28: dor sentida = horário errado + contexto do pedido + fatura. Fatia `docs/analysis/2026-09-04-orion-fatia-slots-contexto.md` (1b, 2b, overlay 9800). Item 7 continua fora do código.
 
 Nada disto é story formal. Sem `@sm`/`@po` não vira AC de epic.
 

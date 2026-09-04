@@ -288,6 +288,21 @@ test('catalog.filter — penteado não dispara sinônimo pé', () => {
   assert.ok(!out?.some((s) => s.nome === 'Pedicure'));
 });
 
+test('catalog.filter — penteado dia a dia inclui corte, festa não', () => {
+  const { filterServicesByKeywords, isColloquialPenteado } = require('../lib/booking-parser');
+  const list = [
+    { id: 1, nome: 'Penteado' },
+    { id: 2, nome: 'Corte Masculino' },
+    { id: 3, nome: 'Pedicure' },
+  ];
+  assert.equal(isColloquialPenteado('Penteado para o dia a dia'), true);
+  assert.equal(isColloquialPenteado('quero um penteado de festa'), false);
+  const colloquial = filterServicesByKeywords(list, 'Penteado para o dia a dia');
+  assert.ok(colloquial?.some((s) => s.nome === 'Penteado'));
+  assert.ok(colloquial?.some((s) => s.nome === 'Corte Masculino'));
+  assert.ok(!colloquial?.some((s) => s.nome === 'Pedicure'));
+});
+
 test('dados-cliente.1 — cliente recorrente + phone → DADOS_CLIENTE (nunca PERFIL)', () => {
   const { buildPersistedSection } = require('../lib/booking-parser');
   const out = buildPersistedSection({

@@ -97,8 +97,9 @@ test('reads, checks and upserts service-professional compatibility', async () =>
   });
 
   assert.deepEqual(db.calls[0].params, ['20', '10', true]);
-  assert.match(db.calls[1].sql, /SELECT EXISTS/);
-  assert.deepEqual(db.calls[1].params, ['20', '10']);
+  assert.match(db.calls[1].sql, /SELECT \(/);
+  assert.match(db.calls[1].sql, /trinks_appointments/);
+  assert.deepEqual(db.calls[1].params, ['20', '10', '90']);
   assert.match(db.calls[2].sql, /ON CONFLICT \(service_id, professional_id\)/);
   assert.deepEqual(db.calls[2].params.slice(0, 4), [
     '20',
@@ -106,6 +107,17 @@ test('reads, checks and upserts service-professional compatibility', async () =>
     true,
     '{"source":"reconcile"}',
   ]);
+});
+
+test('listObservedServiceProfessionals reads appointment pairs', async () => {
+  const db = mockDb([
+    { rows: [{ service_id: '20', professional_id: '10', professional_name: 'Giovanna' }] },
+  ]);
+  const store = createTrinksLocalStore(db);
+  const rows = await store.listObservedServiceProfessionals({ sinceDays: 90 });
+  assert.equal(rows.length, 1);
+  assert.match(db.calls[0].sql, /FROM trinks_appointments/);
+  assert.deepEqual(db.calls[0].params, ['90']);
 });
 
 test('reads compatible available slots and upserts a slot', async () => {

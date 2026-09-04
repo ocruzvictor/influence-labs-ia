@@ -1,0 +1,303 @@
+schema: 1
+slice: '2026-09-04-fatia-slots-contexto'
+slice_title: 'Fatia operacional — slots+contexto (1b, 2b, overlay 9800)'
+scope_type: 'operational-slice'   # NÃO é story formal; SOT = análise Orion + pacote QA
+gate: CONCERNS
+status_reason: >
+  Os três cortes do SOT estão no hot-path: catálogo/durationMin pela última fala com
+  penteado coloquial+DISAMBIGUA, ensureSlotSnapshot a 45 min (hoje+data pedida),
+  isCompatible/getServicesText com overlay de agenda 90d. 97/97 testes verdes.
+  CONCERNS é o 9800: o guard pode autorizar CREATE que a API Trinks ainda recuse (400).
+reviewer: 'Quinn (Test Architect)'
+sot_handoff: 'docs/handoffs/2026-09-04-orion-fatia-slots-contexto-qa.md'
+sot_decisions: 'docs/analysis/2026-09-04-orion-fatia-slots-contexto.md'
+reviewed_revision: 'uncommitted-on-a08f23b'
+reviewed_worktree: 'dirty — fatia uncommitted em cima de a08f23b (live)'
+deployed_revision: 'a08f23bb9a4de3171f7af3d6909b6401753abdb0'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T14:10:00Z'
+expires: '2026-09-18T14:10:00Z'
+quality_score: 85
+waiver: { active: false }
+
+# ---------------------------------------------------------------------------
+# 1. VERIFICAÇÕES PEDIDAS — resultado por item
+# ---------------------------------------------------------------------------
+requested_checks:
+  item1b_last_utterance_catalog:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-assembler.js:28-38 — filterCatalogForProfile: BOOKING tenta filterServicesByKeywords(messageText) primeiro; só cai no histórico se a fala não devolve hits.'
+      - 'backend/lib/tess-context-assembler.js:144-155 e :214-225 — compact BOOKING e o fetch de catálogo não-compact usam o mesmo helper.'
+      - 'backend/test/tess-context-assembler.test.js:235-265 — fala "quero maquiagem…" com corte no histórico → durationMin 120, some 12:30, "sem janela contínua de 120min".'
+      - 'backend/test/tess-context-assembler.test.js:179-188 — PRICE continua filtrando pelo histórico (R1.2); 1b não vazou para PRICE.'
+    notes: >
+      Sem keyword na última fala, filterServicesByKeywords devolve null e o
+      fallback concatena fala+histórico — bate com o SOT.
+
+  item1b_colloquial_penteado:
+    status: PASS
+    evidence:
+      - 'backend/lib/booking-parser.js:537-550 — isColloquialPenteado exige "penteado" e (dia a dia|tesoura|barbeiro|instagram|insta|video|corte); festa/casamento/formatura excluem.'
+      - 'backend/lib/booking-parser.js:565 — coloquial empurra hit "cort" sem tirar o SKU Penteado.'
+      - 'backend/lib/tess-context-assembler.js:19-22,156-158 — PENTEADO_DISAMBIGUA prepend no compact BOOKING quando a fala é coloquial.'
+      - 'backend/test/booking-parser.test.js:291-305 — dia a dia inclui Penteado+Corte Masculino, não Pedicure; festa → isColloquialPenteado false.'
+      - 'backend/test/tess-context-assembler.test.js:268-282 — "Penteado para o dia a dia" anota DISAMBIGUA e lista Corte Masculino + Penteado.'
+    notes: >
+      Festa sem a palavra "corte" fica só no SKU Penteado (Gi via applyOperationalHabilitacao,
+      pré-existente). "penteado de festa e um corte" ainda casa "cort" pelo keyword list —
+      pedido composto, não regressão da exclusão festa.
+
+  item2b_snapshot_45min:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-slots.js:339 — SNAPSHOT_STALE_OFFER_MIN = 45 (intocado).'
+      - 'backend/server.js:293-295 — ensureSlotSnapshot passa maxAgeHours = SNAPSHOT_STALE_OFFER_MIN/60 (=0.75), não o default 24h.'
+      - 'backend/lib/trinks-local-store.js:293-303 — hasSlotSnapshotForDate compara synced_at >= NOW() - (maxAgeHours || 24) hours. PG aceita "0.75 hours".'
+      - 'backend/lib/tess-context-assembler.js:161-176 — refreshDates = unique(todayIso, requestedDate); ensureSlotSnapshot em cada uma; push em slotDates se faltar.'
+      - 'backend/test/tess-context-assembler.test.js:120-133 — BOOKING requestedDate 2026-09-03 → snapshot=2 e slotDates inclui hoje (2026-09-02 no mock) + pedida.'
+      - 'backend/test/tess-context-assembler.test.js:165-177 — FULL + data fora da janela também snapshot=2 (hoje + 2026-10-15).'
+    notes: >
+      todayIso vem de getNextBusinessDays(1)[0] (Ter–Sáb; Dom/Seg → terça). No expediente
+      do salão isso é "hoje". Máx. 2 GET Trinks/turno. Outros dias da oferta compacta
+      (D+1/D+2 sem requestedDate) continuam no ciclo 24h do worker — recorte do SOT.
+
+  item9800_isCompatible_overlay:
+    status: PASS
+    evidence:
+      - 'backend/lib/trinks-local-store.js:134-155 — isCompatible = matriz active OR appointments 90d status IN (scheduled, confirmed). days clamp 1–365.'
+      - 'backend/server.js:929,1031,1789 — reschedule, CREATE e guard de tag usam o mesmo isCompatible (overlay no commit).'
+      - 'backend/test/trinks-local-store.test.js:100-102 — SQL cita trinks_appointments; params [service, prof, "90"].'
+    notes: >
+      Não remapeia profissional. Autoriza o par que já existe na agenda local.
+      Trinks POST pode ainda 400 se a matriz oficial divergir — COMPAT-01.
+
+  item9800_getServicesText_observed:
+    status: PASS
+    evidence:
+      - 'backend/server.js:622-652 — getServicesText une listCompatibility com listObservedServiceProfessionals(90d); pushName dedup; fallback professional_name da agenda.'
+      - 'backend/lib/trinks-local-store.js:157-168 — DISTINCT service_id, professional_id, professional_name; mesmos status/janela do isCompatible.'
+      - 'backend/test/trinks-local-store.test.js:112-121 — listObservedServiceProfessionals lê trinks_appointments com ["90"].'
+    notes: >
+      applyOperationalHabilitacao continua forçando Maquiagem=Fefe e Penteado=Gi.
+      Design de Sobrancelha não entra nesse override — overlay da Gi no 9800 passa.
+
+  item7_char_cap:
+    status: OUT
+    evidence:
+      - 'Nenhum teto duro por perfil nesta fatia. Assembler sem cap de chars novo.'
+    notes: >
+      SOT e pacote QA: item 7 continua fora. Este gate NÃO falha por ausência.
+
+  cancel_no_ensureSlotSnapshot:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-profiles.js:41-53 e :134-146 — CANCEL fetchSlots=false.'
+      - 'backend/lib/tess-context-assembler.js:161 — o loop 2b só corre se profileSpec.fetchSlots.'
+      - 'backend/test/tess-context-cancel-full.test.js:62-64 — ensureSlotSnapshot lança se chamado; teste verde.'
+
+  i1_no_regression:
+    status: PASS
+    evidence:
+      - 'Esta fatia não toca backend/lib/outbound-outbox.js.'
+    notes: 'Não reabre o gate 2026-09-03-outbox-sla-scoped.yml nem o pool Victor.'
+
+  last4_only:
+    status: PASS
+    evidence:
+      - 'Diffs de código da allowlist sem E.164 novo. Análise/handoff usam last4 0285/3653/9800/0007.'
+      - '0007 só como fixture pré-existente em tess-context-cancel-full.test.js (phone: "0007"), não smoke.'
+
+  no_prompt_46589:
+    status: PASS
+    evidence:
+      - 'Zero diff em docs/prompts/tess-conversa-v3-clean.md e archive do 46589 nesta fatia.'
+      - 'docs/prompts/README-46589.md está dirty (índice v3.2.1) mas FORA da allowlist — Gage não leva.'
+    notes: 'Não é paste do prompt vivo.'
+
+  no_bot_accept_all_flip:
+    status: PASS
+    evidence:
+      - 'git diff backend/server.js | rg BOT_ACCEPT_ALL → vazio.'
+      - 'backend/server.js:110 — continua process.env.BOT_ACCEPT_ALL === ''true''.'
+
+  no_trinks_mutation_new:
+    status: PASS
+    evidence:
+      - 'ensureSlotSnapshot continua GET /agendamentos/profissionais/{date} (origin slot_outside_snapshot).'
+      - 'Nenhum POST/PATCH/PUT Trinks novo. CREATE/PUT existentes só passaram a consultar o overlay no isCompatible.'
+
+  no_0007_andre_replay:
+    status: PASS
+    evidence:
+      - 'Nenhum script de smoke WhatsApp, replay André 10:30 ou CREATE 9800 nesta fatia.'
+
+  no_hostinger_rsync:
+    status: PASS
+    evidence:
+      - 'Allowlist só libs/testes/docs da fatia. Este gate não executa deploy.'
+
+# ---------------------------------------------------------------------------
+# 2. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues:
+  - id: 'COMPAT-01'
+    severity: medium
+    finding: >
+      Overlay 9800 alinha o guard e o catálogo à agenda local, mas a API Trinks
+      ainda valida a matriz oficial. CREATE Gi×Design pode passar isCompatible e
+      tomar 400 no POST
+    evidence: >
+      isCompatible OR appointments (trinks-local-store.js:134-155). createBookingInTrinks
+      POST /agendamentos intacto (server.js:1034). SOT: 129 pares Gi+Design na agenda,
+      matriz só Descoloração. Não há prova de booking no profissional errado — o par
+      oferecido é o observado. getServiceForProfessional (server.js:672+) ainda filtra
+      só listCompatibility; caminho v2 com servicoId não usa esse lookup.
+    impact: >
+      Cliente pode ouvir oferta honesta da Gi, o guard deixa passar, e o outbox
+      reporta falha se a Trinks recusar. Melhor que "Giovanna não realiza" contra
+      a agenda real. Não grava o profissional errado.
+    suggested_action: >
+      Publicar assim. Observar booking.failed / 400 Trinks no par overlay após ACK.
+      Não sincronizar matriz nesta fatia. Não POST Trinks "para testar".
+    blocks_publish: false
+
+  - id: 'QUAL-02'
+    severity: low
+    finding: >
+      isColloquialPenteado exige a substring "penteado"; o last4 3653 usou "pentado"
+    evidence: >
+      booking-parser.js:539 — if (!norm.includes('penteado')) return false.
+      Análise Orion: único fio pós-OPEN com pentado+vídeo+insta.
+    impact: >
+      Typo "pentado para o dia a dia" não dispara corte+DISAMBIGUA nesta fala.
+      Se a mesma fala tiver "corte"/"tesoura"/"insta" sem "penteado", o filtro
+      1b ainda pega corte pelo keyword list — sem DISAMBIGUA.
+    suggested_action: >
+      Aceitar neste corte (SOT escreveu "penteado"). Sinónimo pentado = fatia futura,
+      sem paste 46589.
+    blocks_publish: false
+
+  - id: 'TEST-01'
+    severity: low
+    finding: >
+      Sem teste unitário de hasSlotSnapshotForDate com maxAgeHours fracionário (0.75h);
+      o caso festa não chama filterServicesByKeywords, só isColloquialPenteado
+    evidence: >
+      trinks-local-store.test.js não referencia hasSlotSnapshotForDate.
+      booking-parser.test.js:299-305 — festa só no boolean; o filter testado é o dia a dia.
+      Assembler mocka ensureSlotSnapshot — não exercita o SQL de idade.
+    impact: >
+      Regressão do 0.75h (PG recusar intervalo) só apareceria no container (W5 Gage).
+    suggested_action: >
+      Opcional na próxima fatia. W5: confirmar no container que hasSlotSnapshotForDate
+      com 0.75h cobre snapshot <45 min e relê ≥45 min.
+    blocks_publish: false
+
+# ---------------------------------------------------------------------------
+# 3. EVIDÊNCIA DE TESTES
+# ---------------------------------------------------------------------------
+evidence:
+  slice_tests: 'PASS — 97/97 (5 arquivos pedidos)'
+  slice_test_command: "node --test test/booking-parser.test.js test/tess-context-assembler.test.js test/trinks-local-store.test.js test/tess-context-slots.test.js test/tess-context-cancel-full.test.js"
+  slice_test_result: '# tests 97 / # suites 7 / # pass 97 / # fail 0 (121ms)'
+  syntax: 'PASS — node --check lib/booking-parser.js lib/tess-context-assembler.js lib/trinks-local-store.js server.js'
+  prior_slice_regression: 'PASS — CANCEL full continua sem ensureSlotSnapshot; PRICE ainda filtra por histórico; durationMin compacto pré-existente verde'
+  coverage_gap: 'TEST-01 — idade 0.75h e filter festa sem assert direto; COMPAT-01 sem POST Trinks (proibido)'
+  not_executed:
+    - 'Deploy, rsync, Hostinger, rebuild de container — fora de autoridade.'
+    - 'Smoke WhatsApp last4 0007 / replay André 10:30 / CREATE 9800 — trava do pacote.'
+    - 'Paste de prompt 46589 — trava do pacote.'
+    - 'npm run lint / typecheck — sem script correspondente no backend/package.json.'
+
+# ---------------------------------------------------------------------------
+# 4. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      last4-only nos docs da fatia. BOT_ACCEPT_ALL e allowlist de telefone
+      intocados. Sem mutação Trinks nova. Overlay lê trinks_appointments já
+      persistida — sem PII extra em log.
+  reliability:
+    status: CONCERNS
+    notes: >
+      2b reduz oferta stale no dia pedido (ofensor 0007). Overlay 9800 troca
+      falso-negativo do guard por possível 400 da Trinks (COMPAT-01). Snapshot
+      extra é GET; falha de ensureSlotSnapshot é warn e segue com snapshot velho.
+  maintainability:
+    status: PASS
+    notes: >
+      Três cortes localizados (parser, assembler, store+getServicesText).
+      Testes cobrem 1b/2b/SQL overlay e a invariante CANCEL. TEST-01 é buraco
+      pequeno, não ausência de cobertura do SOT.
+  performance:
+    status: PASS
+    notes: >
+      1b reduz catálogo (e pode religar durationMin no 0007 gordo). 2b: no máx.
+      2 GET Trinks/turno quando velho. listObservedServiceProfessionals é SQL
+      extra no getServicesText (DISTINCT 90d) — barato vs GET Trinks.
+  observability:
+    status: PASS
+    notes: >
+      Sem evento novo. snapshot.stale (fatia anterior) continua. COMPAT-01
+      observa-se em booking.failed / origem agent_mutation_create.
+
+# ---------------------------------------------------------------------------
+# 5. O QUE BLOQUEIA PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: yes-with-conditions
+publish_note: >
+  Sem bloqueador de código nesta fatia. W2 NÃO é obrigatório. COMPAT-01 é
+  CONCERNS aceito — não patch. Publish só depois de W3 ACK Victor e W4 Gage
+  com a allowlist abaixo. Este gate não autoriza Hostinger, rsync,
+  BOT_ACCEPT_ALL, alteração de allowlist, paste de prompt 46589, mutação
+  Trinks nem smoke 0007 / André 10:30 / CREATE 9800.
+
+slice_allowlist:
+  - backend/lib/booking-parser.js
+  - backend/lib/tess-context-assembler.js
+  - backend/lib/trinks-local-store.js
+  - backend/server.js
+  - backend/test/booking-parser.test.js
+  - backend/test/tess-context-assembler.test.js
+  - backend/test/trinks-local-store.test.js
+  - docs/analysis/2026-09-04-orion-fatia-slots-contexto.md
+  - docs/analysis/2026-09-03-orion-estacionados.md
+  - docs/ops/2026-09-04-orion-workflow-slots-contexto.md
+  - docs/handoffs/2026-09-04-orion-fatia-slots-contexto-qa.md
+  - docs/qa/gates/2026-09-04-fatia-slots-contexto.yml
+  - docs/handoffs/2026-09-04-quinn-gate-slots-contexto.md
+
+# ---------------------------------------------------------------------------
+# 6. RECOMENDAÇÕES
+# ---------------------------------------------------------------------------
+recommendations:
+  immediate:
+    - action: 'Victor ACK (W3) com COMPAT-01 visível — sem patch W2.'
+      refs: ['docs/ops/2026-09-04-orion-workflow-slots-contexto.md']
+    - action: 'Commit allowlist-only. Não levar README-46589.md, infra/*, nginx, frontend, KB, nem o plano Gage se o rito W4 o versionar à parte.'
+      refs: ['docs/prompts/README-46589.md']
+  future:
+    - action: 'Após publish, amostrar booking.failed 400 no par overlay (Gi×Design). Não “consertar” voltando isCompatible à matriz só.'
+      refs: ['backend/lib/trinks-local-store.js:134-155']
+    - action: 'W5 Gage: confirmar intervalo 0.75h no container (hasSlotSnapshotForDate).'
+      refs: ['backend/server.js:293-295']
+    - action: 'QUAL-02: sinónimo pentado só se o fio 3653 repetir o typo após 1b.'
+      refs: ['backend/lib/booking-parser.js:537-550']
+
+auto_decisions:
+  - '[AUTO-DECISION] Fatia sem story formal → gate emitido como scope_type=operational-slice, SOT = análise Orion + pacote QA (razão: SOT declara que @sm/@po não abriram story).'
+  - '[AUTO-DECISION] Sem transição de Status de story (razão: não há story InReview; qa-gate.md post-gate não se aplica).'
+  - '[AUTO-DECISION] Auditar só a allowlist desta fatia; worktree dirty enorme ignorado (razão: pacote Quinn + mesmo critério do gate pool-victor).'
+  - '[AUTO-DECISION] Item 7 fora — não falhar (razão: SOT e pacote QA).'
+  - '[AUTO-DECISION] COMPAT-01 = CONCERNS sem dente W2 (razão: pacote pede CONCERNS se não for booking no profissional errado; overlay casa o par observado, o risco é 400 Trinks).'
+  - '[AUTO-DECISION] Não FAIL por getNextBusinessDays(1)[0] em vez de getTodayIsoInSalonTimeZone (razão: Ter–Sáb o primeiro dia útil é hoje; Dom/Seg o salão está fechado).'
+  - '[AUTO-DECISION] Não incluir docs/ops/2026-09-04-gage-publish-plan-slots-contexto.md na allowlist deste gate (razão: artefato W4 do Gage, não pedido no pacote Quinn).'
+  - '[AUTO-DECISION] W2 não obrigatório antes do ACK Victor (razão: zero blocks_publish).'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, mudança de allowlist, paste de prompt 46589, smoke 0007, replay André 10:30, CREATE 9800 nem qualquer deploy.'

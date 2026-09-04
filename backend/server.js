@@ -291,7 +291,8 @@ function mapSlotPayload(date, payload) {
 }
 
 async function ensureSlotSnapshot(date) {
-  if (!date || await trinksLocalStore.hasSlotSnapshotForDate(date)) return;
+  const maxAgeHours = SNAPSHOT_STALE_OFFER_MIN / 60;
+  if (!date || await trinksLocalStore.hasSlotSnapshotForDate(date, { maxAgeHours })) return;
   const payload = await trinksApi.request(`/agendamentos/profissionais/${date}`, {
     origin: 'slot_outside_snapshot',
   });
@@ -620,21 +621,34 @@ async function getProfessionals() {
 
 async function getServicesText() {
   try {
-    const [services, compatibilities, professionals] = await Promise.all([
+    const [services, compatibilities, professionals, observedPairs] = await Promise.all([
       trinksLocalStore.listServices(),
       trinksLocalStore.listCompatibility(),
       trinksLocalStore.listProfessionals(),
+      typeof trinksLocalStore.listObservedServiceProfessionals === 'function'
+        ? trinksLocalStore.listObservedServiceProfessionals({ sinceDays: 90 })
+        : Promise.resolve([]),
     ]);
     const professionalNames = new Map(professionals.map(p => [
       String(p.trinks_id),
       p.nickname || p.name,
     ]));
     const namesByService = new Map();
-    for (const pair of compatibilities) {
-      const key = String(pair.service_id);
+    const pushName = (serviceId, name) => {
+      if (!name) return;
+      const key = String(serviceId);
       if (!namesByService.has(key)) namesByService.set(key, []);
-      const name = professionalNames.get(String(pair.professional_id));
-      if (name) namesByService.get(key).push(name);
+      const list = namesByService.get(key);
+      if (!list.includes(name)) list.push(name);
+    };
+    for (const pair of compatibilities) {
+      pushName(pair.service_id, professionalNames.get(String(pair.professional_id)));
+    }
+    for (const pair of observedPairs || []) {
+      pushName(
+        pair.service_id,
+        professionalNames.get(String(pair.professional_id)) || pair.professional_name,
+      );
     }
     const list = applyOperationalHabilitacao(services.map(s => ({
       id: /^\d+$/.test(String(s.trinks_id)) ? Number(s.trinks_id) : s.trinks_id,
