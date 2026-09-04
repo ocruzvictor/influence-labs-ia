@@ -50,7 +50,7 @@ Webhook Kapso (`backend/server.js` ~2773–2883):
 4. `isHumanHandled` (TTL 6h em `bot_thread_state.silenced_until`) → silent
 5. Watchdog + Tess
 
-Primitivas reutilizadas: `classifyTessIntent`, `bot_whitelist`, `bot_toggles`, `last_staff_outbound_at` (janela 10 min já usada em resume).
+Primitivas reutilizadas: `classifyTessIntent`, `bot_whitelist`, `bot_toggles`, `last_staff_outbound_at` (janela 24h no fio; outbound do painel Kapso conta).
 
 **Não existe** contador de cohort nem modo PILOT.
 
@@ -131,7 +131,7 @@ inbound Kapso
        allow | owner | OPEN (pilot off) → fluxo atual
        not_allowlisted + pilot on → CANDIDATO
   → human-handled? silent (sem claim)
-  → staff outbound < 10 min? silent (sem claim)
+  → staff no fio (tag ou outbound Kapso não-Tess, 24h)? silent (sem claim)
   → [texto] classifyTessIntent(messageText, [], [])
        se intent ∉ {SCHEDULING, CANCEL, RESCHEDULE} → silent
        tryClaim → se falhar → silent
@@ -212,7 +212,7 @@ Kill switch: se `global=false`, `mode` pode continuar reportando PILOT no toggle
 3. Race: n=1, dois phones → um claimed
 4. Cap: 6º silent
 5. Already claimed → Tess seguiria (reason `already_claimed`), COUNT inalterado
-6. human-handled / staff 10 min / human_only / block → no insert
+6. human-handled / staff 24h / human_only / block → no insert
 7. Owner / pré-allow → no insert
 8. stop → status frozen, toggle false
 9. Restart simulado: getPilotStatus lê Postgres, não memória
@@ -224,7 +224,8 @@ Kill switch: se `global=false`, `mode` pode continuar reportando PILOT no toggle
 
 - `infra/migrations/018_bot_pilot_cohort.sql` + rollback
 - `backend/lib/bot-pilot.js` (novo)
-- `backend/lib/bot-thread-state.js` (`isStaffSpokeRecently`)
+- `backend/lib/bot-thread-state.js` (`hasStaffOnConversation`)
+- `backend/lib/kapso-staff-outbound.js`
 - `backend/server.js` (gate + health)
 - `backend/scripts/salao/bot/pilot_{start,status,stop}.js`
 - `backend/test/bot-pilot.test.js`
@@ -248,4 +249,4 @@ Kill switch: se `global=false`, `mode` pode continuar reportando PILOT no toggle
 
 - Teto: `--n` no start (1–20). Produto travado em 5.
 - Intents claimable: `CLAIMABLE_INTENTS` em `bot-pilot.js`
-- Janela staff: mesmo 10 min do resume (`STAFF_SPOKE_WINDOW_MS`)
+- Janela staff no fio: 24h (`STAFF_CONVERSATION_WINDOW_MS`); resume ainda usa 10 min
