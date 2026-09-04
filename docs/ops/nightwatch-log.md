@@ -332,4 +332,24 @@ Victor ACK 14:35 BRT: orquestrar o que falta para testar no `0007`. Gates 1+2 PA
 
 **Fora:** Hostinger, OPEN, André 10:30, CREATE 9800, religar sem publish.
 
+## 2026-09-04 ~19:03Z — publish chão 8+9 + unlock `0007`
+
+**Change:** Victor `pode publicar 8+9`. Gage commit `4356489` → push → VPS `git archive` backend → `docker compose build --no-cache backend`. Backup `backend.bak.20260904160233`. Live `4356489`. `isSoloPezinhoTurn` + `refreshDates=unique(slotDates)` no container. `UPDATE bot_toggles` global=`true` pós-health. `.env` intocado: `BOT_ACCEPT_ALL=false`.
+
+**After:** health `status=ok`, `accept_all=false`, `mode=WHITELIST`, `whitelist_count=1`, TESS 46589, `trinks_ping=ok`. Prompt v3.2.4 colado. Memories 39496 v5.
+
+**Smoke:** Victor corre `docs/ops/smoke-0007-roteiro-lexico-v323.md`. Depois: `global=false` salvo ACK OPEN.
+
+**Fora:** Hostinger, OPEN, André 10:30, CREATE 9800.
+
+## 2026-09-04 ~19:40Z — publish chão 11 (oferta 60min + pezinho curto)
+
+**Change:** Story 11. Commit `8d06340` → push → VPS `git archive` backend → `docker compose build --no-cache backend`. Backup `backend.bak.20260904163913`. Live `8d06340`. Fixes: `resolveOfferDurationMin` narrows corte catalog (60 vs 120 mixed SKUs); `inferGrainMinutes` ignores sparse gaps >60min.
+
+**After:** health `status=ok`, TESS 46589, uptime fresh. Prompt **v3.2.5** local — **Victor colar** dashboard (Orion não cola). KB inalterada — sem sync 39496.
+
+**Smoke sugerido:** re-rodar `#2` + `#8` no `0007` (Tiago 12/09 sem 12:30; André 11/09 sem 14:00; pezinho ≤2 frases).
+
+**Pendente T4:** Victor cola v3.2.5 → AC6 done.
+
 

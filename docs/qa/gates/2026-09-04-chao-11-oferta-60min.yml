@@ -1,0 +1,25 @@
+gate: chao-11-oferta-60min-pezinho-curto
+date: 2026-09-04
+story: docs/stories/salon-whatsapp-chao-11-oferta-60min-pezinho-curto.md
+commit: 8d06340
+verdict: PASS
+reviewer: Quinn
+checks:
+  - id: S11-1
+    desc: resolveOfferDurationMin narrows corte catalog to 60 when mixed SKUs
+    status: PASS
+  - id: S11-2
+    desc: Tiago 12/09 12:30 absent, 17:00 present for 60min offer
+    status: PASS
+  - id: S11-3
+    desc: André 11/09 14:00 absent, 15:30 present for 60min offer
+    status: PASS
+  - id: grain-fix
+    desc: inferGrainMinutes ignores sparse gaps >60min
+    status: PASS
+  - id: prompt-v325
+    desc: pezinho copy shortened in tess-conversa-v3-clean.md
+    status: PASS
+notes: |
+  Backend tests 104/104 green on slot-windows, tess-context-slots, tess-context-assembler, booking-guards.
+  Prompt v3.2.5 requires Victor paste in dashboard 46589 post-deploy.

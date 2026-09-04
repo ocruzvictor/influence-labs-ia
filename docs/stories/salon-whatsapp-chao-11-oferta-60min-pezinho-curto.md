@@ -2,7 +2,7 @@
 
 **Epic:** [EPIC-tess-chao-unico](epics/EPIC-tess-chao-unico.md)  
 **Tipo:** Brownfield  
-**Status:** Ready-for-Dex  
+**Status:** Live — aguardando Victor colar v3.2.5  
 **Executor:** @architect → @dev · Victor cola prompt v3.2.5  
 **Quality gate:** @qa  
 **Story points:** 5  
@@ -37,21 +37,31 @@ Pós publish `4356489` (chão 8+9). Smoke parcial `#2` + `#8`.
 
 ## Acceptance Criteria
 
-- [x] **AC1:** Aria tetos → [2026-09-04-aria-chao-11-tetos.md](../analysis/2026-09-04-aria-chao-11-tetos.md)
-- [ ] **AC2:** Fixture Tiago 12/09: start 12:30 + grain 30 min + corte 60 → **12:30 ausente** do bloco com relógios; 17:00 presente se couber.
-- [ ] **AC3:** Fixture André 11/09 14:00 30 min → não aparece relógio; linha “sem janela contínua” ou só 15:30+.
-- [ ] **AC4:** Pezinho Ex.14 / REGRA ZERO / VALIDE 28 — resposta modelo ≤2 frases, sem “pedicure” default.
-- [ ] **AC5:** Quinn PASS · `blocks_publish` vazio.
-- [ ] **AC6:** Live `4356489` → SHA novo · Victor colou v3.2.5 · memories se KB mudou.
+- [x] **AC1:** Aria tetos: duração na oferta + copy pezinho mínima. Tetos: [2026-09-04-aria-chao-11-tetos.md](../analysis/2026-09-04-aria-chao-11-tetos.md). Ready-for-Dex **yes**.
+- [x] **AC2:** Fixture Tiago 12/09: start 12:30 + grain 30 min + corte 60 → **12:30 ausente** do bloco com relógios; 17:00 presente se couber.
+- [x] **AC3:** Fixture André 11/09 14:00 30 min → não aparece relógio; linha “sem janela contínua” ou só 15:30+.
+- [x] **AC4:** Pezinho Ex.14 / REGRA ZERO / VALIDE 28 — resposta modelo ≤2 frases, sem “pedicure” default.
+- [x] **AC5:** Quinn PASS · `blocks_publish` vazio.
+- [ ] **AC6:** Live `8d06340` · Victor colar v3.2.5 · KB inalterada (sem sync 39496).
 
 ## Tasks
 
-- [x] T1: Aria tetos  
-- [x] T2: Dex backend + prompt v3.2.5  
-- [ ] T3: Quinn  
+- [x] T1: Aria tetos — [2026-09-04-aria-chao-11-tetos.md](../analysis/2026-09-04-aria-chao-11-tetos.md) · Ready-for-Dex **yes**
+- [x] T2: Dex backend + prompt v3.2.5 — `resolveOfferDurationMin` narrow + `inferGrainMinutes` fix
+- [x] T3: Quinn — [2026-09-04-chao-11-oferta-60min.yml](../qa/gates/2026-09-04-chao-11-oferta-60min.yml)
 - [ ] T4: Victor cola v3.2.5 · Orion sync KB se diff  
-- [ ] T5: Gage publish  
+- [x] T5: Gage publish `8d06340` · backup `backend.bak.20260904163913`
 
 ## File List
 
 - `docs/stories/salon-whatsapp-chao-11-oferta-60min-pezinho-curto.md`
+- `docs/analysis/2026-09-04-aria-chao-11-tetos.md`
+- `backend/lib/tess-context-slots.js`
+- `backend/lib/tess-context-assembler.js`
+- `backend/lib/slot-windows.js`
+- `backend/test/tess-context-slots.test.js`
+- `docs/prompts/tess-conversa-v3-clean.md`
+- `docs/prompts/archive/tess-conversa-46589-v3.2.4-2026-09-04.md`
+- `docs/prompts/CHANGELOG-46589.md`
+- `docs/qa/gates/2026-09-04-chao-11-oferta-60min.yml`
+- `docs/ops/2026-09-04-gage-publish-plan-chao-11.md`
