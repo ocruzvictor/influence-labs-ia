@@ -5,8 +5,7 @@
 const { annotateStarts, formatAnnotatedTimes, formatPickedAnnotatedTimes, uniqueSortedMs } = require('./slot-windows');
 const { normalizeText, PROFESSIONAL_RE, isDurationHourToken } = require('./tess-context-intent');
 const {
-  filterServicesByKeywords,
-  applyGenderQualifier,
+  normalizeServiceName,
   detectGenderQualifier,
 } = require('./booking-parser');
 
@@ -247,29 +246,37 @@ function skuDurationFrom(services) {
   return 0;
 }
 
-/** Narrow catalog for duration when fala cita serviço (ex. cortar → família corte). */
+const CORTE_DURATION_TRIGGER_RE = /\bcorte masculino\b|\bcortar\b|\bcorte\b/i;
+
+/** Narrow catalog for duration when fala cita corte (D11.1 — sem filterServicesByKeywords). */
 function narrowServicesForOfferDuration(services, messageText, genderQualifier = null) {
   if (!Array.isArray(services) || !services.length || !messageText) return services;
+  const norm = normalizeText(messageText);
+  if (!CORTE_DURATION_TRIGGER_RE.test(norm)) return services;
+
+  let subset = services.filter((s) => {
+    const name = normalizeServiceName(s?.nome ?? s?.name ?? '');
+    return name.includes('corte') && !name.includes('cortesia');
+  });
+  if (!subset.length) return services;
+
+  const speechFem = /\bfeminino\b|\bmulher\b/i.test(norm);
   const gq = genderQualifier || detectGenderQualifier(messageText);
-  const narrowed = filterServicesByKeywords(services, messageText, { genderQualifier: gq });
-  if (!narrowed?.length) return services;
-  return gq ? applyGenderQualifier(narrowed, gq) : narrowed;
-}
+  const useFem = speechFem || gq === 'feminino';
 
-function maxSkuDuration(services) {
-  if (!Array.isArray(services) || !services.length) return 0;
-  const durs = services
-    .map((s) => Number(s?.duracaoEmMinutos ?? s?.duration_min ?? 0))
-    .filter((n) => n > 0);
-  return durs.length ? Math.max(...durs) : 0;
-}
+  if (useFem) {
+    subset = subset.filter((s) => {
+      const name = normalizeServiceName(s?.nome ?? s?.name ?? '');
+      return name.includes('feminino') || (!name.includes('masculino') && !name.includes('feminino'));
+    });
+  } else {
+    subset = subset.filter((s) => {
+      const name = normalizeServiceName(s?.nome ?? s?.name ?? '');
+      return !name.includes('feminino');
+    });
+  }
 
-function minSkuDuration(services) {
-  if (!Array.isArray(services) || !services.length) return 0;
-  const durs = services
-    .map((s) => Number(s?.duracaoEmMinutos ?? s?.duration_min ?? 0))
-    .filter((n) => n > 0);
-  return durs.length ? Math.min(...durs) : 0;
+  return subset.length ? subset : services;
 }
 
 function resolveOfferDurationMin(services, opts) {
@@ -280,13 +287,7 @@ function resolveOfferDurationMin(services, opts) {
     return skuDurationFrom(pool);
   }
   const speech = extractSpeechDurationMin(opts.messageText);
-  let sku = skuDurationFrom(pool);
-  if (pool !== services && pool?.length) {
-    const minD = minSkuDuration(pool);
-    const maxD = maxSkuDuration(pool);
-    if (minD !== maxD) sku = minD;
-    else if (!sku) sku = minD;
-  }
+  const sku = skuDurationFrom(pool);
   if (speech && sku) return Math.max(speech, sku);
   return speech || sku;
 }
@@ -627,8 +628,6 @@ module.exports = {
   pickStartsForOffer,
   resolveOfferDurationMin,
   narrowServicesForOfferDuration,
-  maxSkuDuration,
-  minSkuDuration,
   extractSpeechDurationMin,
   skuDurationFrom,
   startsFittingDuration,

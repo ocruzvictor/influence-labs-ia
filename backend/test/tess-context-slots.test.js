@@ -311,6 +311,37 @@ describe('extractSpeechDurationMin / resolveOfferDurationMin (Chão 1)', () => {
     );
   });
 
+  test('S11-1b — corte masculino explícito → 60', () => {
+    assert.equal(
+      resolveOfferDurationMin(FAT_CATALOG_11, { messageText: 'quero corte masculino' }),
+      60,
+    );
+  });
+
+  test('S11-1c — corte feminino → 120', () => {
+    assert.equal(
+      resolveOfferDurationMin(FAT_CATALOG_11, { messageText: 'quero corte feminino' }),
+      120,
+    );
+  });
+
+  test('S11-1d — catálogo gordo sem opts → 0 (S1-5 intacto)', () => {
+    assert.equal(resolveOfferDurationMin(FAT_CATALOG_11), 0);
+  });
+
+  test('S11-1e — maquiagem 4× → 120', () => {
+    const maq = [
+      { nome: 'Maquiagem A', duracaoEmMinutos: 120 },
+      { nome: 'Maquiagem B', duracaoEmMinutos: 120 },
+      { nome: 'Maquiagem C', duracaoEmMinutos: 120 },
+      { nome: 'Maquiagem D', duracaoEmMinutos: 120 },
+    ];
+    assert.equal(
+      resolveOfferDurationMin(maq, { messageText: 'quero maquiagem com a Fefe' }),
+      120,
+    );
+  });
+
   test('S1-10 — 1 SKU 120 sem opts intacto', () => {
     assert.equal(resolveOfferDurationMin([{ duracaoEmMinutos: 120 }]), 120);
   });

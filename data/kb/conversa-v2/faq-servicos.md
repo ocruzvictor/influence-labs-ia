@@ -66,4 +66,4 @@ Camuflagem é coloração só dos fios brancos (coloração ou tonalizante, conf
 Perfeito. Vou te transferir agora mesmo para atendimento humano.
 
 ### 22. Posso passar só pro pezinho / contorno?
-Sim. Não precisa marcar. É de graça, feito no intervalo. Não é pedicure. Não é Cabelo e Barba. Sem SKU — não invente.
+Sim. Pode passar sem marcar, é de graça no intervalo.

@@ -28,7 +28,7 @@ Pós publish `4356489` (chão 8+9). Smoke parcial `#2` + `#8`.
 - Aria: teto — inferir duração na oferta quando serviço/prof estão claros (corte 60) mesmo com catálogo gordo; filtrar relógios no bloco HORARIOS.
 - Dex: `resolveOfferDurationMin` / compact clock path + testes fixture 12:30/30min.
 - Prompt **v3.2.5**: pezinho só = “pode passar sem marcar, é de graça no intervalo” — sem “não é pedicure”, sem “acabamento do corte”, salvo ambiguidade com unha.
-- KB opcional: FAQ §22 uma linha mais curta (sync 39496 após gate + Victor cola).
+- KB FAQ §22 one-liner (D11.4) — sync 39496 após Victor cola v3.2.5
 - Quinn gate. Gage publish backend + Victor cola v3.2.5.
 
 ## OUT
@@ -42,7 +42,7 @@ Pós publish `4356489` (chão 8+9). Smoke parcial `#2` + `#8`.
 - [x] **AC3:** Fixture André 11/09 14:00 30 min → não aparece relógio; linha “sem janela contínua” ou só 15:30+.
 - [x] **AC4:** Pezinho Ex.14 / REGRA ZERO / VALIDE 28 — resposta modelo ≤2 frases, sem “pedicure” default.
 - [x] **AC5:** Quinn PASS · `blocks_publish` vazio.
-- [ ] **AC6:** Live `8d06340` · Victor colar v3.2.5 · KB inalterada (sem sync 39496).
+- [ ] **AC6:** Live `8d06340` · Victor colar v3.2.5 · FAQ §22 one-liner (sync 39496 pós cola).
 
 ## Tasks
 
