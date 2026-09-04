@@ -23,6 +23,14 @@ test('mapStatus → unknown para id não mapeado', () => {
   assert.equal(mapStatus(null), 'unknown');
 });
 
+test('S9-5 — STATUS_BY_ID 4/6/8/9 intactos; inventado → unknown', () => {
+  assert.equal(mapStatus(4), 'confirmed');
+  assert.equal(mapStatus(6), 'no_show');
+  assert.equal(mapStatus(8), 'completed');
+  assert.equal(mapStatus(9), 'cancelled');
+  assert.equal(mapStatus(99), 'unknown');
+});
+
 // ---- normalizePhoneBR (Trinks 11 díg sem 55 ↔ conversation_history 13 díg com 55) ----
 test('normalizePhoneBR prefixa 55 em DDD+número', () => {
   assert.equal(normalizePhoneBR('11964540007'), '5511964540007'); // 11 díg

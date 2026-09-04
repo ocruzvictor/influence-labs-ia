@@ -158,6 +158,8 @@ const {
   needsReferenceService,
   hasRecentClientImageMarker,
   detectGenderQualifier,
+  isSoloPezinhoTurn,
+  suppressSoloPezinhoTags,
 } = require('./lib/booking-parser');
 const { normalizeKapsoMediaContent } = require('./lib/kapso-media');
 
@@ -318,6 +320,7 @@ const OPERATIONAL_NOTES = [
   '- Maquiagem: só Fefe. Penteado: só Gi. Ignore outros nomes nesses dois serviços.',
   '- Camuflagem = coloração só dos fios brancos (coloração ou tonalizante). Não vendemos a marca Gloss; Capral/Trans/Igora são marcas de uso, não SKU. Preço = Coloração / Tonalização, Retoque de Raiz ou Coloração Global no snapshot, depois de confirmar se é só raiz. "Raiz com tonalizante" não é dois serviços.',
   '- HORARIOS VAGOS: só ofereça início se duracaoMinutos ≤ minutos contínuos anotados. Se o início aparece e o seguinte não, o seguinte está ocupado.',
+  '- Pezinho do cabelo (só pezinho/contorno): cortesia no intervalo, gratuito, sem agendar — não handoff orcamento_referencia, não BOOKING_CREATE, não inventar SKU.',
 ].join('\n');
 
 // --- Memory helpers (PostgreSQL) ---
@@ -1721,7 +1724,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     bookingReschedule,
     bookingReschedules = [],
     handoffHuman,
-  } = stripBookingTags(tessText);
+  } = suppressSoloPezinhoTags(stripBookingTags(tessText), messageText);
   const leakFreeText = stripResidualBookingTags(cleanText);
   const sanitizedCleanText = sanitizeWhatsappMarkdown(leakFreeText);
 

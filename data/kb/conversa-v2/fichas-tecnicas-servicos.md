@@ -6,7 +6,7 @@ Fonte principal: `docs/raw-materials/Studio Tirrá/Base de Conhecimento/Servic�
 - Tabela Premium **masculina**: internamente Trinks usa prefixo `TA -` no SKU de corte masculino (Tiago e André) vs "Corte Masculino" (equipe). **Ao cliente:** fale "Corte Masculino" / "com o Tiago" / "com o André" — **nunca** `TA -` como nome. Números vêm do snapshot Trinks, não desta ficha.
 - Corte feminino genérico: SKU "Corte Feminino". Não contrastar Tiago vs equipe na resposta, salvo pergunta explícita pelo Tiago (SKU "Tiago - Corte Feminino").
 - Terca e quarta: ha precos promocionais em servicos selecionados; so cite valor promo se o snapshot trouxer; validar no Trinks antes de confirmar o valor final.
-- Servicos gratuitos identificados: Corte de franja, Teste de Mechas, Avaliacao, Futura mamae, Tratamento de retorno de mechas.
+- Servicos gratuitos identificados: Corte de franja, Teste de Mechas, Avaliacao, Futura mamae, Tratamento de retorno de mechas. Pezinho / contorno orelha-pescoço — cortesia no intervalo; **não** é linha de catálogo; **não** inventar SKU.
 - Visagismo (R$ 750): usar fluxo consultivo primeiro; revelar valor apenas apos explicar beneficios + parcelamento 3x sem juros.
 - Mechas (R$ 835+) e variantes premium: iniciar por Teste de Mechas gratuito e sem compromisso antes de fechar valor final.
 - **Camuflagem de brancos:** não é SKU próprio nem marca Gloss. Ver `regras-comerciais.md`. Mapear ao SKU de coloração do snapshot Trinks.

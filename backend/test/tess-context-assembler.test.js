@@ -117,7 +117,7 @@ describe('assembleTessContext', () => {
     assert.equal(deps.calls.profs, 0);
   });
 
-  test('scoped BOOKING → limited slot days', async () => {
+  test('scoped BOOKING com requestedDate → refresh só slotDates (1)', async () => {
     const deps = mockDeps({
       messageText: 'quero cortar amanhã',
       intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
@@ -126,9 +126,8 @@ describe('assembleTessContext', () => {
     const result = await assembleTessContext(deps);
     assert.equal(result.contextProfile, 'BOOKING');
     assert.equal(deps.calls.slots, 0);
-    assert.equal(deps.calls.snapshot, 2);
-    assert.ok(result.slotDates.includes('2026-09-03'));
-    assert.ok(result.slotDates.includes('2026-09-02'));
+    assert.equal(deps.calls.snapshot, 1);
+    assert.deepEqual(result.slotDates, ['2026-09-03']);
     assert.match(result.blocks.horarios, /OFERTA CONSULTIVA/);
     assert.ok(result.blocks.horarios.length < 1200);
   });
@@ -166,7 +165,7 @@ describe('assembleTessContext', () => {
     assert.ok(result.blocks.horarios.length > 500);
   });
 
-  test('FULL + requestedDate fora da janela → ensureSlotSnapshot antes do getSlots', async () => {
+  test('FULL + requestedDate fora da janela → refresh all FULL slotDates', async () => {
     const deps = mockDeps({
       messageText: 'quero dia 2026-10-15',
       intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
@@ -175,9 +174,12 @@ describe('assembleTessContext', () => {
     });
     const result = await assembleTessContext(deps);
     assert.equal(result.contextProfile, 'FULL');
-    assert.equal(deps.calls.snapshot, 2);
-    assert.ok(result.slotDates.includes('2026-10-15'));
-    assert.ok(result.slotDates.includes('2026-09-02'));
+    const fullDates = [...new Set([
+      ...deps.getNextBusinessDays(10),
+      ...deps.nextSaturdayDates(5, 35),
+    ])].sort();
+    assert.equal(deps.calls.snapshot, fullDates.length);
+    assert.doesNotMatch(result.slotDates.join(','), /2026-10-15/);
   });
 
   test('scoped PRICE usa histórico para filtrar catálogo (R1.2 mais em conta)', async () => {
@@ -436,14 +438,14 @@ describe('assembleTessContext Chão 1+2', () => {
     assert.match(result.blocks.horarios, /há vagas/);
   });
 
-  test('A5 — scoped BOOKING snapshot calls ≤ 2', async () => {
+  test('A5 — scoped BOOKING com requestedDate → snapshot = 1', async () => {
     const deps = mockDeps({
       messageText: 'quero cortar amanhã',
       intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
       requestedDate: '2026-09-03',
     });
     await assembleTessContext(deps);
-    assert.ok(deps.calls.snapshot <= 2);
+    assert.equal(deps.calls.snapshot, 1);
   });
 
   test('G7 — landing Studio Tirra scoped → MIN, catálogo não pedido', async () => {
@@ -470,5 +472,59 @@ describe('assembleTessContext Chão 1+2', () => {
     });
     const result = await assembleTessContext(deps);
     assert.equal(result.contextProfile, 'BOOKING');
+  });
+});
+
+describe('assembleTessContext Chão 8+9', () => {
+  test('A8-1 — só-pezinho: zero snapshot/slots, DISAMBIGUA cortesia', async () => {
+    const deps = mockDeps({
+      messageText: 'Posso passar aí pra arrumar o pezinho do cabelo?',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'BOOKING');
+    assert.equal(deps.calls.snapshot, 0);
+    assert.equal(deps.calls.slots, 0);
+    assert.equal(result.fetchMeta.slotsRequested, 0);
+    assert.ok(!result.dynamicContext.includes('HORARIOS VAGOS'));
+    assert.ok(!result.blocks.horarios.includes('HORARIOS VAGOS'));
+    assert.match(result.dynamicContext, /cortesia/i);
+    assert.match(result.dynamicContext, /intervalo/i);
+    assert.match(result.dynamicContext, /gratuito/i);
+    assert.doesNotMatch(result.dynamicContext, /orcamento_referencia/);
+  });
+
+  test('A8-2 — corte amanhã inalterado (regressão slots)', async () => {
+    const deps = mockDeps({
+      messageText: 'quero cortar amanhã',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-03',
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'BOOKING');
+    assert.equal(deps.calls.snapshot, 1);
+    assert.match(result.blocks.horarios, /OFERTA CONSULTIVA/);
+  });
+
+  test('A9-1 — scoped BOOKING sem requestedDate refresh all slotDates', async () => {
+    const deps = mockDeps({
+      messageText: 'quero cortar essa semana',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(deps.calls.snapshot, result.slotDates.length);
+    assert.equal(deps.calls.snapshot, 4);
+  });
+
+  test('A9-2 — explicitDateOnly refresh só a data pedida', async () => {
+    const deps = mockDeps({
+      messageText: 'quero cortar no sábado',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-06',
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.slotDates.length, 1);
+    assert.equal(result.slotDates[0], '2026-09-06');
+    assert.equal(deps.calls.snapshot, 1);
   });
 });

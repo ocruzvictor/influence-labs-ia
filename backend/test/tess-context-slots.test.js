@@ -371,6 +371,40 @@ describe('subtractOccupiedSlotStarts (Chão 2)', () => {
     assert.equal(subtractedOccupied, 0);
     assert.deepEqual(filtered[0].startsAt, ['2026-09-05T12:30:00-03:00']);
   });
+
+  test('S9-2 — confirmed ocupa start (subtractedOccupied ≥ 1)', () => {
+    const professionals = [{
+      name: 'Tiago',
+      professionalId: '827204',
+      startsAt: ['2026-09-05T14:00:00-03:00'],
+    }];
+    const appointments = [{
+      professional_id: '827204',
+      scheduled_at: '2026-09-05T14:00:00-03:00',
+      duration_min: 60,
+      status: 'confirmed',
+    }];
+    const { professionals: filtered, subtractedOccupied } = subtractOccupiedSlotStarts(
+      professionals,
+      appointments,
+    );
+    assert.ok(subtractedOccupied >= 1);
+    assert.equal(filtered.length, 0);
+  });
+
+  test('S9-3 — cancelled fora do subtract: start permanece', () => {
+    const professionals = [{
+      name: 'Tiago',
+      professionalId: '827204',
+      startsAt: ['2026-09-05T14:00:00-03:00'],
+    }];
+    const { professionals: filtered, subtractedOccupied } = subtractOccupiedSlotStarts(
+      professionals,
+      [],
+    );
+    assert.equal(subtractedOccupied, 0);
+    assert.deepEqual(filtered[0].startsAt, ['2026-09-05T14:00:00-03:00']);
+  });
 });
 
 describe('snapshot.offer helpers (Chão 2)', () => {

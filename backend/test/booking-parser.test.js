@@ -575,21 +575,23 @@ test('C2 — gloss filtra família química', () => {
   assert.ok(!out.some((s) => /gloss/i.test(s.nome)));
 });
 
-test('C3 — pezinho do cabelo → corte, não pedicure nem Cabelo e Barba', () => {
+test('C3 — pezinho do cabelo só → [] (cortesia, sem corte/pedicure)', () => {
   const { filterServicesByKeywords } = require('../lib/booking-parser');
   const msg = 'Posso passar aí pra arrumar o pezinho do cabelo?';
   const out = filterServicesByKeywords(CATALOG_FIXTURE, msg);
-  assert.ok(out);
-  assert.ok(out.some((s) => s.nome === 'Corte Masculino'));
-  assert.ok(!out.some((s) => s.nome === 'Pedicure'));
-  assert.ok(!out.some((s) => s.nome === 'Cabelo e Barba'));
+  assert.ok(Array.isArray(out));
+  assert.equal(out.length, 0);
+  assert.ok(!out?.some((s) => s.nome === 'Corte Masculino'));
+  assert.ok(!out?.some((s) => s.nome === 'Pedicure'));
+  assert.ok(!out?.some((s) => s.nome === 'Cabelo e Barba'));
 });
 
-test('C4 — Pezinho do cabelo isColloquialPezinho', () => {
+test('C4 — Pezinho do cabelo isColloquialPezinho; filter [] no turno só-pezinho', () => {
   const { filterServicesByKeywords, isColloquialPezinho } = require('../lib/booking-parser');
   assert.equal(isColloquialPezinho('Pezinho do cabelo'), true);
   const out = filterServicesByKeywords(CATALOG_FIXTURE, 'Pezinho do cabelo');
-  assert.ok(out?.some((s) => s.nome === 'Corte Masculino'));
+  assert.ok(Array.isArray(out));
+  assert.equal(out.length, 0);
   assert.ok(!out?.some((s) => s.nome === 'Pedicure'));
 });
 
@@ -605,6 +607,49 @@ test('C6 — pé e mão → Pedicure e Manicure', () => {
   const out = filterServicesByKeywords(CATALOG_FIXTURE, 'marcar um horário para pé e mão');
   assert.ok(out?.some((s) => s.nome === 'Pedicure'));
   assert.ok(out?.some((s) => s.nome === 'Manicure'));
+});
+
+test('P8-1 — isSoloPezinhoTurn smoke #2', () => {
+  const { isSoloPezinhoTurn } = require('../lib/booking-parser');
+  assert.equal(
+    isSoloPezinhoTurn('Posso passar aí pra arrumar o pezinho do cabelo?'),
+    true,
+  );
+});
+
+test('P8-2 — corte + pezinho não é só-pezinho', () => {
+  const { isSoloPezinhoTurn } = require('../lib/booking-parser');
+  assert.equal(isSoloPezinhoTurn('quero um corte e o pezinho'), false);
+});
+
+test('P8-3 — fazer o pé / pé e mão não é só-pezinho', () => {
+  const { isSoloPezinhoTurn } = require('../lib/booking-parser');
+  assert.equal(isSoloPezinhoTurn('fazer o pé'), false);
+  assert.equal(isSoloPezinhoTurn('pé e mão'), false);
+});
+
+test('P8-6 — corte e pezinho mantém Corte Masculino', () => {
+  const { filterServicesByKeywords } = require('../lib/booking-parser');
+  const out = filterServicesByKeywords(CATALOG_FIXTURE, 'quero um corte e o pezinho');
+  assert.ok(out?.some((s) => s.nome === 'Corte Masculino'));
+  assert.ok(!out?.some((s) => s.nome === 'Pedicure'));
+});
+
+test('P8-7 — suppressSoloPezinhoTags remove CREATE e handoff orcamento', () => {
+  const { stripBookingTags, suppressSoloPezinhoTags } = require('../lib/booking-parser');
+  const inbound = 'Posso passar aí pra arrumar o pezinho do cabelo?';
+  const text = [
+    'Pode passar sem marcar.',
+    '[HANDOFF_HUMAN motivo=orcamento_referencia]',
+    '[BOOKING_CREATE servicoId=1 profissionalId=3 dataHoraInicio=2026-09-05T14:00:00-03:00 valor=0 duracaoMinutos=30]',
+  ].join('\n');
+  const parsed = suppressSoloPezinhoTags(stripBookingTags(text), inbound);
+  assert.equal(parsed.bookingCreates.length, 0);
+  assert.equal(parsed.bookingConfirm, null);
+  assert.equal(parsed.handoffHuman, null);
+  assert.match(parsed.clean, /Pode passar sem marcar/);
+  assert.ok(!/\[HANDOFF_HUMAN/.test(parsed.clean));
+  assert.ok(!/\[BOOKING_CREATE/.test(parsed.clean));
 });
 
 test('C8 — masculino exclui Corte Feminino', () => {

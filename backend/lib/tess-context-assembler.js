@@ -21,6 +21,7 @@ const {
   filterServicesByKeywords,
   isColloquialPenteado,
   isColloquialPezinho,
+  isSoloPezinhoTurn,
   formatServicesText,
   renderHabilitacaoMap,
 } = require('./booking-parser');
@@ -31,8 +32,11 @@ const PENTEADO_DISAMBIGUA = [
 ].join(' ');
 
 const PEZINHO_DISAMBIGUA = [
-  'DISAMBIGUA: Pezinho do cabelo = acabamento de corte (contorno).',
-  'Nao e pedicure.',
+  'DISAMBIGUA: Pezinho do cabelo = acabamento de corte (contorno orelha-pescoco).',
+  'Nao e pedicure. Nao e Cabelo e Barba. Nao precisa agendar.',
+  'E cortesia, feito no intervalo entre clientes, gratuito.',
+  'Nao emita [HANDOFF_HUMAN]. Nao emita [BOOKING_CREATE]. Nao invente SKU.',
+  'Diga que pode passar sem marcar.',
 ].join(' ');
 
 function buildContextBlocks({
@@ -200,38 +204,40 @@ async function assembleTessContext(params) {
     && profileSpec.profile === PROFILES.BOOKING
     && typeof getSlotsGrouped === 'function';
 
+  const soloPezinhoTurn = isSoloPezinhoTurn(messageText);
+
   if (useCompactBooking && profileSpec.fetchCatalog) {
     fetchMeta.catalogRequested = true;
-    svcPayload = await getServicesText();
-    const filtered = filterCatalogForProfile(
-      profileSpec,
-      svcPayload.data,
-      messageText,
-      historyForModel,
-      genderQualifier,
-    );
-    if (filtered?.length) {
-      svcPayload = formatServicesText(filtered);
-    }
-    if (isColloquialPenteado(messageText) && svcPayload.text) {
-      svcPayload = { ...svcPayload, text: `${PENTEADO_DISAMBIGUA}\n${svcPayload.text}` };
-    }
-    if (isColloquialPezinho(messageText) && svcPayload.text) {
-      svcPayload = { ...svcPayload, text: `${PEZINHO_DISAMBIGUA}\n${svcPayload.text}` };
+    if (soloPezinhoTurn) {
+      svcPayload = { text: PEZINHO_DISAMBIGUA, data: [] };
+    } else {
+      svcPayload = await getServicesText();
+      const filtered = filterCatalogForProfile(
+        profileSpec,
+        svcPayload.data,
+        messageText,
+        historyForModel,
+        genderQualifier,
+      );
+      if (filtered?.length) {
+        svcPayload = formatServicesText(filtered);
+      }
+      if (isColloquialPenteado(messageText) && svcPayload.text) {
+        svcPayload = { ...svcPayload, text: `${PENTEADO_DISAMBIGUA}\n${svcPayload.text}` };
+      }
+      if (isColloquialPezinho(messageText) && svcPayload.text) {
+        svcPayload = { ...svcPayload, text: `${PEZINHO_DISAMBIGUA}\n${svcPayload.text}` };
+      }
     }
   }
 
-  if (profileSpec.fetchSlots) {
-    const refreshDates = [...new Set([todayIso, requestedDate].filter(Boolean))];
+  if (profileSpec.fetchSlots && !soloPezinhoTurn) {
+    const refreshDates = [...new Set(slotDates.filter(Boolean))];
     for (const date of refreshDates) {
       try {
         await ensureSlotSnapshot(date);
-        if (!slotDates.includes(date)) {
-          slotDates.push(date);
-          slotDates.sort();
-        }
       } catch (err) {
-        console.warn(`[${sessionId}] snapshot adicional ${date} falhou:`, err.message);
+        console.warn(`[${sessionId}] snapshot refresh ${date} falhou:`, err.message);
       }
     }
     if (slotDates.length) {

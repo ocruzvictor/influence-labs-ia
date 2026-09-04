@@ -261,3 +261,40 @@ test('listActiveAppointmentWindowsForDate — scheduled/confirmed sem telefone',
   assert.doesNotMatch(db.calls[0].sql, /client_phone/);
   assert.deepEqual(db.calls[0].params, ['2026-09-05']);
 });
+
+test('S9-1 — replaceSlotsForDate substitui grade do dia (Ausência some)', async () => {
+  const tiagoId = '827204';
+  const slotRows = [];
+  const db = {
+    calls: [],
+    query: async (sql, params) => {
+      db.calls.push({ sql, params });
+      if (/DELETE FROM trinks_slots/.test(sql)) {
+        slotRows.length = 0;
+        return { rows: [] };
+      }
+      if (/INSERT INTO trinks_slot_snapshot_runs/.test(sql)) return { rows: [] };
+      if (/INSERT INTO trinks_slots/.test(sql)) {
+        slotRows.push({ professional_id: params[0], starts_at: params[1] });
+        return { rows: [{ professional_id: params[0], starts_at: params[1] }] };
+      }
+      if (/SELECT.*trinks_slots/.test(sql)) return { rows: slotRows };
+      return { rows: [] };
+    },
+    transaction: async (fn) => fn(db),
+  };
+  const store = createTrinksLocalStore(db);
+  slotRows.push({
+    professional_id: tiagoId,
+    starts_at: '2026-09-05T14:00:00-03:00',
+  });
+  await store.replaceSlotsForDate('2026-09-05', [{
+    professionalId: tiagoId,
+    startsAt: '2026-09-05T10:00:00-03:00',
+    endsAt: '2026-09-05T10:45:00-03:00',
+    raw: { horario: '10:00' },
+  }]);
+  const after = slotRows.filter((s) => String(s.professional_id) === tiagoId);
+  assert.ok(after.some((s) => s.starts_at.includes('10:00')));
+  assert.ok(!after.some((s) => s.starts_at.includes('14:00')));
+});

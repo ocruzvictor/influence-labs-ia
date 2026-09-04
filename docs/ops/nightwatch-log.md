@@ -270,4 +270,66 @@ Victor ACK commit/publish. Quinn CONCERNS 86, zero `blocks_publish`. Kill switch
 
 **Fora:** Hostinger, rsync, compose overwrite, `BOT_ACCEPT_ALL`, `UPDATE bot_toggles`, smoke `0007`, André 10:30, CREATE 9800, paste 46589.
 
+## 2026-09-04 ~16:27Z — piloto exclusivo `0007` (Victor, prompt v3.2.3 colado por ele)
+
+Victor autorizou: ligar só o chip de teste; resto continua off. Prompt 46589 ele mesmo colou (não foi cola desta sessão).
+
+**Before:** `BOT_ACCEPT_ALL=true`, `mode=OPEN`, `bot_toggles.global=false` (kill switch 14:33Z). Whitelist já era 1 allow last4 `0007` + blocks/human_only. `0007` sem `silenced_until`. Código live `405b005`.
+
+**Change:** backup `.env.pre-0007-20260904T162716Z`. `.env` `BOT_ACCEPT_ALL=false` (fallback `BOT_ALLOWED_PHONES` já era só `0007`). `UPDATE bot_toggles` global=`true` (chave técnica). Recreate backend sem rebuild. `nginx -t` ok + reload.
+
+**After:** health `status=ok`, `accept_all=false`, `mode=WHITELIST`, `whitelist_count=1`, TESS 46589, `trinks_ping=ok`. `TESS_CONTEXT_MODE=scoped`, `TESS_SKIP_TRIVIAL=true`. Só last4 `0007` responde. Número fora da tabela não entra (OPEN fechado de propósito).
+
+**Fora:** Hostinger, rsync, compose overwrite, OPEN customer-wide, André 10:30, CREATE 9800. Smoke WhatsApp fica com o Victor neste chip.
+
+## 2026-09-04 ~16:37Z — piloto `0007` de volta ao off (plano único)
+
+Victor não segue o teste incremental. Roteiro salvo em `docs/ops/smoke-0007-roteiro-lexico-v323.md`. Programa: `docs/analysis/2026-09-04-orion-programa-chao-unico.md`.
+
+**Change:** `bot_toggles.global=false` (16:37:48Z). `.env` intocado: `BOT_ACCEPT_ALL=false`, fallback só `0007`. Sem recreate.
+
+**After:** Tess muda de novo para todo mundo, inclusive `0007`. Whitelist permanece 1 allow. Sem OPEN.
+
+## 2026-09-04 ~17:38Z — publish chão 1–6 pré-smoke `0007` (`a9d5af8`)
+
+Victor ACK 14:35 BRT: orquestrar o que falta para testar no `0007`. Gates 1+2 PASS 96 · 3 PASS · 4 PASS 96 · 5 CONCERNS 90 · 6 CONCERNS — todos `blocks_publish=[]`. Kill switch permanece off durante publish.
+
+**Before:** worktree `405b005`. `TESS_CONTEXT_MODE=scoped`, `TESS_SKIP_TRIVIAL=true`, `BOT_ACCEPT_ALL=false`, `FORCE_FULL` absent, agent 46589. `bot_toggles.global=false`.
+
+**Change:** commit `a9d5af8` (51 arquivos allowlist) → origin `feature/tess-commit-honesty`. Worktree reset `a9d5af8`. `git archive` só `backend/`. Backup `backend.bak.20260904173826`. `docker compose build --no-cache backend` + `up -d`. Sem rsync, sem compose overwrite, sem `UPDATE bot_toggles`.
+
+**After:** worktree `a9d5af8`. Container: `resolveTessAbortMs` (`tess-timeout-budget.js`), `intentToPersist` (`tess-context-intent.js`), `subtractOccupiedSlotStarts` (`tess-context-slots.js`), `persistTessTurnEvent` (`tess-context-bytes.js`). Env: `TESS_CONTEXT_MODE=scoped`, `TESS_SKIP_TRIVIAL=true`, `BOT_ACCEPT_ALL=false`, `TESS_CONTEXT_FORCE_FULL=` (vazio), `TESS_AGENT_ID=46589`, parede `TESS_TIMEOUT_WALL_MS=25000` (código, não env). Health interno ok, `trinks_ping=ok` (658 ms). `bot_toggles.global=false` inalterado.
+
+**Próximo (Orion, não Gage):** sync TESS collection 39496 (4 arquivos KB), unlock `0007`-only (`global=true`, allow único `0007`), Victor corre roteiro `docs/ops/smoke-0007-roteiro-lexico-v323.md`.
+
+**Fora:** Hostinger, rsync, compose overwrite, `BOT_ACCEPT_ALL=true`, smoke WhatsApp, paste 46589, nginx 25s/35s, TESS PATCH.
+
+## 2026-09-04 ~17:46Z — sync 39496 + piloto `0007` de novo
+
+**Change:** PATCH 4 memories (163141, 163142, 163146, 163147) — pezinho + `TA -` não falável. padroes/info/laser intocados. Registro: `docs/intake/registro-chao4-kb-sync-2026-09-04.md`. `UPDATE bot_toggles` global=`true` (17:46:30Z). `.env` intocado: `BOT_ACCEPT_ALL=false`. Sem recreate.
+
+**After:** health `status=ok`, `accept_all=false`, `mode=WHITELIST`, `whitelist_count=1`, TESS 46589, `trinks_ping=ok`. Código live `a9d5af8`. Só last4 `0007` responde.
+
+**Smoke:** Victor correu o roteiro. Relatório: `docs/ops/2026-09-04-smoke-0007-relatorio.md`.
+
+## 2026-09-04 ~18:24Z — smoke `0007` fechado; kill switch off
+
+**Change:** `bot_toggles.global=false` (18:24:11Z). `.env` intocado. Sem recreate.
+
+**After:** Tess muda de novo. Whitelist permanece 1 allow `0007`. Sem OPEN.
+
+**Score:** 1 FAQ PASS · 2 pezinho FAIL regra (handoff certo pro desenho velho; salão = cortesia sem agenda) · 3–7 PASS · 8 FAIL Ausência/snapshot velha, duração OK.
+
+**Fora:** Hostinger, OPEN, André 10:30, CREATE 9800, paste 46589.
+
+## 2026-09-04 ~18:58Z — Victor colou v3.2.4 + sync 39496 chão 8
+
+**Change:** Victor ACK `colei` prompt v3.2.4 no 46589. Orion PATCH 4 memories (163141, 163142, 163146, 163147) — pezinho cortesia v1.3 + FAQ §22 + regras + fichas gratuitos. `kb_items.version`=5 nos 4 slugs. padroes/info intocados. Registro: `docs/intake/registro-chao8-kb-sync-2026-09-04.md`.
+
+**After:** prompt dashboard v3.2.4. Memories alinhadas ao chão 8 local. Código backend 8+9 **ainda não live** (`a9d5af8`). `bot_toggles.global=false` inalterado.
+
+**Próximo:** Gage publish backend 8+9 quando Victor pedir live/smoke. Depois religar `0007`-only + re-smoke.
+
+**Fora:** Hostinger, OPEN, André 10:30, CREATE 9800, religar sem publish.
+
 

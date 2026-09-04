@@ -563,6 +563,28 @@ function isColloquialPezinho(messageText) {
   return norm.includes('pezinho');
 }
 
+/** Turno só-pezinho: cortesia; sem FILTER cort inject; sem slots/handoff orcamento. */
+function isSoloPezinhoTurn(messageText) {
+  if (!isColloquialPezinho(messageText)) return false;
+  const norm = normalizeCatalogText(messageText);
+  const naturalHits = FILTER_SERVICE_KEYWORDS.filter((kw) => {
+    if (kw === 'pezinho' || kw === 'cabelo') return false;
+    return norm.includes(kw);
+  });
+  return naturalHits.length === 0;
+}
+
+function suppressSoloPezinhoTags(parsed, inboundText) {
+  if (!isSoloPezinhoTurn(inboundText) || !parsed) return parsed;
+  const result = { ...parsed };
+  result.bookingCreates = [];
+  result.bookingConfirm = null;
+  if (result.handoffHuman?.motivo === 'orcamento_referencia') {
+    result.handoffHuman = null;
+  }
+  return result;
+}
+
 function detectGenderQualifier(text) {
   const norm = normalizeCatalogText(text);
   if (!norm) return null;
@@ -611,6 +633,7 @@ function isColloquialPenteado(messageText) {
 
 function filterServicesByKeywords(servicesData, messageText, opts = {}) {
   if (!Array.isArray(servicesData) || servicesData.length === 0) return [];
+  if (isSoloPezinhoTurn(messageText)) return [];
   const norm = normalizeCatalogText(messageText);
   const hits = FILTER_SERVICE_KEYWORDS.filter((kw) => norm.includes(kw));
   const colloquialPezinho = isColloquialPezinho(messageText);
@@ -887,6 +910,8 @@ module.exports = {
   filterServicesByKeywords,
   isColloquialPenteado,
   isColloquialPezinho,
+  isSoloPezinhoTurn,
+  suppressSoloPezinhoTags,
   detectGenderQualifier,
   applyGenderQualifier,
   expandCatalogMatch,

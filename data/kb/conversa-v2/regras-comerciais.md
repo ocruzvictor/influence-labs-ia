@@ -110,7 +110,7 @@ Onde cada *rate* é a taxa (0.0–1.0) sobre o histórico de agendamentos do cli
 ## Pé vs pezinho
 
 - **"Fazer pé" / "pé e mão"** = pedicure (+ manicure no combo). Upsell depilação de pé ok, sem misturar SKUs.
-- **"Pezinho" / "pezinho do cabelo" / contorno orelha-pescoço** = acabamento de corte — **NÃO** pedicure, **NÃO** Cabelo e Barba. Sem SKU isolado no snapshot → `[HANDOFF_HUMAN motivo=orcamento_referencia]`.
+- **"Pezinho" / "pezinho do cabelo" / contorno orelha-pescoço** = acabamento de corte — **NÃO** pedicure, **NÃO** Cabelo e Barba. Cortesia no intervalo, sem agendar, gratuito. Tess resolve sozinha — zero handoff, zero CREATE, zero SKU inventido.
 
 ## Regras duras de segurança comercial
 

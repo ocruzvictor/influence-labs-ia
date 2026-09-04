@@ -1,5 +1,27 @@
 # Changelog — prompt TESS 46589
 
+## v3.2.4 — 2026-09-04
+
+**Motivo:** Chão 8 — pezinho do cabelo = cortesia no intervalo, gratuito, sem agendar. Tess resolve sozinha; zero handoff orcamento_referencia, zero BOOKING_CREATE, zero SKU inventido.
+
+**Prompt:** REGRA ZERO, vocabulário, NUNCA/SEMPRE, Ex.14, VALIDE 28 — pezinho só = cortesia/intervalo/grátis.
+
+**Cola TESS:** Victor colou v3.2.4 no 46589 (~15:56 BRT, “colei.”).  
+**Memories:** Orion PATCH 39496 — 4/4 (163141, 163142, 163146, 163147). Registro: `docs/intake/registro-chao8-kb-sync-2026-09-04.md`.  
+**Backend 8+9:** publish pendente (live ainda `a9d5af8`).
+
+**Rollback prompt:** `archive/tess-conversa-46589-v3.2.3-2026-09-04.md`
+
+## v3.2.3 — 2026-09-04
+
+**Motivo:** Onda 2 Fase B — léxico do chão (Mira `1000` `4501` `4749` `4905` `0330`). Código Fase A já no ar (`405b005`); o Haiku ainda podia remapear pezinho, voltar ao feminino e ecoar scratch.
+
+**Prompt:** pezinho ≠ pedicure; pé e mão = unha; gênero sticky; tintura = família coloração; Gloss continua não-SKU; prefixo interno de tabela não se fala; quem é maquiador = nomes do snapshot, CREATE maquiagem continua Fefe; VALIDE 28–30; Ex.14–15.
+
+**Cola TESS:** **não** nesta redação. Victor ACK no diff → aí cola `tess-conversa-v3-clean.md` (header v3.2.3). Sem mudar modelo/Thinking/tools. Sem religar kill switch.
+
+**Rollback prompt:** `archive/tess-conversa-46589-v3.2.2-2026-09-03.md`
+
 ## v3.2.2 — 2026-09-03
 
 **Motivo:** EPIC tess-commit-honesty P1.1 — I.8/I.1.17/I.12/I.1.3: tag ≠ reserva; banir "Tá garantido" / afirmações antes do backend.

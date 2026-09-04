@@ -1,0 +1,249 @@
+schema: 1
+slice: '2026-09-04-chao-8-9-pezinho-ausencia'
+slice_title: 'Chão 8+9 — pezinho cortesia · Ausência ocupa'
+scope_type: 'operational-slice'   # Status Ready-for-Dex, não InReview; SOT = Aria tetos
+gate: PASS
+status_reason: >
+  Dez hunts AC4 verdes no código e nos testes. Só-pezinho devolve [] / skip slots /
+  strip CREATE+orcamento_referencia. Refresh = unique(slotDates). Freeze 45min /
+  STATUS_BY_ID / subtract scheduled+confirmed / worker 1440 intactos. T4 (cola +
+  sync 39496) fica aberto — este gate não autoriza TESS PATCH nem paste.
+reviewer: 'Quinn (Test Architect)'
+sot: 'docs/analysis/2026-09-04-aria-chao-8-9-tetos.md'
+stories:
+  - 'docs/stories/salon-whatsapp-chao-8-pezinho-cortesia.md'
+  - 'docs/stories/salon-whatsapp-chao-9-ausencia-ocupa.md'
+reviewed_revision: 'uncommitted-on-a9d5af8'
+reviewed_worktree: 'dirty — chão 8+9 uncommitted em cima de a9d5af8; worktree tem outras fatias'
+deployed_revision: 'a9d5af8 — live intocado; este gate não publica'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T15:50:00-03:00'
+expires: '2026-09-18T15:50:00-03:00'
+quality_score: 96
+waiver: { active: false }
+last4_only: true
+authorizes_tess_patch: false
+authorizes_prompt_paste: false   # Victor. Quinn não cola 46589 nem ACK 39496.
+
+# ---------------------------------------------------------------------------
+# 1. HUNTS PEDIDOS
+# ---------------------------------------------------------------------------
+requested_checks:
+  solo_pezinho_classifier:
+    status: PASS
+    hunt: 1
+    evidence:
+      - 'isSoloPezinhoTurn(#2 "Posso passar aí pra arrumar o pezinho do cabelo?") === true'
+      - 'isSoloPezinhoTurn("corte e pezinho") === false; "quero um corte e o pezinho" === false'
+      - 'isSoloPezinhoTurn("fazer o pé") === false; "pé e mão" === false'
+      - 'Quinn probe + P8-1 / P8-2 / P8-3'
+    notes: 'cort injectado não conta; corte/cortar na fala é hit natural.'
+
+  solo_filter_empty_array:
+    status: PASS
+    hunt: 2
+    evidence:
+      - 'C3/C4 reescritos: filterServicesByKeywords(#2 / "Pezinho do cabelo") → [] length 0, não null.'
+      - 'Sem Corte Masculino / Pedicure / Cabelo e Barba no dump só-pezinho.'
+      - 'C5 "fazer o pé" → Pedicure. C6 "pé e mão" → Pedicure+Manicure. Inalterados.'
+    notes: 'null continua a ser dump do salão no ramo não-solo.'
+
+  solo_assembler:
+    status: PASS
+    hunt: 3
+    evidence:
+      - 'A8-1: calls.snapshot=0 · calls.slots=0 · slotsRequested=0 · sem HORARIOS VAGOS.'
+      - 'dynamicContext casa cortesia / intervalo / gratuito (PEZINHO_DISAMBIGUA).'
+      - 'Sem orcamento_referencia. svcPayload.data=[]. Sem SKU inventido no texto.'
+      - 'A8-2 corte amanhã: snapshot=1, OFERTA CONSULTIVA intacta.'
+    notes: 'OPERATIONAL_NOTES +1 linha no server.js — vale sem cola.'
+
+  suppress_tags:
+    status: PASS
+    hunt: 4
+    evidence:
+      - 'P8-7: inbound #2 + HANDOFF orcamento_referencia + BOOKING_CREATE → creates=0, handoff=null.'
+      - 'Quinn probe: motivo=cliente_pediu_humano permanece. Não-solo mantém orcamento + CREATE.'
+    notes: 'Também zera bookingConfirm no turno só-pezinho (extra seguro; SOT pediu CREATE*).'
+
+  i1_has_service_signal:
+    status: PASS
+    hunt: 5
+    evidence:
+      - 'tess-context-intent.test.js I1: #2 → not UNCERTAIN + hasServiceSignal true.'
+      - 'Quinn probe: hasServiceSignal(normalizeText(#2)) === true.'
+      - 'FILTER_SERVICE_KEYWORDS ainda contém pezinho. tess-context-intent.js sem diff de pezinho.'
+    notes: 'I1 intocado. BOOKING sem slots neste turno é honesto.'
+
+  prompt_v324_local:
+    status: PASS
+    hunt: 6
+    evidence:
+      - 'tess-conversa-v3-clean.md header v3.2.4. Archive v3.2.3 presente.'
+      - 'P1–P7 locais: L1, L10 REGRA ZERO, L385 vocabulário, L431–432 NUNCA, L450 SEMPRE, Ex.14 L602–604, VALIDE 28 L639.'
+      - 'orcamento_referencia intacto em mechas (L99/L259/L263/L270), laser (L258), PIX (L144–153), visagismo/André, Ex.12/13 (L580/L596). 16 ocorrências.'
+    notes: 'Ficheiro local só. Quinn não cola 46589.'
+
+  kb_four_files:
+    status: PASS
+    hunt: 7
+    evidence:
+      - 'git diff --name-only HEAD -- data/kb → 4 ficheiros: sinonimos, regras, faq, fichas.'
+      - 'sinonimos v1.3 L16+L83 cortesia. regras L113 zero handoff. faq ### 22. fichas L9 lista gratuitos — sem row de preço/duração/id.'
+      - 'padroes-fala / info-estatica / depilacao-laser-claudia: diff 0 bytes.'
+    notes: 'PATCH 39496 = T4. authorizes_tess_patch: false.'
+
+  refresh_all_slot_dates:
+    status: PASS
+    hunt: 8
+    evidence:
+      - 'assembleTessContext: refreshDates = [...new Set(slotDates.filter(Boolean))].'
+      - 'A9-1 scoped sem requestedDate: snapshot === slotDates.length === 4 (não 1–2).'
+      - 'A9-2 explicitDateOnly: snapshot=1, só a data pedida. A5 actualizado para snapshot=1.'
+      - 'FULL + requestedDate: snapshot === fullDates.length (2 mágico morto).'
+      - 'ensureSlotSnapshot: maxAgeHours = 45/60; GET /agendamentos/profissionais/${date}; replaceSlotsForDate.'
+      - 'git diff HEAD tess-context-slots.js / trinks-mapping.js / trinks-state-worker.js / trinks-local-store.js = 0.'
+      - 'SNAPSHOT_STALE_OFFER_MIN=45. STATUS_BY_ID 4/6/8/9. INTERVAL_MIN default 1440.'
+      - 'listActiveAppointmentWindowsForDate SQL: scheduled+confirmed. Sem coluna telefone.'
+    notes: 'D6 chão 2 superseded neste slice. Worker 1440 não sobe.'
+
+  replace_and_occupy:
+    status: PASS
+    hunt: 9
+    evidence:
+      - 'S9-1: replaceSlotsForDate 05/09 Tiago 10:00 após fixture 14:00 → 14:00 ausente, 10:00 presente.'
+      - 'S9-2: confirmed no start → subtractedOccupied ≥ 1, start some.'
+      - 'S9-5: mapStatus 4/6/8/9 intactos; id 99 → unknown (não entra no subtract).'
+      - 'SQL listActive: IN (scheduled, confirmed). Cancelled não chega ao subtract no caminho de produção.'
+    notes: >
+      S9-3 do Dex passa appointments=[] em vez de um row cancelled. Quinn
+      confirmou: se cancelled vazar para subtractOccupiedSlotStarts, o helper
+      é cego a status e ocuparia. Protecção real = SQL. TEST-01 low.
+
+  veto_surfaces:
+    status: PASS
+    hunt: 10
+    evidence:
+      - 'Quinn não executou WhatsApp, smoke 0007, Hostinger, religar, BOT_ACCEPT_ALL, TESS PATCH, cola 46589, POST Trinks.'
+      - 'nginx dirty vs HEAD = fatia alheia (n8n/chatwoot), não Dex 8+9.'
+    notes: 'Mesmo critério chão 6: dirty alheio não FAIL deste slice.'
+
+# ---------------------------------------------------------------------------
+# 2. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues:
+  - id: 'TEST-01'
+    severity: low
+    finding: >
+      S9-3 não injeta appointment cancelled; passa array vazio. O contrato
+      "cancelled não ocupa" vive no SQL (scheduled+confirmed), não no helper.
+    evidence: >
+      tess-context-slots.test.js S9-3. Quinn probe: cancelled leak →
+      subtractedOccupied=1. listActiveAppointmentWindowsForDate filtra status.
+    suggested_action: >
+      Opcional: S9-3 passar row cancelled e afirmar que o caller (SQL) o
+      exclui. Não alargar subtract a cancelled. Não é patch deste gate.
+    suggested_owner: 'dev'
+    blocks_publish: false
+
+# ---------------------------------------------------------------------------
+# 3. EVIDÊNCIA DE TESTES
+# ---------------------------------------------------------------------------
+evidence:
+  dex_claimed: '169 focused green'
+  slice_test_command: >
+    node --test test/booking-parser.test.js test/tess-context-assembler.test.js
+    test/tess-context-slots.test.js test/trinks-local-store.test.js
+    test/trinks-sync.test.js test/tess-context-intent.test.js
+  slice_test_result: '# tests 236 / # pass 236 / # fail 0 — Quinn reexecutou (6 ficheiros do hunt; I1 incluso)'
+  hunt_probes: >
+    #2 solo=true; corte e pezinho=false; fazer o pé/pé e mão=false;
+    filter [] not null; C5 Pedicure; C6 Pedicure+Manicure;
+    suppress drops orcamento+CREATE, keeps cliente_pediu_humano;
+    I1 hasServiceSignal=true; A8-1 snapshot=0 slots=0
+  coverage_gap: 'S9-3 fixture vazio (TEST-01). T4 cola/sync fora deste gate.'
+  not_executed:
+    - 'WhatsApp / Kapso / smoke 0007 / OPEN.'
+    - 'Suíte completa do repo.'
+    - 'Deploy, rsync, Hostinger, rebuild de container, TESS PATCH 39496, cola 46589.'
+    - 'Religar bot / BOT_ACCEPT_ALL / POST Trinks / Nginx reload.'
+
+# ---------------------------------------------------------------------------
+# 4. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      last4-class. Sem E.164 / nome de cliente nos testes. Sem POST Trinks.
+      Sem inventar status.id. Sem SKU pezinho.
+  reliability:
+    status: PASS
+    notes: >
+      Só-pezinho não pede snapshot. Refresh cobre todas as datas impressas.
+      Cancelled continua fora via SQL. Confirmado ocupa. Worker 1440 intacto.
+  maintainability:
+    status: PASS
+    notes: 'TEST-01 residual no fixture S9-3. Helper subtract continua status-blind (SOT).'
+  performance:
+    status: PASS
+    notes: >
+      GET/turno ≤ |unique(slotDates)| quando stale. Tecto scoped típico ≤5.
+      Sem subir 1440.
+  observability:
+    status: PASS
+    notes: 'snapshot.offer / stale_after_min=45 intocados. Sem WhatsApp.'
+
+# ---------------------------------------------------------------------------
+# 5. PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: no
+authorizes_tess_patch: false
+authorizes_prompt_paste: false
+publish_note: >
+  PASS com blocks_publish vazio: Orion pode continuar o epic sem publish.
+  Este gate NÃO autoriza deploy, religar, BOT_ACCEPT_ALL, smoke 0007,
+  Hostinger, rsync, TESS PATCH 39496, cola 46589, Nginx reload, Kapso,
+  POST Trinks. T4 (Victor cola v3.2.4 + sync 4 memories) permanece aberto.
+  authorizes_prompt_paste é do Victor.
+
+slice_allowlist:
+  - backend/lib/booking-parser.js
+  - backend/lib/tess-context-assembler.js
+  - backend/server.js
+  - backend/test/booking-parser.test.js
+  - backend/test/tess-context-assembler.test.js
+  - backend/test/tess-context-slots.test.js
+  - backend/test/tess-context-intent.test.js
+  - backend/test/trinks-local-store.test.js
+  - backend/test/trinks-sync.test.js
+  - docs/prompts/tess-conversa-v3-clean.md
+  - docs/prompts/archive/tess-conversa-46589-v3.2.3-2026-09-04.md
+  - docs/prompts/CHANGELOG-46589.md
+  - docs/prompts/README-46589.md
+  - data/kb/conversa-v2/sinonimos-servicos.md
+  - data/kb/conversa-v2/regras-comerciais.md
+  - data/kb/conversa-v2/faq-servicos.md
+  - data/kb/conversa-v2/fichas-tecnicas-servicos.md
+  - docs/analysis/2026-09-04-aria-chao-8-9-tetos.md
+  - docs/stories/salon-whatsapp-chao-8-pezinho-cortesia.md
+  - docs/stories/salon-whatsapp-chao-9-ausencia-ocupa.md
+  - docs/qa/gates/2026-09-04-chao-8-9-pezinho-ausencia.yml
+  - docs/handoffs/2026-09-04-quinn-gate-chao-8-9.md
+
+# ---------------------------------------------------------------------------
+# 6. AUTO-DECISÕES
+# ---------------------------------------------------------------------------
+auto_decisions:
+  - '[AUTO-DECISION] Story Status=Ready-for-Dex (não InReview) → sem transição Done/InProgress (razão: qa-gate.md post-gate exige InReview; T4 ainda aberto).'
+  - '[AUTO-DECISION] Veredito PASS não CONCERNS (razão: 10/10 hunts verdes; TEST-01 low não bloqueia AC4).'
+  - '[AUTO-DECISION] T3 marcado nas duas stories; T4 story 8 permanece aberto (razão: missão; cola/sync = Victor).'
+  - '[AUTO-DECISION] AC4 marcado nas duas stories (razão: este ficheiro é o gate Quinn; sem WhatsApp).'
+  - '[AUTO-DECISION] authorizes_tess_patch=false · authorizes_prompt_paste=false (razão: missão; paste é do Victor).'
+  - '[AUTO-DECISION] nginx dirty vs HEAD não atribui a Dex 8+9 (razão: fora da allowlist).'
+  - '[AUTO-DECISION] Dex 169 vs Quinn 236 (razão: Quinn reexecutou os 6 ficheiros do hunt, I1 incluso; zero fail).'
+  - '[AUTO-DECISION] Sem patch (razão: missão gate; anti-self-review; Dex implementou).'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, paste 46589, TESS PATCH 39496, smoke 0007, Hostinger, religar, Nginx reload nem deploy.'
