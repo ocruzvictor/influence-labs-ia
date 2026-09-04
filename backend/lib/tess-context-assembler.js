@@ -4,7 +4,11 @@
 
 const { buildContextProfile, PROFILES } = require('./tess-context-profiles');
 const { logContextBytes } = require('./tess-context-bytes');
-const { compactBookingSlotsBlock } = require('./tess-context-slots');
+const {
+  compactBookingSlotsBlock,
+  resolveOfferDurationMin,
+  SNAPSHOT_STALE_OFFER_MIN,
+} = require('./tess-context-slots');
 const {
   filterServicesByKeywords,
   formatServicesText,
@@ -86,6 +90,7 @@ async function assembleTessContext(params) {
     catalogRequested: false,
     professionalsRequested: false,
     futureBookingsRequested: false,
+    snapshotAgeMin: null,
   };
 
   let slotDates = [];
@@ -151,12 +156,20 @@ async function assembleTessContext(params) {
         const groupedBlocks = await Promise.all(
           slotDates.map(async (date) => {
             const grouped = await getSlotsGrouped(date);
+            const age = Number(grouped.snapshotAgeMin);
+            if (Number.isFinite(age)) {
+              fetchMeta.snapshotAgeMin = fetchMeta.snapshotAgeMin == null
+                ? age
+                : Math.max(fetchMeta.snapshotAgeMin, age);
+            }
             return compactBookingSlotsBlock({
               label: grouped.label,
               professionals: grouped.professionals,
               messageText,
               historyText,
               allowedProfessionalNames,
+              durationMin: resolveOfferDurationMin(svcPayload.data),
+              snapshotAgeMin: Number.isFinite(age) ? age : null,
             });
           }),
         );
@@ -241,17 +254,23 @@ async function assembleTessContext(params) {
     profileSpec,
     svcPayload,
     profsPayload,
+    snapshotAgeMin: fetchMeta.snapshotAgeMin,
+    snapshotStale: fetchMeta.snapshotAgeMin != null
+      && fetchMeta.snapshotAgeMin >= SNAPSHOT_STALE_OFFER_MIN,
+    confidence: intentResult?.confidence || null,
   };
 }
 
-function emitContextBytesLog(ctx, sessionId, config, skippedTess = false) {
+function emitContextBytesLog(ctx, sessionId, config, skippedTess = false, extra = {}) {
   return logContextBytes({
     sessionId,
     intent: ctx.intent,
+    confidence: extra.confidence || ctx.confidence || null,
     contextProfile: ctx.contextProfile,
     skippedTess,
     blocks: ctx.blocks,
     mode: config.effectiveMode,
+    traceId: extra.traceId || null,
   });
 }
 

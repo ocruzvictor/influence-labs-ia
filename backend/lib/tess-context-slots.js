@@ -336,6 +336,22 @@ const CLOCK_HONESTY_FOOTER = [
   'Não some janelas nem invente horário. Se o cliente pedir um horário que não está aqui, diga que não cabe e ofereça 1 alternativa listada ou HANDOFF_HUMAN motivo=encaixe.',
 ].join(' ');
 
+const SNAPSHOT_STALE_OFFER_MIN = 45;
+
+function snapshotAgeMinFromSynced(syncedAtList, nowMs = Date.now()) {
+  const times = (syncedAtList || [])
+    .map((value) => (value == null ? NaN : new Date(value).getTime()))
+    .filter((ms) => Number.isFinite(ms));
+  if (!times.length) return null;
+  return Math.max(0, Math.round((nowMs - Math.max(...times)) / 60000));
+}
+
+function prependStaleWarning(text, snapshotAgeMin, staleAfterMin = SNAPSHOT_STALE_OFFER_MIN) {
+  const age = Number(snapshotAgeMin);
+  if (!Number.isFinite(age) || age < staleAfterMin) return text;
+  return `SNAPSHOT: atualizado há ${Math.round(age)} min — horários podem ter sido preenchidos. Não afirme vaga como certa.\n${text}`;
+}
+
 function formatClockOfferLines(label, relevant, period, exactClock, durationMin, timeZone) {
   const header = period
     ? `HORARIOS VAGOS ${label} — período ${period === 'morning' ? 'manhã' : 'tarde'} (inícios reais Trinks):`
@@ -377,6 +393,7 @@ function compactBookingSlotsBlock({
   historyText = '',
   allowedProfessionalNames = [],
   durationMin = 0,
+  snapshotAgeMin = null,
   timeZone = SALON_TZ,
 }) {
   const period = detectPeriod(messageText) || detectPeriod(historyText);
@@ -389,15 +406,17 @@ function compactBookingSlotsBlock({
   let pool = filterByAllowedNames(professionals, allowedProfessionalNames);
   const relevant = filterProfessionals(pool, mentionedTokens);
 
+  const finish = (text) => prependStaleWarning(text, snapshotAgeMin);
+
   if (!relevant.length) {
-    return `HORARIOS VAGOS ${label}:\n- Nenhum horario disponivel no snapshot local.`;
+    return finish(`HORARIOS VAGOS ${label}:\n- Nenhum horario disponivel no snapshot local.`);
   }
 
   const professionalKnown = mentionedTokens.length > 0;
   const wantsClocks = professionalKnown || (asksForClockList(messageText) && professionalKnown);
 
   if (wantsClocks) {
-    return formatClockOfferLines(label, relevant, period, exactClock, durationMin, timeZone).text;
+    return finish(formatClockOfferLines(label, relevant, period, exactClock, durationMin, timeZone).text);
   }
 
   if (!period) {
@@ -405,26 +424,26 @@ function compactBookingSlotsBlock({
       .map((p) => occupancyLine(p.name, p.startsAt, timeZone))
       .filter(Boolean);
     if (!occLines.length) {
-      return `HORARIOS VAGOS ${label}:\n- Nenhum horario disponivel no snapshot local.`;
+      return finish(`HORARIOS VAGOS ${label}:\n- Nenhum horario disponivel no snapshot local.`);
     }
-    return [
+    return finish([
       `HORARIOS VAGOS ${label} — OFERTA CONSULTIVA:`,
       ...occLines,
       CONSULTIVA_FOOTER,
-    ].join('\n');
+    ].join('\n'));
   }
 
   const occLines = relevant
     .map((p) => periodOccupancyLine(p.name, p.startsAt, period, timeZone))
     .filter(Boolean);
   if (!occLines.length) {
-    return `HORARIOS VAGOS ${label}:\n- Nenhum horario disponivel no snapshot local.`;
+    return finish(`HORARIOS VAGOS ${label}:\n- Nenhum horario disponivel no snapshot local.`);
   }
-  return [
+  return finish([
     `HORARIOS VAGOS ${label} — período ${period === 'morning' ? 'manhã' : 'tarde'}:`,
     ...occLines,
     CONSULTIVA_FOOTER,
-  ].join('\n');
+  ].join('\n'));
 }
 
 module.exports = {
@@ -441,4 +460,7 @@ module.exports = {
   pickStartsForOffer,
   resolveOfferDurationMin,
   asksForClockList,
+  SNAPSHOT_STALE_OFFER_MIN,
+  snapshotAgeMinFromSynced,
+  prependStaleWarning,
 };

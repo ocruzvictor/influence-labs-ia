@@ -64,12 +64,22 @@ describe('buildContextProfile', () => {
     assert.equal(p.explicitDateOnly, true);
   });
 
-  test('UNCERTAIN → FULL fallback', () => {
+  test('UNCERTAIN → MIN (não herda FULL)', () => {
     const p = buildContextProfile(
       { intent: INTENTS.UNCERTAIN, confidence: 'low' },
       { effectiveMode: 'scoped', slotContextDays: 10 },
     );
-    assert.equal(p.profile, PROFILES.FULL);
+    assert.equal(p.profile, PROFILES.MIN);
+    assert.equal(p.fetchSlots, false);
+    assert.equal(p.fetchCatalog, false);
+  });
+
+  test('UNCERTAIN em mode=full também fica MIN', () => {
+    const p = buildContextProfile(
+      { intent: INTENTS.UNCERTAIN, confidence: 'low' },
+      { effectiveMode: 'full', slotContextDays: 10 },
+    );
+    assert.equal(p.profile, PROFILES.MIN);
   });
 
   test('scoped CANCEL → fetchSlots false, future bookings only', () => {
@@ -82,12 +92,12 @@ describe('buildContextProfile', () => {
     assert.equal(p.fetchFutureBookings, true);
   });
 
-  test('low confidence → FULL', () => {
+  test('low confidence + scoped → perfil do intent (não FULL)', () => {
     const p = buildContextProfile(
       { intent: INTENTS.SCHEDULING, confidence: 'medium' },
       { effectiveMode: 'scoped', slotContextDays: 10 },
     );
-    assert.equal(p.profile, PROFILES.FULL);
+    assert.equal(p.profile, PROFILES.BOOKING);
   });
 
   test('story 6: SCHEDULING high pós-failed → BOOKING (não FULL 29k)', () => {
@@ -108,7 +118,7 @@ describe('resolveSlotDates', () => {
 
   test('FULL profile → multi-day + saturdays', () => {
     const spec = buildContextProfile(
-      { intent: INTENTS.UNCERTAIN, confidence: 'low' },
+      { intent: INTENTS.SCHEDULING, confidence: 'high' },
       { effectiveMode: 'full', slotContextDays: 3 },
     );
     const dates = resolveSlotDates({

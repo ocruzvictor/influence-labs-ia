@@ -30,6 +30,8 @@ const { formatAnnotatedTimes, bookingFitsSlotWindow } = require('./lib/slot-wind
 const {
   groupOpenSlots,
   formatFullSlotsBlock,
+  snapshotAgeMinFromSynced,
+  SNAPSHOT_STALE_OFFER_MIN,
 } = require('./lib/tess-context-slots');
 const {
   sanitizePremiumResponse,
@@ -191,8 +193,9 @@ const {
   extractTessCredits,
   logTessTurnTelemetry,
 } = require('./lib/tess-context-assembler');
-const { persistContextBytesEvent } = require('./lib/tess-context-bytes');
+const { persistContextBytesEvent, persistTessTurnEvent } = require('./lib/tess-context-bytes');
 const { saveConversationTurns: persistConversationTurns } = require('./lib/conversation-history');
+const { newTraceId, withTrace } = require('./lib/tess-trace');
 const { startOutboundWatchdog } = require('./lib/outbound-outbox');
 const { buildHandoffSlaPayload, formatHandoffSlaNotice } = require('./lib/handoff-sla');
 
@@ -364,8 +367,8 @@ function formatBookingDateTime(ts) {
   }
 }
 
-async function saveConversationTurns(phone, turns) {
-  return persistConversationTurns(db, phone, turns);
+async function saveConversationTurns(phone, turns, traceId) {
+  return persistConversationTurns(db, phone, withTrace(turns, traceId));
 }
 
 async function upsertClient(phone, name) {
@@ -542,7 +545,12 @@ async function fetchSlotsGrouped(date) {
     professionalNames,
     (profName, startsAt) => isClaudiaFridaySlot(profName, startsAt),
   );
-  return { label: formatDateLabel(date), date, professionals: grouped };
+  return {
+    label: formatDateLabel(date),
+    date,
+    professionals: grouped,
+    snapshotAgeMin: snapshotAgeMinFromSynced(openSlots.map((slot) => slot.synced_at)),
+  };
 }
 
 async function getSlotsGrouped(date) {
@@ -1252,8 +1260,9 @@ async function runOperatorResumeTurn(phone, operatorNote) {
 
 
 // --- Core message orchestration ---
-async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw, phone = null, kapsoConversationId = null) {
+async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw, phone = null, kapsoConversationId = null, inboundTraceId = null) {
   const startTime = Date.now();
+  const turnTraceId = inboundTraceId || newTraceId();
   const state = sessionState.get(sessionId) || { turn: 0, rootId: null, history: [], persistedMemory: null };
 
   // Cold start: load persisted memory from DB (phone sessions) or client-side history fallback (webchat)
@@ -1356,11 +1365,13 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       {
         intent: intentResult.intent,
         contextProfile,
+        confidence: intentResult.confidence,
         blocks: skipBlocks,
       },
       sessionId,
       TESS_CONTEXT_CONFIG,
       true,
+      { confidence: intentResult.confidence, traceId: turnTraceId },
     );
     persistContextBytesEvent(db, skipBytes, phone).catch(() => {});
     logTessTurnTelemetry({
@@ -1371,6 +1382,17 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       tessCredits: null,
     });
     recordTessCredits(db, tessCredits ?? 0);
+    persistTessTurnEvent(db, {
+      clientPhone: phone,
+      intent: intentResult.intent,
+      confidence: intentResult.confidence,
+      contextProfile,
+      tessCredits: 0,
+      skippedTess: true,
+      totalChars: skipBytes?.blocks?.total?.chars || 0,
+      traceId: turnTraceId,
+      sessionId,
+    }).catch(() => {});
   } else {
     assembledCtx = await assembleTessContext({
       sessionId,
@@ -1406,8 +1428,27 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       data: Array.isArray(assembledCtx.profsPayload?.data) ? assembledCtx.profsPayload.data : [],
     };
     contextProfile = assembledCtx.contextProfile;
-    const assembledBytes = emitContextBytesLog(assembledCtx, sessionId, TESS_CONTEXT_CONFIG, false);
+    const assembledBytes = emitContextBytesLog(
+      assembledCtx,
+      sessionId,
+      TESS_CONTEXT_CONFIG,
+      false,
+      { confidence: intentResult.confidence, traceId: turnTraceId },
+    );
     persistContextBytesEvent(db, assembledBytes, phone).catch(() => {});
+    if (assembledCtx.snapshotStale) {
+      emitOperationalEvent(db, {
+        event: 'snapshot.stale',
+        clientPhone: phone,
+        kapsoConversationId,
+        motivo: `age_min=${assembledCtx.snapshotAgeMin}`,
+        payload: {
+          snapshot_age_min: assembledCtx.snapshotAgeMin,
+          stale_after_min: SNAPSHOT_STALE_OFFER_MIN,
+          trace_id: turnTraceId,
+        },
+      }).catch(() => {});
+    }
 
     try {
       tessRaw = await callTESS([
@@ -1445,7 +1486,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         saveConversationTurns(phone, [
           { role: 'user', content: messageText, intent: intentResult.intent },
           { role: 'assistant', content: timeoutResult.response, agent: 'tess-timeout', intent: intentResult.intent },
-        ]).catch((saveErr) => console.error('[DB] Save TESS timeout turns error:', saveErr.message));
+        ], turnTraceId).catch((saveErr) => console.error('[DB] Save TESS timeout turns error:', saveErr.message));
       }
       state.history.push({ role: 'assistant', content: timeoutResult.response });
       state.turn += 1;
@@ -1466,6 +1507,17 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       tessCredits,
     });
     recordTessCredits(db, tessCredits ?? 0);
+    persistTessTurnEvent(db, {
+      clientPhone: phone,
+      intent: intentResult.intent,
+      confidence: intentResult.confidence,
+      contextProfile,
+      tessCredits,
+      skippedTess: false,
+      totalChars: assembledBytes?.blocks?.total?.chars || 0,
+      traceId: turnTraceId,
+      sessionId,
+    }).catch(() => {});
 
     if (pendingOperatorNote && phone && tessText) {
       await markResumeNoteConsumed(db, phone);
@@ -1497,7 +1549,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     if (phone) {
       saveConversationTurns(phone, [
         { role: 'assistant', content: fallback, agent: 'tess-fallback', intent: intentResult.intent },
-      ]).catch((err) => console.error('[DB] Save empty-TESS fallback error:', err.message));
+      ], turnTraceId).catch((err) => console.error('[DB] Save empty-TESS fallback error:', err.message));
     }
     return {
       response: fallback,
@@ -1568,7 +1620,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     saveConversationTurns(phone, [
       { role: 'user', content: messageText, intent: intentResult.intent },
       { role: 'assistant', content: displayText, intent: intentResult.intent },
-    ]).catch(err => console.error('[DB] Save turns error:', err.message));
+    ], turnTraceId).catch(err => console.error('[DB] Save turns error:', err.message));
   }
 
   // 4. Executar acao no Trinks de acordo com tag emitida pelo TESS
@@ -2232,6 +2284,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         agent: 'trinks-2phase',
         intent: intentResult.intent,
       })),
+      turnTraceId,
     ).catch((err) => console.error('[DB] Save 2-phase turns error:', err.message));
   }
   return result;
@@ -2614,6 +2667,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   // contact_name pode vir em conversation.contact_name (novo) ou conversation.kapso.contact_name (legado da doc)
   const contactName = firstConv?.contact_name || firstConv?.kapso?.contact_name || 'Cliente';
   const sessionPhone = String(sessionId).replace(/\D/g, '');
+  const inboundTraceId = newTraceId();
   // phone_number_id da conexão Kapso deste inbound (número do BOT, não o da recepção 94831)
   const phoneNumberId = events[0]?.phone_number_id || firstConv?.phone_number_id || req.body?.phone_number_id;
   if (phoneNumberId) lastKnownKapsoPhoneNumberId = phoneNumberId;
@@ -2638,7 +2692,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   if (sessionPhone) {
     saveConversationTurns(sessionPhone, [
       { role: 'user', content: messageText, agent: 'passive' }
-    ]).catch(err => console.error('[passive-log] erro:', err.message));
+    ], inboundTraceId).catch(err => console.error('[passive-log] erro:', err.message));
   }
 
   // 4. Bot state via DB (Story 1.2-DATA): toggles + whitelist com cache 5s.
@@ -2759,7 +2813,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
       return;
     }
 
-    const result = await processMessage(sessionId, messageText, contactName, null, sessionId, kapsoConversationId);
+    const result = await processMessage(sessionId, messageText, contactName, null, sessionId, kapsoConversationId, inboundTraceId);
     const blocks = result.responses?.length ? result.responses : [result.response];
     let sentAny = false;
     for (const block of blocks) {

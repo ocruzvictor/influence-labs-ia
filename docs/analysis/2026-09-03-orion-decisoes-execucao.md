@@ -18,8 +18,21 @@
 
 Não deploy. Não Hostinger. Não rsync. Não alterar `BOT_ACCEPT_ALL` (preservar baseline VPS). Não paste de prompt. Não Trinks mutate.
 
-## Próximo — ACK Victor
+## Publicado 2026-09-03 ~22:30Z
 
-Quinn: **CONCERNS** (`docs/qa/gates/2026-09-03-outbox-sla-scoped.yml`). SLA-01/OBX-01/OBX-02 corrigidos no disco; gate não reaberto.
-Gage: plano em `docs/ops/2026-09-03-gage-publish-plan-outbox-sla-scoped.md`.
-Publish continua **não** autorizado.
+Victor ACK 1+2+3+4. Commit `b42bb2b` em `origin/feature/tess-commit-honesty`. VPS worktree + backend = `b42bb2b`.
+
+Live: `TESS_CONTEXT_MODE=scoped`, `TESS_SKIP_TRIVIAL=true`, `BOT_ACCEPT_ALL=true` (baseline preservado). Outbox + SLA + resume-ia.6 no ar. Compose do VPS **não** sobrescrito. Nginx `-t` ok + reload. Backup `backend.bak.1788474285`. Sem Hostinger. Sem rsync local. Sem smoke `0007`.
+
+## Estacionados (voltar já — sem story)
+
+Victor 2026-09-03 noite: tokens promissórios **e** dor de horário vs duração sentida pelo time.
+
+SOT: `docs/analysis/2026-09-03-orion-estacionados.md`
+
+| ID | Dor | Status |
+|---|---|---|
+| PARK-TOKENS | `UNCERTAIN` herda FULL + sem teto de chars | **Em código local** (item 6). Hard cap (7) continua fora |
+| PARK-SLOTS | Tess sugere hora que o guard recusa na confirmação (ping-pong) | **Em código local** (itens 1+2). Sem deploy |
+
+Pool Victor 23:12: `1,2,3,6,8,12,13,16,18` — fatia `docs/analysis/2026-09-03-orion-fatia-pool-victor.md`. Sem publish até ACK.

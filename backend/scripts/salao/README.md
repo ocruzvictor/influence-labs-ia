@@ -17,6 +17,8 @@ node backend/scripts/salao/agendamento/resolver_id_cancelamento.js --id 123 --fu
 node backend/scripts/salao/observabilidade/listar_fios_presos.js --horas 12
 node backend/scripts/salao/observabilidade/detectar_ack_sem_outbound.js --minutos 60 --segundos 45
 node backend/scripts/salao/observabilidade/correlacionar_last4.js --last4 0007
+node backend/scripts/salao/observabilidade/correlacionar_last4.js --trace-id <uuid>
+node backend/scripts/salao/observabilidade/listar_fila_atendimento.js --horas 12
 node backend/scripts/salao/observabilidade/patrulhar_ao_vivo.js --minutos 15
 node backend/scripts/salao/observabilidade/verificar_commit.js --last4 0007
 node backend/scripts/salao/observabilidade/listar_orfaos.js --minutos 15

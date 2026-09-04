@@ -23,6 +23,21 @@ function buildContextProfile(intentResult, opts = {}) {
   const slotContextDays = Math.max(1, Number(opts.slotContextDays) || 10);
   const requestedDate = opts.requestedDate || null;
 
+  if (intent === INTENTS.UNCERTAIN) {
+    return {
+      profile: PROFILES.MIN,
+      fetchSlots: false,
+      fetchCatalog: false,
+      fetchProfessionals: false,
+      fetchHabilitacao: false,
+      fetchFutureBookings: false,
+      slotDays: 0,
+      includeSaturdays: false,
+      filterCatalog: false,
+      explicitDateOnly: false,
+    };
+  }
+
   if (intent === INTENTS.CANCEL && confidence === 'high') {
     return {
       profile: PROFILES.CANCEL,
@@ -38,7 +53,7 @@ function buildContextProfile(intentResult, opts = {}) {
     };
   }
 
-  if (effectiveMode === 'full' || confidence !== 'high' || intent === INTENTS.UNCERTAIN) {
+  if (effectiveMode === 'full') {
     return {
       profile: PROFILES.FULL,
       fetchSlots: true,
@@ -133,7 +148,7 @@ function buildContextProfile(intentResult, opts = {}) {
     default:
       return buildContextProfile(
         { intent: INTENTS.UNCERTAIN, confidence: 'low', signals: [] },
-        { ...opts, effectiveMode: 'full' },
+        { ...opts, effectiveMode: 'scoped' },
       );
   }
 }

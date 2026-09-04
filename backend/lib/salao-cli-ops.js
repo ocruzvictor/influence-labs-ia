@@ -7,6 +7,7 @@ const {
   normalizeLast4,
   redactSnippet,
   resolveLast4ToPhone,
+  resolveTraceId,
   getThread,
   listEvents,
   listMutations,
@@ -157,7 +158,51 @@ async function checarFrescuraSnapshot(db, { maxIdadeHoras = 24, data = null } = 
   };
 }
 
-async function correlacionarLast4(db, { last4, minutos = 30 } = {}) {
+async function correlacionarLast4(db, { last4, minutos = 30, traceId = null } = {}) {
+  if (traceId) {
+    const byTrace = await resolveTraceId(db, traceId);
+    if (byTrace.ambiguous) {
+      return {
+        last4: last4FromPhone(byTrace.phones[0]),
+        trace_id: byTrace.trace_id,
+        ambiguous_last4: true,
+        window_min: null,
+        thread: null,
+        events: [],
+        mutations: [],
+      };
+    }
+    if (!byTrace.phone) {
+      return {
+        last4: null,
+        trace_id: byTrace.trace_id,
+        ambiguous_last4: false,
+        window_min: null,
+        thread: null,
+        events: [],
+        mutations: [],
+      };
+    }
+    const [thread, events, mutations] = await Promise.all([
+      getThread(db, {
+        last4: last4FromPhone(byTrace.phone),
+        clientPhone: byTrace.phone,
+        limit: 16,
+        minutes: 180,
+      }),
+      listEvents(db, { minutes: 180, clientPhone: byTrace.phone }),
+      listMutations(db, { minutes: 180, clientPhone: byTrace.phone }),
+    ]);
+    return {
+      last4: last4FromPhone(byTrace.phone),
+      trace_id: byTrace.trace_id,
+      ambiguous_last4: false,
+      window_min: 180,
+      thread,
+      events,
+      mutations,
+    };
+  }
   const needle = normalizeLast4(last4);
   if (!needle) return { error: 'last4_required' };
   const windowMin = Math.min(180, Math.max(5, Number(minutos) || 30));
@@ -230,16 +275,122 @@ async function relatarSloEventos(db, { minutos = 60, horas = null } = {}) {
       LIMIT 12`,
     [windowMin],
   );
+  const hours = Math.max(windowMin / 60, 1 / 60);
+  const burnEvents = [
+    'tess.timeout',
+    'booking.failed',
+    'cancel.not_owned',
+    'handoff.human',
+    'tess.empty',
+    'guard.blocked',
+    'handoff.sla_breach',
+    'outbound.watchdog',
+    'snapshot.stale',
+  ];
+  const perHour = {};
+  for (const event of burnEvents) {
+    const n = counts[event] || 0;
+    perHour[event] = Number((n / hours).toFixed(2));
+  }
   return {
     window_min: windowMin,
     total,
     counts,
     rates,
+    per_hour: perHour,
     sample: (sample?.rows || []).map((row) => ({
       event: row.event,
       last4: last4OnlyPhone(row.client_phone),
       motivo: redactSnippet(row.motivo, 80),
     })),
+  };
+}
+
+async function listarFilaAtendimento(db, { horas = 12, sampleLimit = 30 } = {}) {
+  const hours = Math.min(72, Math.max(1, Number(horas) || 12));
+  const take = Math.min(80, Math.max(1, Number(sampleLimit) || 30));
+  const result = await db.query(
+    `WITH last AS (
+       SELECT DISTINCT ON (regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'))
+              client_phone, role, content, intent, trace_id, created_at, agent
+         FROM conversation_history
+        WHERE created_at >= NOW() - ($1 * INTERVAL '1 hour')
+          AND regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') <> ''
+        ORDER BY regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), created_at DESC
+     ),
+     last_user AS (
+       SELECT DISTINCT ON (regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'))
+              client_phone, content, intent, created_at
+         FROM conversation_history
+        WHERE created_at >= NOW() - ($1 * INTERVAL '1 hour')
+          AND role = 'user'
+          AND regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') <> ''
+        ORDER BY regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), created_at DESC
+     ),
+     last_event AS (
+       SELECT DISTINCT ON (regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'))
+              client_phone, event, motivo, payload, received_at
+         FROM bot_operational_events
+        WHERE received_at >= NOW() - ($1 * INTERVAL '1 hour')
+          AND event IN (
+            'handoff.human','handoff.accepted','handoff.sla_breach',
+            'booking.failed','booking.created','tess.timeout','tess.empty',
+            'guard.blocked','tess.turn','snapshot.stale'
+          )
+        ORDER BY regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g'), received_at DESC
+     )
+     SELECT l.client_phone, l.role, l.content, l.intent, l.trace_id, l.created_at, l.agent,
+            u.content AS last_user_content, u.intent AS last_user_intent, u.created_at AS last_user_at,
+            w.mode AS whitelist_mode,
+            t.silenced_until, t.silence_reason, t.last_handoff_at, t.last_handoff_motivo,
+            e.event AS last_event, e.motivo AS last_event_motivo, e.payload AS last_event_payload
+       FROM last l
+       LEFT JOIN last_user u
+         ON regexp_replace(COALESCE(u.client_phone, ''), '[^0-9]', '', 'g')
+          = regexp_replace(COALESCE(l.client_phone, ''), '[^0-9]', '', 'g')
+       LEFT JOIN bot_whitelist w
+         ON regexp_replace(COALESCE(w.phone, ''), '[^0-9]', '', 'g')
+          = regexp_replace(COALESCE(l.client_phone, ''), '[^0-9]', '', 'g')
+       LEFT JOIN bot_thread_state t
+         ON regexp_replace(COALESCE(t.phone, ''), '[^0-9]', '', 'g')
+          = regexp_replace(COALESCE(l.client_phone, ''), '[^0-9]', '', 'g')
+       LEFT JOIN last_event e
+         ON regexp_replace(COALESCE(e.client_phone, ''), '[^0-9]', '', 'g')
+          = regexp_replace(COALESCE(l.client_phone, ''), '[^0-9]', '', 'g')
+      ORDER BY COALESCE(u.created_at, l.created_at) ASC`,
+    [hours],
+  );
+  const now = Date.now();
+  const threads = (result?.rows || []).map((row) => {
+    const silencedUntil = row.silenced_until ? new Date(row.silenced_until).getTime() : 0;
+    const payload = row.last_event_payload && typeof row.last_event_payload === 'object'
+      ? row.last_event_payload
+      : {};
+    return {
+      last4: last4OnlyPhone(row.client_phone),
+      last_role: row.role,
+      last_intent: row.last_user_intent || row.intent || null,
+      waiting_min: row.last_user_at
+        ? Math.round((now - new Date(row.last_user_at).getTime()) / 60000)
+        : null,
+      snippet: redactSnippet(row.last_user_content || row.content),
+      whitelist_mode: row.whitelist_mode || null,
+      silenced: silencedUntil > now,
+      silence_reason: row.silence_reason || null,
+      handoff_at: row.last_handoff_at || null,
+      handoff_motivo: row.last_handoff_motivo || null,
+      last_event: row.last_event || null,
+      last_event_motivo: redactSnippet(row.last_event_motivo, 80),
+      context_profile: payload.context_profile || null,
+      tess_credits: payload.tess_credits ?? null,
+      trace_id: row.trace_id || payload.trace_id || null,
+    };
+  });
+  return {
+    horas: hours,
+    total: threads.length,
+    sample_limit: take,
+    threads: threads.slice(0, take),
   };
 }
 
@@ -249,4 +400,5 @@ module.exports = {
   checarFrescuraSnapshot,
   correlacionarLast4,
   relatarSloEventos,
+  listarFilaAtendimento,
 };

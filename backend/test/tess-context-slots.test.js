@@ -108,6 +108,17 @@ describe('compactBookingSlotsBlock', () => {
     assert.ok(timeMatches.length <= 2, `expected <=2 annotated times, got ${timeMatches.length}`);
   });
 
+  test('snapshot velho prefixa aviso sem inventar horário', () => {
+    const text = compactBookingSlotsBlock({
+      label: '02/09 (terça)',
+      professionals,
+      messageText: 'quero cortar amanhã',
+      snapshotAgeMin: 90,
+    });
+    assert.match(text, /SNAPSHOT: atualizado há 90 min/);
+    assert.match(text, /OFERTA CONSULTIVA/);
+  });
+
   test('duração 90min filtra inícios que não cabem na janela contínua', () => {
     const tight = [
       { name: 'Erick', professionalId: '1', startsAt: [

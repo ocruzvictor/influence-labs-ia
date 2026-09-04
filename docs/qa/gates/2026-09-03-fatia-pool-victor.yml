@@ -1,0 +1,295 @@
+schema: 1
+slice: '2026-09-03-fatia-pool-victor'
+slice_title: 'Fatia operacional — pool Victor (itens 1, 2, 3, 6, 8, 12, 13, 16)'
+scope_type: 'operational-slice'   # NÃO é story formal; SOT = análise Orion + pacote QA
+gate: CONCERNS
+status_reason: >
+  Hot-path e CLI batem com o SOT: durationMin ligado no assembler, snapshot ≥45 min
+  avisa e emite snapshot.stale, UNCERTAIN → MIN mesmo em mode=full, confiança baixa
+  em intent conhecido + scoped usa o perfil do intent. 109/109 testes verdes.
+  CONCERNS é a pergunta de qualidade do item 6 (MIN não vira silêncio robótico) —
+  Tess ainda é chamada; não reverter UNCERTAIN para FULL.
+reviewer: 'Quinn (Test Architect)'
+sot_handoff: 'docs/handoffs/2026-09-03-orion-fatia-pool-qa.md'
+sot_decisions: 'docs/analysis/2026-09-03-orion-fatia-pool-victor.md'
+reviewed_revision: 'uncommitted-on-b42bb2b'
+reviewed_worktree: 'dirty — fatia uncommitted em cima de b42bb2b (live)'
+deployed_revision: 'b42bb2b228e409ca6f48091493f795a89c608e2b'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T02:28:00Z'
+expires: '2026-09-18T02:28:00Z'
+quality_score: 86
+waiver: { active: false }
+
+# ---------------------------------------------------------------------------
+# 1. VERIFICAÇÕES PEDIDAS — resultado por item
+# ---------------------------------------------------------------------------
+requested_checks:
+  item1_duration_min:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-assembler.js:171 — durationMin: resolveOfferDurationMin(svcPayload.data) no compact BOOKING.'
+      - 'backend/lib/tess-context-slots.js:197-203 — resolveOfferDurationMin devolve 0 se vazio ou >3 SKUs; senão max(duração).'
+      - 'backend/test/tess-context-assembler.test.js:208-230 — Maquiagem 120min + buraco 14:00/14:30 → "sem janela contínua de 120min", sem 14:00 (30min).'
+      - 'backend/test/tess-context-slots.test.js:122-139 — durationMin 90 filtra 14:00 isolado; mantém 09:00 (90min contínuos).'
+    notes: >
+      Filtro só no caminho compact BOOKING (scoped + getSlotsGrouped). mode=full
+      continua no dump getSlots(), sem durationMin — rollback documentado é
+      revert do wiring no assembler. Limite ≤3 SKUs está no SOT.
+
+  item2_snapshot_stale:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-slots.js:339 — SNAPSHOT_STALE_OFFER_MIN = 45.'
+      - 'backend/lib/tess-context-slots.js:349-352 — prependStaleWarning prefixa "Não afirme vaga como certa" sem inventar horário.'
+      - 'backend/lib/tess-context-assembler.js:258-259 — snapshotStale quando age ≥ 45.'
+      - 'backend/server.js:552 — getSlotsGrouped calcula snapshotAgeMin via snapshotAgeMinFromSynced(synced_at).'
+      - 'backend/server.js:1439-1450 — emite snapshot.stale com age, stale_after_min=45 e trace_id.'
+      - 'backend/test/tess-context-assembler.test.js:233-251 — age 90 → snapshotStale=true e aviso no bloco HORARIOS.'
+    notes: >
+      Aviso e evento só no compact BOOKING (mesmo recorte do item 1). Prod live
+      é scoped. snapshot.stale entra em WATCH_EVENTS (nightwatch-ops.js:26).
+
+  item6_uncertain_min:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-profiles.js:26-39 — UNCERTAIN retorna MIN ANTES do dump full.'
+      - 'backend/lib/tess-context-profiles.js:56 — o dump FULL agora é só effectiveMode === ''full'' (saiu confidence !== high e UNCERTAIN).'
+      - 'backend/lib/tess-context-profiles.js:148-151 — default desconhecido recursa com scoped, não full.'
+      - 'backend/test/tess-context-profiles.test.js:67-83 — UNCERTAIN scoped e full → MIN.'
+      - 'backend/test/tess-context-profiles.test.js:95-101 — SCHEDULING confidence=medium + scoped → BOOKING, não FULL.'
+      - 'backend/test/tess-context-assembler.test.js:196-206 — UNCERTAIN scoped → zero fetch de grade/catálogo.'
+    notes: >
+      Rollback do item 6: TESS_CONTEXT_MODE=full ainda dumpa intents conhecidos;
+      UNCERTAIN continua MIN. Não reverter este corte.
+
+  item6_quality_min_disambiguation:
+    status: CONCERNS
+    evidence:
+      - 'shouldSkipTess só pula TRIVIAL high com skip ligado (tess-context-intent.js:314-335). UNCERTAIN nunca skipa.'
+      - 'assembleTessContext em MIN ainda chama Tess com shell + histórico + mensagem (sem grade/catálogo).'
+      - 'Pacote Orion: marcar CONCERNS se MIN ficar genérico demais — não "consertar" voltando FULL.'
+    notes: >
+      Sem smoke WhatsApp (proibido). Em código, MIN ≠ silêncio: Tess é chamada.
+      Risco residual é resposta genérica em frases compostas tipo "quanto custa
+      e tem sábado?" (UNCERTAIN, zero catálogo/slots). Aceito como QUAL-01.
+
+  item3_worklist_last4:
+    status: PASS
+    evidence:
+      - 'backend/scripts/salao/observabilidade/listar_fila_atendimento.js:3 — header last4 only.'
+      - 'backend/lib/salao-cli-ops.js:370,376 — last4OnlyPhone + redactSnippet; telefone cheio não sai.'
+      - 'backend/test/salao-cli-ops.test.js:127-130 — last4=0007, trace_id preservado, JSON sem 5511964540007.'
+
+  item8_tess_turn_persist:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-bytes.js:97-129 — persistTessTurnEvent grava intent, confidence, context_profile, tess_credits, total_chars, trace_id.'
+      - 'backend/server.js:1384-1395 e :1509-1520 — persist nos caminhos skip e Tess; recordTessCredits (agregado diário) permanece.'
+      - 'backend/test/tess-context-bytes-persist.test.js:36-58 — evento tess.turn com créditos + perfil + trace_id.'
+    notes: 'Não cria tabela nova. Agregado tess_credit_usage_daily intacto.'
+
+  item12_slo_per_hour:
+    status: PASS
+    evidence:
+      - 'backend/lib/salao-cli-ops.js:278-300 — per_hour dos P0 (timeout, booking.failed, handoff, snapshot.stale, …).'
+      - 'backend/test/salao-cli-ops.test.js:87-98 — tess.timeout=2/h na janela de 60 min; booking.failed=0.'
+
+  item13_trace_id:
+    status: PASS
+    evidence:
+      - 'infra/schema.sql:40 — coluna conversation_history.trace_id VARCHAR(64) já existia.'
+      - 'backend/lib/conversation-history.js:27-29 — INSERT inclui trace_id; clipTraceId ≤64.'
+      - 'backend/server.js:370-371 — wrapper withTrace(turns, traceId).'
+      - 'backend/lib/salao-cli-ops.js:161-204 — --trace-id resolve sem clamp de 30 min; janela 180.'
+      - 'backend/test/conversation-history.test.js:34-46 — gravou trace-abc na coluna existente.'
+      - 'backend/test/salao-cli-ops.test.js:133-148 — correlacionarLast4({traceId}) window_min=180.'
+
+  item16_confidence_profile:
+    status: PASS
+    evidence:
+      - 'backend/lib/tess-context-bytes.js:50-54,84-89 — tess.context_bytes leva confidence, context_profile, trace_id.'
+      - 'backend/lib/tess-context-bytes.js:113-120 — tess.turn idem.'
+      - 'backend/lib/tess-context-assembler.js:260,268-273 — assembler devolve confidence e emitContextBytesLog propaga.'
+
+  i1_no_regression:
+    status: PASS
+    evidence:
+      - 'Esta fatia não toca backend/lib/outbound-outbox.js.'
+      - 'backend/test/outbound-outbox.test.js — 4/4 PASS (copy honesta, markFinal, fail único, send sobrevive emitEvent reject).'
+    notes: 'Não reabre o gate 2026-09-03-outbox-sla-scoped.yml.'
+
+  last4_only_cli:
+    status: PASS
+    evidence:
+      - 'listar_fila, correlacionar --trace-id e relatar_slo_eventos saem por last4OnlyPhone/redactSnippet.'
+      - 'Testes assertam ausência do E.164 completo.'
+
+  no_prompt_46589:
+    status: PASS
+    evidence:
+      - 'Nenhum diff em docs/prompts/tess-conversa-v3-clean.md nem archive do 46589 nesta fatia.'
+      - 'docs/prompts/README-46589.md está dirty no worktree mas FORA da allowlist desta fatia (índice, não paste).'
+    notes: 'Gage não inclui README-46589.md no commit desta fatia.'
+
+  no_bot_accept_all_flip:
+    status: PASS
+    evidence:
+      - 'git diff backend/server.js | rg BOT_ACCEPT_ALL → vazio.'
+      - 'backend/server.js:110 — continua process.env.BOT_ACCEPT_ALL === ''true''.'
+
+  no_0007_andre_replay:
+    status: PASS
+    evidence:
+      - '0007 aparece só como fixture last4 em testes. Zero smoke WhatsApp, zero replay André.'
+
+# ---------------------------------------------------------------------------
+# 2. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues:
+  - id: 'QUAL-01'
+    severity: medium
+    finding: >
+      UNCERTAIN → MIN corta grade e catálogo; Tess ainda fala, mas frases compostas
+      (preço+data) perdem insumos Trinks e podem ficar genéricas
+    evidence: >
+      classifyTessIntent("quanto custa amanhã") / "quanto custa e tem sábado?" →
+      UNCERTAIN (tess-context-intent.test.js:30-32; assembler.test.js:196-206).
+      MIN zera fetchSlots/fetchCatalog. shouldSkipTess não se aplica. Sem smoke
+      WhatsApp neste gate (trava do pacote).
+    impact: >
+      Cliente pode receber pergunta de desambiguação sem preço nem horário live.
+      É o corte autorizado do item 6 (crédito). NÃO é silêncio robótico.
+    suggested_action: >
+      Observar tess.turn UNCERTAIN:MIN em live após ACK. Não voltar UNCERTAIN
+      para FULL. Hard cap de chars (item 7) continua fora.
+    blocks_publish: false
+
+  - id: 'SLOT-01'
+    severity: low
+    finding: 'durationMin usa o máximo das durações quando há 2–3 SKUs no payload filtrado'
+    evidence: 'backend/lib/tess-context-slots.js:197-203 — Math.max(...durs) se length ≤ 3.'
+    impact: >
+      Combo curto+longo (ex. corte 30 + maquiagem 120) esconde inícios que
+      caberiam só no curto. Conservador; o guard de confirmação continua.
+    suggested_action: 'Aceitar. Se doer, filtrar pela duração do SKU escolhido — fatia futura.'
+    blocks_publish: false
+
+  - id: 'OBS-01'
+    severity: low
+    finding: 'logTessTurnTelemetry (stdout) não leva confidence nem trace_id'
+    evidence: 'backend/lib/tess-context-assembler.js:293-310 — payload de console tem intent/profile/credits, sem confidence/trace_id. persistTessTurnEvent no DB tem os dois.'
+    impact: 'grep de log de container fica cego no cruzamento; a CLI/DB não.'
+    suggested_action: 'Opcional: espelhar confidence e trace_id no JSON de stdout.'
+    blocks_publish: false
+
+# ---------------------------------------------------------------------------
+# 3. EVIDÊNCIA DE TESTES
+# ---------------------------------------------------------------------------
+evidence:
+  slice_tests: 'PASS — 109/109 (10 arquivos pedidos)'
+  slice_test_command: "node --test test/tess-context-profiles.test.js test/tess-context-assembler.test.js test/tess-context-slots.test.js test/tess-context-bytes-persist.test.js test/conversation-history.test.js test/salao-cli-ops.test.js test/salao-cli-catalog.test.js test/tess-context-intent.test.js test/outbound-outbox.test.js test/handoff-sla.test.js"
+  slice_test_result: '# tests 109 / # suites 14 / # pass 109 / # fail 0 (173ms)'
+  syntax: 'PASS — node --check em 11 arquivos da fatia (libs + CLIs + server.js)'
+  prior_slice_regression: 'PASS — outbound-outbox 4/4 e handoff-sla 5/5 verdes; I1 não regrediu'
+  coverage_gap: 'QUAL-01 — sem smoke WhatsApp de desambiguação MIN (proibido neste gate)'
+  not_executed:
+    - 'Deploy, rsync, Hostinger, rebuild de container — fora de autoridade.'
+    - 'Smoke WhatsApp last4 0007 / replay André — trava do pacote.'
+    - 'Paste de prompt 46589 — trava do pacote.'
+    - 'npm run lint / typecheck — sem script correspondente no backend/package.json.'
+
+# ---------------------------------------------------------------------------
+# 4. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      last4-only nas CLIs novas/alteradas. trace_id é UUID, não PII.
+      BOT_ACCEPT_ALL intocado. Allowlist de telefone intocada. Sem mutação
+      Trinks nova. conversation_history.trace_id é coluna já existente.
+  reliability:
+    status: PASS
+    notes: >
+      persistTessTurnEvent / persistContextBytesEvent / snapshot.stale são
+      fire-and-forget (.catch(() => {})). Queda de DB perde rastro, não o
+      reply. Agregado diário de crédito permanece.
+  maintainability:
+    status: PASS
+    notes: 'Testes cobrem os três cortes de cliente e as CLIs. Default desconhecido não explode em FULL.'
+  performance:
+    status: PASS
+    notes: >
+      UNCERTAIN deixa de buscar grade/catálogo (o ofensor de crédito).
+      durationMin é CPU local no snapshot. Sem re-GET Trinks.
+  observability:
+    status: PASS
+    notes: >
+      tess.turn + tess.context_bytes ganham confidence/profile/trace_id.
+      snapshot.stale e tess.turn entram em WATCH_EVENTS. relatar_slo_eventos
+      ganha per_hour. correlacionar --trace-id fura o clamp de 30 min.
+      OBS-01 é só stdout.
+
+# ---------------------------------------------------------------------------
+# 5. O QUE BLOQUEIA PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: yes-with-conditions
+publish_note: >
+  Sem bloqueador de código nesta fatia. W2 NÃO é obrigatório antes do ACK.
+  Publish só depois de W3 (ACK Victor "pode publicar") e W4 Gage com allowlist
+  desta fatia. Este gate não autoriza Hostinger, rsync, BOT_ACCEPT_ALL,
+  alteração de allowlist, paste de prompt 46589, mutação Trinks nem smoke 0007.
+
+slice_allowlist:
+  - backend/lib/tess-context-assembler.js
+  - backend/lib/tess-context-slots.js
+  - backend/lib/tess-context-profiles.js
+  - backend/lib/tess-context-intent.js
+  - backend/lib/tess-context-bytes.js
+  - backend/lib/tess-trace.js
+  - backend/lib/conversation-history.js
+  - backend/lib/salao-cli-ops.js
+  - backend/lib/nightwatch-ops.js
+  - backend/server.js
+  - backend/scripts/salao/observabilidade/listar_fila_atendimento.js
+  - backend/scripts/salao/observabilidade/correlacionar_last4.js
+  - backend/scripts/salao/README.md
+  - backend/test/tess-context-profiles.test.js
+  - backend/test/tess-context-assembler.test.js
+  - backend/test/tess-context-slots.test.js
+  - backend/test/tess-context-bytes-persist.test.js
+  - backend/test/conversation-history.test.js
+  - backend/test/salao-cli-ops.test.js
+  - docs/analysis/2026-09-03-orion-fatia-pool-victor.md
+  - docs/handoffs/2026-09-03-orion-fatia-pool-qa.md
+  - docs/qa/gates/2026-09-03-fatia-pool-victor.yml
+  - docs/handoffs/2026-09-03-quinn-gate-fatia-pool.md
+
+# ---------------------------------------------------------------------------
+# 6. RECOMENDAÇÕES
+# ---------------------------------------------------------------------------
+recommendations:
+  immediate:
+    - action: 'Victor ACK (W3) com QUAL-01 visível — sem patch W2.'
+      refs: ['docs/ops/2026-09-03-orion-workflow-pool.md']
+    - action: 'Commit allowlist-only. Não levar README-46589.md, infra/*, nginx, frontend, KB.'
+      refs: ['docs/prompts/README-46589.md']
+  future:
+    - action: 'Após publish, amostrar tess.turn UNCERTAIN:MIN — se a copy ficar muda/genérica, ajustar prompt ou classificador, não o perfil FULL.'
+      refs: ['backend/lib/tess-context-profiles.js:26-39']
+    - action: 'OBS-01: incluir confidence e trace_id no JSON de logTessTurnTelemetry.'
+      refs: ['backend/lib/tess-context-assembler.js:293-310']
+
+auto_decisions:
+  - '[AUTO-DECISION] Fatia sem story formal → gate emitido como scope_type=operational-slice, SOT = análise Orion + pacote QA (razão: SOT declara que @sm/@po não abriram story).'
+  - '[AUTO-DECISION] Sem transição de Status de story (razão: não há story InReview; qa-gate.md post-gate não se aplica).'
+  - '[AUTO-DECISION] Auditar só a allowlist desta fatia; worktree dirty enorme ignorado (razão: mesmo critério do gate outbox-sla-scoped).'
+  - '[AUTO-DECISION] Não reabrir findings do gate 2026-09-03-outbox-sla-scoped.yml (razão: esta fatia não toca outbox/SLA/compose/nginx; testes I1 e SLA verdes).'
+  - '[AUTO-DECISION] QUAL-01 = CONCERNS sem dente W2 (razão: pacote Orion pede CONCERNS e proíbe reverter UNCERTAIN→FULL; Tess ainda é chamada).'
+  - '[AUTO-DECISION] W2 não obrigatório antes do ACK Victor (razão: zero blocks_publish; CONCERNS é qualidade aceita, não defeito a corrigir).'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, mudança de allowlist, paste de prompt 46589, smoke 0007 nem qualquer deploy.'

@@ -22,6 +22,8 @@ const WATCH_EVENTS = [
   'tess.timeout',
   'cancel.not_owned',
   'outbound.watchdog',
+  'tess.turn',
+  'snapshot.stale',
 ];
 
 const SUCCESS_COPY_RE = /confirmado|agendado|garantido|j[aá] marcado|reagendei|cancelei|t[aá] certo|pronto!/i;
@@ -80,6 +82,26 @@ async function resolveLast4ToPhone(db, last4, { minutes = 30 } = {}) {
   return { phone: null, ambiguous: false, phones: [] };
 }
 
+async function resolveTraceId(db, traceId) {
+  const needle = String(traceId || '').trim();
+  if (!needle || !db || typeof db.query !== 'function') {
+    return { phone: null, ambiguous: false, phones: [], trace_id: needle || null };
+  }
+  const result = await db.query(
+    `SELECT DISTINCT regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') AS phone
+       FROM conversation_history
+      WHERE trace_id = $1
+        AND regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') <> ''`,
+    [needle],
+  );
+  const phones = [...new Set((result?.rows || [])
+    .map((row) => normalizePhoneDigits(row.phone))
+    .filter(Boolean))];
+  if (phones.length > 1) return { phone: null, ambiguous: true, phones, trace_id: needle };
+  if (phones.length === 1) return { phone: phones[0], ambiguous: false, phones, trace_id: needle };
+  return { phone: null, ambiguous: false, phones: [], trace_id: needle };
+}
+
 const DIGIT_RUN_RE = /(?<!\d)(?:\+?\d[\s().-]*){8,}(?!\d)/g;
 
 function redactSnippet(text, max = 140) {
@@ -106,7 +128,7 @@ function mapEventRow(row) {
   const last4 = last4FromPhone(row.client_phone);
   const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
   const safePayload = {};
-  for (const key of ['creates', 'cancels', 'reschedules', 'handoff', 'tagNames', 'outcome']) {
+  for (const key of ['creates', 'cancels', 'reschedules', 'handoff', 'tagNames', 'outcome', 'trace_id', 'context_profile', 'intent', 'tess_credits']) {
     if (payload[key] !== undefined) safePayload[key] = payload[key];
   }
   return {
@@ -405,6 +427,7 @@ module.exports = {
   normalizeLast4,
   normalizePhoneDigits,
   resolveLast4ToPhone,
+  resolveTraceId,
   redactSnippet,
   clampMinutes,
   listEvents,

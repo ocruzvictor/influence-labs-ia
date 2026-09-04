@@ -37,15 +37,33 @@ function mockDeps(overrides = {}) {
       calls.slots++;
       return 'HORARIOS VAGOS 2026-09-02:\n- Erick: 10:00';
     },
+    getSlotsGrouped: async () => ({
+      label: '02/09 (terça)',
+      date: '2026-09-02',
+      professionals: [
+        {
+          name: 'Erick',
+          professionalId: '1',
+          startsAt: [
+            '2026-09-02T09:00:00-03:00',
+            '2026-09-02T14:00:00-03:00',
+            '2026-09-02T15:00:00-03:00',
+          ],
+        },
+      ],
+    }),
     getProfessionals: async () => {
       calls.profs++;
       return { text: 'PROFISSIONAIS ATIVOS:\n- Erick', data: [{ id: 1, nome: 'Erick' }] };
     },
     getServicesText: async () => {
       calls.catalog++;
+      const data = overrides.catalogData || [
+        { id: 1, nome: 'Corte Masculino', profissionais: ['Erick'], preco: 85 },
+      ];
       return {
-        text: 'SERVICOS DISPONIVEIS:\n- Corte (ID 1)',
-        data: [{ id: 1, nome: 'Corte Masculino', profissionais: ['Erick'], preco: 85 }],
+        text: `SERVICOS DISPONIVEIS:\n${data.map((s) => `- ${s.nome}`).join('\n')}`,
+        data,
       };
     },
     loadClientFutureBookings: async () => {
@@ -77,7 +95,7 @@ describe('assembleTessContext', () => {
   test('mode=full → fetches slots + catalog + profs', async () => {
     const deps = mockDeps({
       messageText: 'quero cortar',
-      intentResult: { intent: INTENTS.UNCERTAIN, confidence: 'low', signals: [] },
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
       config: parseTessContextConfig({ TESS_CONTEXT_MODE: 'full' }),
     });
     const result = await assembleTessContext(deps);
@@ -107,15 +125,46 @@ describe('assembleTessContext', () => {
     });
     const result = await assembleTessContext(deps);
     assert.equal(result.contextProfile, 'BOOKING');
-    assert.equal(deps.calls.slots, 1);
+    assert.equal(deps.calls.slots, 0);
     assert.equal(deps.calls.snapshot, 1);
     assert.ok(result.slotDates.includes('2026-09-03'));
+    assert.match(result.blocks.horarios, /OFERTA CONSULTIVA/);
+    assert.ok(result.blocks.horarios.length < 500);
+  });
+
+  test('scoped BOOKING de tarde → compact occupancy sem relógios', async () => {
+    const deps = mockDeps({
+      messageText: 'de tarde',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-03',
+    });
+    const result = await assembleTessContext(deps);
+    assert.match(result.blocks.horarios, /período tarde/);
+    assert.doesNotMatch(result.blocks.horarios, /\d{2}:\d{2} \(\d+min contínuos\)/);
+  });
+
+  test('mode=full BOOKING → fat dump via getSlots (não compact)', async () => {
+    const fat = 'HORARIOS VAGOS 2026-09-02:\n- Erick: ' + '10:00, '.repeat(80);
+    const deps = mockDeps({
+      messageText: 'quero cortar amanhã',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      config: parseTessContextConfig({ TESS_CONTEXT_MODE: 'full' }),
+      getSlots: async () => {
+        deps.calls.slots++;
+        return fat;
+      },
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'FULL');
+    assert.ok(deps.calls.slots >= 1);
+    assert.doesNotMatch(result.blocks.horarios, /OFERTA CONSULTIVA/);
+    assert.ok(result.blocks.horarios.length > 500);
   });
 
   test('FULL + requestedDate fora da janela → ensureSlotSnapshot antes do getSlots', async () => {
     const deps = mockDeps({
       messageText: 'quero dia 2026-10-15',
-      intentResult: { intent: INTENTS.UNCERTAIN, confidence: 'low', signals: [] },
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
       config: parseTessContextConfig({ TESS_CONTEXT_MODE: 'full' }),
       requestedDate: '2026-10-15',
     });
@@ -123,5 +172,82 @@ describe('assembleTessContext', () => {
     assert.equal(result.contextProfile, 'FULL');
     assert.equal(deps.calls.snapshot, 1);
     assert.ok(result.slotDates.includes('2026-10-15'));
+  });
+
+  test('scoped PRICE usa histórico para filtrar catálogo (R1.2 mais em conta)', async () => {
+    const deps = mockDeps({
+      messageText: 'tem profissional mais em conta?',
+      intentResult: { intent: INTENTS.PRICING, confidence: 'high', signals: ['price'] },
+      historyForModel: [
+        { role: 'user', content: 'quanto custa pra cortar com o Tiago?' },
+        { role: 'assistant', content: 'Corte com o Tiago é R$250.' },
+      ],
+      catalogData: [
+        { id: 1, nome: 'Corte Masculino', profissionais: ['Erick'], preco: 85 },
+        { id: 2, nome: 'Manicure', profissionais: ['Dylan'], preco: 50 },
+      ],
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'PRICE');
+    assert.match(result.dynamicContext, /Corte Masculino/);
+    assert.doesNotMatch(result.dynamicContext, /Manicure/);
+  });
+
+  test('scoped UNCERTAIN → MIN sem fetch de grade', async () => {
+    const deps = mockDeps({
+      messageText: 'quanto custa e tem sábado?',
+      intentResult: { intent: INTENTS.UNCERTAIN, confidence: 'low', signals: ['multi'] },
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'MIN');
+    assert.equal(deps.calls.slots, 0);
+    assert.equal(deps.calls.catalog, 0);
+    assert.ok(!result.dynamicContext.includes('HORARIOS VAGOS'));
+  });
+
+  test('scoped BOOKING passa durationMin e filtra buraco curto', async () => {
+    const deps = mockDeps({
+      messageText: 'de tarde com o Erick',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-02',
+      catalogData: [
+        { id: 1, nome: 'Maquiagem', profissionais: ['Erick'], duracaoEmMinutos: 120 },
+      ],
+      getSlotsGrouped: async () => ({
+        label: '02/09 (terça)',
+        date: '2026-09-02',
+        snapshotAgeMin: 10,
+        professionals: [{
+          name: 'Erick',
+          professionalId: '1',
+          startsAt: ['2026-09-02T14:00:00-03:00', '2026-09-02T14:30:00-03:00'],
+        }],
+      }),
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'BOOKING');
+    assert.match(result.blocks.horarios, /sem janela contínua de 120min/);
+    assert.doesNotMatch(result.blocks.horarios, /14:00 \(30min/);
+  });
+
+  test('snapshot velho anota o bloco HORARIOS', async () => {
+    const deps = mockDeps({
+      messageText: 'quero cortar amanhã',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-02',
+      getSlotsGrouped: async () => ({
+        label: '02/09 (terça)',
+        date: '2026-09-02',
+        snapshotAgeMin: 90,
+        professionals: [{
+          name: 'Erick',
+          professionalId: '1',
+          startsAt: ['2026-09-02T09:00:00-03:00', '2026-09-02T14:00:00-03:00'],
+        }],
+      }),
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.snapshotStale, true);
+    assert.match(result.blocks.horarios, /SNAPSHOT: atualizado há 90 min/);
   });
 });

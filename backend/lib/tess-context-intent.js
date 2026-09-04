@@ -1,6 +1,7 @@
 /**
  * Classificador determinístico de intenção — hot-path TESS (sem LLM extra).
- * Fallback conservador: UNCERTAIN ou confidence !== 'high' → perfil FULL.
+ * UNCERTAIN → perfil MIN (desambiguação). Confiança baixa em intent conhecido
+ * usa o perfil do intent quando o modo é scoped; FULL só com TESS_CONTEXT_MODE=full.
  */
 
 const { IMAGE_MARKER, STICKER_MARKER } = require('./kapso-media');

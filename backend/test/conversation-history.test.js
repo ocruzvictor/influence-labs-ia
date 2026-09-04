@@ -26,8 +26,24 @@ test('saveConversationTurns writes intent on the existing column', async () => {
   assert.match(calls[0].sql, /intent/);
   assert.equal(calls[0].params[0], '5511964540007');
   assert.equal(calls[0].params[4], 'CANCEL');
+  assert.equal(calls[0].params[5], null);
   assert.equal(calls[1].params[3], 'tess-timeout');
   assert.equal(calls[1].params[4], 'CANCEL');
+});
+
+test('saveConversationTurns writes trace_id on the existing column', async () => {
+  const calls = [];
+  const db = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  };
+  await saveConversationTurns(db, '5511964540007', [
+    { role: 'user', content: 'oi', intent: 'TRIVIAL', trace_id: 'trace-abc' },
+  ]);
+  assert.match(calls[0].sql, /trace_id/);
+  assert.equal(calls[0].params[5], 'trace-abc');
 });
 
 test('saveConversationTurns leaves intent null when absent', async () => {
