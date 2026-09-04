@@ -249,3 +249,15 @@ test('markSlotWindowAvailable cobre a janela da duração, não só o start', as
   assert.equal(db.calls[0].params[0], '827204');
   assert.equal(db.calls[0].params[3], false);
 });
+
+test('listActiveAppointmentWindowsForDate — scheduled/confirmed sem telefone', async () => {
+  const db = mockDb([{ rows: [{ professional_id: '826936', scheduled_at: '2026-09-05T12:00:00-03:00', duration_min: 60 }] }]);
+  const store = createTrinksLocalStore(db);
+  const rows = await store.listActiveAppointmentWindowsForDate('2026-09-05');
+  assert.equal(rows.length, 1);
+  assert.match(db.calls[0].sql, /FROM trinks_appointments/);
+  assert.match(db.calls[0].sql, /scheduled/);
+  assert.match(db.calls[0].sql, /confirmed/);
+  assert.doesNotMatch(db.calls[0].sql, /client_phone/);
+  assert.deepEqual(db.calls[0].params, ['2026-09-05']);
+});

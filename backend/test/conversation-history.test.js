@@ -59,3 +59,30 @@ test('saveConversationTurns leaves intent null when absent', async () => {
   ]);
   assert.equal(calls[0].params[4], null);
 });
+
+test('passive landing Studio Tirra grava SCHEDULING', async () => {
+  const { classifyTessIntent, intentToPersist } = require('../lib/tess-context-intent');
+  const text = 'Oi, vim pelo Studio Tirra. Quero agendar';
+  const intent = intentToPersist(classifyTessIntent(text, [], []), text, { path: 'passive' });
+  assert.equal(intent, 'SCHEDULING');
+
+  const calls = [];
+  const db = {
+    query: async (sql, params) => {
+      calls.push({ params });
+      return { rows: [] };
+    },
+  };
+  await saveConversationTurns(db, '5511964540007', [
+    { role: 'user', content: text, agent: 'passive', intent },
+  ]);
+  assert.equal(calls[0].params[4], 'SCHEDULING');
+});
+
+test('passive media e áudio transcrito gravam intent null', async () => {
+  const { classifyTessIntent, intentToPersist } = require('../lib/tess-context-intent');
+  for (const text of ['[CLIENTE ENVIOU IMAGEM]', '[AUDIO TRANSCRITO]: quero agendar']) {
+    const intent = intentToPersist(classifyTessIntent(text, [], []), text, { path: 'passive' });
+    assert.equal(intent, null, text);
+  }
+});

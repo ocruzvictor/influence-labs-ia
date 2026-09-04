@@ -3,6 +3,13 @@
  */
 
 const { buildContextProfile, PROFILES } = require('./tess-context-profiles');
+const {
+  normalizeText,
+  hasServiceSignal,
+  isSchedulingInProgress,
+  isDraftSchedulingContext,
+  isPostBookingFailedContext,
+} = require('./tess-context-intent');
 const { logContextBytes } = require('./tess-context-bytes');
 const { applyContextBudget, parseContextCaps } = require('./tess-context-budget');
 const {
@@ -141,11 +148,17 @@ async function assembleTessContext(params) {
   } = params;
 
   const genderQualifier = params.genderQualifier ?? null;
+  let historyForModel = [...(params.historyForModel || [])];
+  const lastBookingOutcome = params.lastBookingOutcome;
 
   const profileSpec = buildContextProfile(intentResult, {
     effectiveMode: config.effectiveMode,
     slotContextDays,
     requestedDate,
+    hasServiceSignal: hasServiceSignal(normalizeText(messageText)),
+    keepBookingWithoutSku: isSchedulingInProgress(historyForModel)
+      || isDraftSchedulingContext(historyForModel)
+      || isPostBookingFailedContext(historyForModel, lastBookingOutcome),
   });
 
   const fetchMeta = {
@@ -162,7 +175,6 @@ async function assembleTessContext(params) {
   let profsPayload = { text: '', data: [] };
   let svcPayload = { text: '', data: [] };
   let futureBookings = [];
-  let historyForModel = [...(params.historyForModel || [])];
 
   const todayIso = typeof getNextBusinessDays === 'function'
     ? getNextBusinessDays(1)[0]
@@ -246,7 +258,7 @@ async function assembleTessContext(params) {
               messageText,
               historyText,
               allowedProfessionalNames,
-              durationMin: resolveOfferDurationMin(svcPayload.data),
+              durationMin: resolveOfferDurationMin(svcPayload.data, { messageText }),
               snapshotAgeMin: Number.isFinite(age) ? age : null,
             });
           }),
@@ -438,6 +450,9 @@ function logTessTurnTelemetry({
   contextProfile,
   skippedTess,
   tessCredits,
+  sentChars,
+  timedOut,
+  salonDay,
 }) {
   const payload = {
     event: 'tess.turn',
@@ -446,6 +461,9 @@ function logTessTurnTelemetry({
     context_profile: contextProfile || null,
     skipped_tess: Boolean(skippedTess),
     tess_credits: tessCredits ?? null,
+    sent_chars: Number(sentChars) || 0,
+    timed_out: Boolean(timedOut),
+    salon_day: salonDay || null,
     timestamp: new Date().toISOString(),
   };
   console.log(JSON.stringify(payload));

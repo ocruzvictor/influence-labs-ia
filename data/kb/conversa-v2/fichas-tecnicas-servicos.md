@@ -3,7 +3,7 @@
 Fonte principal: `docs/raw-materials/Studio Tirrá/Base de Conhecimento/Serviços.pdf` (123 servicos extraidos).
 
 ## Regras de pricing e venda consultiva
-- Tabela Premium **masculina**: SKU "TA - Corte Masculino" (Tiago e André) vs "Corte Masculino" (equipe). Números vêm do snapshot Trinks, não desta ficha.
+- Tabela Premium **masculina**: internamente Trinks usa prefixo `TA -` no SKU de corte masculino (Tiago e André) vs "Corte Masculino" (equipe). **Ao cliente:** fale "Corte Masculino" / "com o Tiago" / "com o André" — **nunca** `TA -` como nome. Números vêm do snapshot Trinks, não desta ficha.
 - Corte feminino genérico: SKU "Corte Feminino". Não contrastar Tiago vs equipe na resposta, salvo pergunta explícita pelo Tiago (SKU "Tiago - Corte Feminino").
 - Terca e quarta: ha precos promocionais em servicos selecionados; so cite valor promo se o snapshot trouxer; validar no Trinks antes de confirmar o valor final.
 - Servicos gratuitos identificados: Corte de franja, Teste de Mechas, Avaliacao, Futura mamae, Tratamento de retorno de mechas.
@@ -33,7 +33,7 @@ Fonte principal: `docs/raw-materials/Studio Tirrá/Base de Conhecimento/Servic�
 | Tiago - Corte Feminino | 250,00 | 90 | Tiago Rocha — só citar se a cliente perguntar o preço com o Tiago |
 | Tiago - Corte Infantil Feminino | 190,00 | 60 | Tiago Rocha (premium) |
 | Tiago - Corte Infantil Masculino | 100,00 | 60 | Tiago Rocha (premium); Andre de Oliveira (premium masculino) |
-| Tiago - Corte Masculino | 105,00 | 60 | snapshot: SKU "TA - Corte Masculino" (Tiago, André) |
+| Tiago - Corte Masculino | 105,00 | 60 | snapshot Trinks: SKU interno `TA - Corte Masculino` (Tiago, André) — falar "Corte Masculino" / profissional, não o prefixo |
 | Tiago - Mechas | 925,00 | 300 | Tiago Rocha (premium) |
 | Tiago - Morena Iluminada | 810,00 | 300 | Tiago Rocha (premium) |
 | Tiago - Progressiva Feminina | 315,00 | 120 | Tiago Rocha (premium) |

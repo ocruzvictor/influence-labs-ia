@@ -283,3 +283,20 @@ test('correlacionarLast4 by trace_id skips the 30min last4 window', async () => 
   assert.equal(result.window_min, 180);
   assert.ok(calls[0].params[0] === 'trace-xyz');
 });
+
+test('replayIntentNullDrop — miniatura 383-shape', () => {
+  const { replayIntentNullDrop } = require('../lib/salao-cli-ops');
+  const rows = [
+    { last4: '0007', role: 'user', intent: null, text: 'Oi, vim pelo Studio Tirra. Quero agendar' },
+    { last4: '4749', role: 'user', intent: null, text: 'horário na sexta final do dia' },
+    { last4: '0285', role: 'user', intent: null, text: 'com o André' },
+    { last4: '0330', role: 'user', intent: null, text: '[CLIENTE ENVIOU IMAGEM]' },
+    { last4: '3653', role: 'user', intent: 'SCHEDULING', text: 'quero cortar' },
+  ];
+  const report = replayIntentNullDrop(rows, { baselineNull: 383 });
+  assert.equal(report.would_fill, 3);
+  assert.ok(report.drop >= 1);
+  assert.equal(report.replay_null, 380);
+  assert.equal(report.filled_sample.length, 3);
+  assert.ok(report.filled_sample.every((s) => s.would_intent === 'SCHEDULING'));
+});

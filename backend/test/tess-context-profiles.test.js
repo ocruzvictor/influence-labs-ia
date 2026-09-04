@@ -109,6 +109,49 @@ describe('buildContextProfile', () => {
     assert.equal(p.slotDays, 3);
     assert.notEqual(p.profile, PROFILES.FULL);
   });
+
+  test('G1 — SCHEDULING scoped sem SKU → MIN zero fetch', () => {
+    const p = buildContextProfile(
+      { intent: INTENTS.SCHEDULING, confidence: 'high' },
+      { effectiveMode: 'scoped', hasServiceSignal: false },
+    );
+    assert.equal(p.profile, PROFILES.MIN);
+    assert.equal(p.fetchSlots, false);
+    assert.equal(p.fetchCatalog, false);
+  });
+
+  test('G2 — omitir hasServiceSignal → BOOKING (default true)', () => {
+    const p = buildContextProfile(
+      { intent: INTENTS.SCHEDULING, confidence: 'high' },
+      { effectiveMode: 'scoped', slotContextDays: 10 },
+    );
+    assert.equal(p.profile, PROFILES.BOOKING);
+  });
+
+  test('G3 — keepBookingWithoutSku → BOOKING sem SKU', () => {
+    const p = buildContextProfile(
+      { intent: INTENTS.SCHEDULING, confidence: 'high' },
+      { effectiveMode: 'scoped', hasServiceSignal: false, keepBookingWithoutSku: true },
+    );
+    assert.equal(p.profile, PROFILES.BOOKING);
+  });
+
+  test('G5 — FULL + sem SKU inalterado', () => {
+    const p = buildContextProfile(
+      { intent: INTENTS.SCHEDULING, confidence: 'high' },
+      { effectiveMode: 'full', hasServiceSignal: false },
+    );
+    assert.equal(p.profile, PROFILES.FULL);
+  });
+
+  test('G6 — FAQ pix inalterado', () => {
+    const p = buildContextProfile(
+      { intent: INTENTS.FAQ, confidence: 'high' },
+      { effectiveMode: 'scoped' },
+    );
+    assert.equal(p.profile, PROFILES.FAQ);
+    assert.equal(p.fetchCatalog, false);
+  });
 });
 
 describe('resolveSlotDates', () => {

@@ -13,29 +13,35 @@ const PROFILES = Object.freeze({
   FULL: 'FULL',
 });
 
+function buildMinProfile() {
+  return {
+    profile: PROFILES.MIN,
+    fetchSlots: false,
+    fetchCatalog: false,
+    fetchProfessionals: false,
+    fetchHabilitacao: false,
+    fetchFutureBookings: false,
+    slotDays: 0,
+    includeSaturdays: false,
+    filterCatalog: false,
+    explicitDateOnly: false,
+  };
+}
+
 /**
  * @param {{ intent: string, confidence: string, signals?: string[] }} intentResult
- * @param {{ effectiveMode: string, slotContextDays: number, requestedDate?: string|null }} opts
+ * @param {{ effectiveMode: string, slotContextDays: number, requestedDate?: string|null, hasServiceSignal?: boolean, keepBookingWithoutSku?: boolean }} opts
  */
 function buildContextProfile(intentResult, opts = {}) {
   const { intent, confidence } = intentResult || {};
   const effectiveMode = opts.effectiveMode || 'full';
   const slotContextDays = Math.max(1, Number(opts.slotContextDays) || 10);
   const requestedDate = opts.requestedDate || null;
+  const hasServiceSignalFlag = opts.hasServiceSignal !== undefined ? opts.hasServiceSignal : true;
+  const keepBookingWithoutSku = opts.keepBookingWithoutSku === true;
 
   if (intent === INTENTS.UNCERTAIN) {
-    return {
-      profile: PROFILES.MIN,
-      fetchSlots: false,
-      fetchCatalog: false,
-      fetchProfessionals: false,
-      fetchHabilitacao: false,
-      fetchFutureBookings: false,
-      slotDays: 0,
-      includeSaturdays: false,
-      filterCatalog: false,
-      explicitDateOnly: false,
-    };
+    return buildMinProfile();
   }
 
   if (intent === INTENTS.CANCEL && confidence === 'high') {
@@ -51,6 +57,15 @@ function buildContextProfile(intentResult, opts = {}) {
       filterCatalog: false,
       explicitDateOnly: false,
     };
+  }
+
+  if (
+    effectiveMode !== 'full'
+    && (intent === INTENTS.SCHEDULING || intent === INTENTS.RESCHEDULE)
+    && hasServiceSignalFlag === false
+    && !keepBookingWithoutSku
+  ) {
+    return buildMinProfile();
   }
 
   if (effectiveMode === 'full') {

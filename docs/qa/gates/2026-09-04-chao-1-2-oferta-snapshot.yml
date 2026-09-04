@@ -1,0 +1,237 @@
+schema: 1
+slice: '2026-09-04-chao-1-2-oferta-snapshot'
+slice_title: 'Chão 1+2 — oferta cabe + snapshot fresca'
+scope_type: 'operational-slice'   # SOT = Aria tetos; stories Draft, não InReview
+gate: PASS
+status_reason: >
+  Os sete hunts Aria estão verdes. Dex não republicou filterCatalogForProfile,
+  isCompatible, CATALOG_SYNONYMS, o limiar 45 min, o worker 1440 nem o default
+  OP012 24h. 69/69 focused tests. Invariantes live (1 SKU 120, last-utterance
+  4→1, as 16h, snapshot≤2, isCompatible 90d) intactos. Este gate não publica.
+reviewer: 'Quinn (Test Architect)'
+sot: 'docs/analysis/2026-09-04-aria-chao-1-2-tetos.md'
+stories:
+  - 'docs/stories/salon-whatsapp-chao-1-oferta-cabe.md'
+  - 'docs/stories/salon-whatsapp-chao-2-snapshot-fresca.md'
+reviewed_revision: 'uncommitted-on-7482d3d'
+reviewed_worktree: 'dirty — Chão 1+2 uncommitted em cima de 7482d3d; tess.turn (chão 5) no mesmo server/assembler'
+deployed_revision: '405b005 — live intocado; este gate não publica'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T14:01:28-03:00'
+expires: '2026-09-18T14:01:28-03:00'
+quality_score: 96
+waiver: { active: false }
+last4_only: true
+
+# ---------------------------------------------------------------------------
+# 1. HUNTS PEDIDOS
+# ---------------------------------------------------------------------------
+requested_checks:
+  freeze_live_wiring:
+    status: PASS
+    hunt: 1
+    evidence:
+      - 'git diff booking-parser / tess-context-intent / trinks-state-worker / checar_frescura_snapshot / salao-cli-ops = vazio.'
+      - 'filterCatalogForProfile corpo intocado; assembler só mudou durationMin: resolveOfferDurationMin(svcPayload.data, { messageText }).'
+      - 'isCompatible still sinceDays=90; SELECT overlay 90d intacto.'
+      - 'CATALOG_SYNONYMS não está no hunk.'
+      - 'ensureSlotSnapshot maxAgeHours = SNAPSHOT_STALE_OFFER_MIN/60; só passou a devolver true/false (flag refreshed).'
+      - 'TRINKS_RECONCILE_INTERVAL_MIN || 1440; compose ${TRINKS_RECONCILE_INTERVAL_MIN:-1440}.'
+      - 'checarFrescuraSnapshot default maxIdadeHoras=24.'
+    notes: 'Sem segundo filtro de catálogo. Sem reopen PENTEADO_DISAMBIGUA.'
+
+  resolve_offer_duration_cascade:
+    status: PASS
+    hunt: 2
+    evidence:
+      - 'Sem 2º arg: skuDurationFrom — 1–3 = max (S1-10=120); misto >3 = 0 (S1-5); família homogénea >3 = 120 (S1-6).'
+      - 'extractSpeechDurationMin: 2h isolado=0; as 16h=0; 2h de atendimento=120; leva 2h=120.'
+      - 'Speech + misto: max(speech, sku) ou speech — S1-8=120.'
+      - 'Probe Quinn: S1-1/2/3a/4/5/6/8/10 batem o SOT.'
+    notes: 'DURATION_HOUR_PATTERNS duplica isDurationHourToken (mesmos stems). Aria §3.5 preferia um sítio; não é veto — padrões não divergem.'
+
+  occupancy_fitting_no_invented_clock:
+    status: PASS
+    hunt: 3
+    evidence:
+      - 'occupancyLineForOffer / periodOccupancyLineForOffer: durationMin>0 → startsFittingDuration; pool vazio → sem janela contínua de Xmin.'
+      - 'S1-11: 12:30 isolado + 120min → match janela; não há vagas; não 12:30.'
+      - 'Clock path S1-12 (de tarde com o erick + 90) inalterado — 14:00 some, 09:00 (90min) fica.'
+    notes: 'Occupancy não despeja HH:MM. Prof desconhecido continua occupancy-only sobre starts que cabem.'
+
+  subtract_local_zero_get_no_phone:
+    status: PASS
+    hunt: 4
+    evidence:
+      - 'listActiveAppointmentWindowsForDate: SELECT professional_id, scheduled_at, duration_min. F1 doesNotMatch client_phone.'
+      - 'fetchSlotsGrouped: Promise.all listSlots + listProfessionals + listActive — 0 trinksApi.request neste caminho.'
+      - 'subtractOccupiedSlotStarts: overlap [T, T+dur) igual markSlotWindowAvailable (default 30). F2 12:30 some; F3 outro prof fica.'
+    notes: 'GET Trinks continua só em ensureSlotSnapshot(hoje|requestedDate).'
+
+  snapshot_offer_and_stale:
+    status: PASS
+    hunt: 5
+    evidence:
+      - 'SNAPSHOT_STALE_OFFER_MIN=45. prependStaleWarning: 44 sem prefixo; 45 com SNAPSHOT.'
+      - 'snapshot.stale no server (~1531) intacto quando assembledCtx.snapshotStale.'
+      - 'snapshot.offer via shouldEmitSnapshotOffer(BOOKING + HORARIOS VAGOS) + buildSnapshotOfferEventPayload. E1 age=10 stale_after=45.'
+      - 'refreshed = ensureSlotSnapshotTracked devolveu true; subtractedOccupied somado no getSlotsGroupedTracked.'
+    notes: 'E2 unit só prova stale_after_min=45 no payload offer — não o emit conjunto stale+offer. Código do stale permanece. TEST-01 low.'
+
+  live_invariants:
+    status: PASS
+    hunt: 6
+    evidence:
+      - '1 SKU 120 / buraco curto — assembler teste pré-existente verde.'
+      - 'last-utterance 4→1 maquiagem — teste pré-existente verde; A1 gordo 11 SKUs também 120.'
+      - 'detectExactClock(as 16h)={16,0}; K5 duração+16h → 16:00.'
+      - 'scoped BOOKING snapshot=2 e FULL+requestedDate snapshot=2 verdes; A5 ≤2.'
+      - 'isCompatible(20,10) params [, , 90] verde.'
+    notes: 'A2 sem keyword: durationMin 0 + occupancy permitida — residual D3 honesto.'
+
+  focused_suite:
+    status: PASS
+    hunt: 7
+    evidence:
+      - 'Quinn rerun: node --test tess-context-slots / tess-context-assembler / trinks-local-store → # tests 69 / # pass 69 / # fail 0.'
+      - 'node --check slots + assembler + local-store + server.js = SYNTAX_OK.'
+    notes: 'Dex 69/69 corroborado. Sem suíte completa do repo.'
+
+# ---------------------------------------------------------------------------
+# 2. INVARIANTES ORION / ARIA §6
+# ---------------------------------------------------------------------------
+invariants:
+  one_sku_120:
+    status: PASS
+    evidence: 'scoped BOOKING passa durationMin e filtra buraco curto — sem janela 120min, sem 14:00 (30min).'
+  last_utterance_4_to_1:
+    status: PASS
+    evidence: 'fala maquiagem + histórico corte → 120; A1 catálogo 11 SKUs idem.'
+  as_16h:
+    status: PASS
+    evidence: 'detectExactClock(as 16h)={16,0}; extractSpeechDurationMin(as 16h)=0.'
+  snapshot_le_2:
+    status: PASS
+    evidence: 'BOOKING requestedDate snapshot=2; FULL+requestedDate=2; A5 ≤2.'
+  is_compatible_90d:
+    status: PASS
+    evidence: 'trinks-local-store.test.js params [20, 10, 90]; função não está no hunk.'
+  occupancy_no_clock:
+    status: PASS
+    evidence: 'S1-11 sem 12:30 / sem há vagas; occupancy sem prof pré-existente verde.'
+
+# ---------------------------------------------------------------------------
+# 3. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues:
+  - id: 'TEST-01'
+    severity: low
+    finding: >
+      E2 unit cobre só stale_after_min=45 no helper snapshot.offer. Não há
+      assert de que snapshot.stale ainda dispara no server quando age≥45
+      juntamente com snapshot.offer.
+    evidence: 'tess-context-slots.test.js E2; server.js:1531 e :1544 emitem em blocos separados.'
+    suggested_action: 'Opcional: unit do emit conjunto. Código do stale está intacto.'
+    blocks_publish: false
+
+  - id: 'MNT-01'
+    severity: low
+    finding: >
+      DURATION_HOUR_PATTERNS em slots.js duplica isDurationHourToken em vez
+      de um array exportado (Aria §3.5). Stems iguais; sem divergência observada.
+    evidence: 'tess-context-slots.js:206-209 vs tess-context-intent.js:55-58.'
+    suggested_action: 'Opcional: um sítio só. Não reabrir o parser.'
+    blocks_publish: false
+
+# ---------------------------------------------------------------------------
+# 4. EVIDÊNCIA DE TESTES
+# ---------------------------------------------------------------------------
+evidence:
+  slice_test_command: "cd backend && node --test test/tess-context-slots.test.js test/tess-context-assembler.test.js test/trinks-local-store.test.js"
+  slice_test_result: '# tests 69 / # pass 69 / # fail 0 — Quinn rerun'
+  syntax: 'PASS — node --check slots + assembler + local-store + server.js'
+  hunt_probes: 'PASS — S1-1/2/3a/4/5/6/8/10, S1-11, F2, E1, stale 44/45, listActive export'
+  coverage_gap: 'TEST-01 E2 sem emit conjunto stale+offer; sem e2e processMessage'
+  not_executed:
+    - 'Suíte completa do repo.'
+    - 'Deploy, rsync, Hostinger, rebuild de container.'
+    - 'Religar bot / BOT_ACCEPT_ALL / POST Trinks / CREATE 9800 / replay André 10:30.'
+    - 'Smoke 0007 / paste 46589.'
+
+# ---------------------------------------------------------------------------
+# 5. RESIDUAIS ARIA §5 — AINDA VERDADEIROS
+# ---------------------------------------------------------------------------
+residual_risks_aria_s5:
+  - id: 1
+    still_true: true
+    summary: 'Corrida sem row de appointment e sem mark → oferta ainda pode listar; confirm recusa. Medir via snapshot.offer.'
+  - id: 2
+    still_true: true
+    summary: 'Dias da janela compacta que não são hoje/pedida continuam no ciclo 24h do worker.'
+  - id: 3
+    still_true: true
+    summary: 'durationMin=0 (D3: sem fala + misto) → occupancy crua; o modelo ainda pode inventar relógio; o guard segura o commit.'
+  - id: 4
+    still_true: true
+    summary: '4749/2874/2987 pré-a08f23b não regressam esta fatia.'
+  - id: 5
+    still_true: true
+    summary: 'Live 405b005 + kill switch off. Tetos+código na branch. Este gate não deploya, não religa, não rsync.'
+
+# ---------------------------------------------------------------------------
+# 6. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      SELECT novo sem telefone. Testes Chão 1+2 sem E.164 novo. BOT_ACCEPT_ALL
+      intocado. Sem migration. Sem mutação Trinks.
+  reliability:
+    status: PASS
+    notes: >
+      Cap 1–3 live + família homogénea + speech. Occupancy sem relógio inventado.
+      Máx. 2 GET intacta. snapshot.stale ≥45 intacto.
+  maintainability:
+    status: PASS
+    notes: 'MNT-01 duplicação de padrões de duração — low, stems iguais.'
+  performance:
+    status: PASS
+    notes: 'Subtract é Postgres local. Sem terceiro GET. Worker 1440 intocado.'
+  observability:
+    status: PASS
+    notes: 'snapshot.offer (age, stale_after=45, refreshed, subtracted_occupied). snapshot.stale permanece. Dara lê o evento depois (P-SNAP).'
+
+# ---------------------------------------------------------------------------
+# 7. PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: no
+publish_note: >
+  PASS não é autorização de publish. Este gate NÃO autoriza religar, paste 46589,
+  Hostinger, rsync, POST Trinks, BOT_ACCEPT_ALL, CREATE 9800, smoke 0007 nem
+  replay André 10:30. Chão 3–7 podem ser planejados. Dara P-SNAP depois.
+
+slice_allowlist:
+  - backend/lib/tess-context-slots.js
+  - backend/lib/tess-context-assembler.js
+  - backend/lib/trinks-local-store.js
+  - backend/server.js
+  - backend/test/tess-context-slots.test.js
+  - backend/test/tess-context-assembler.test.js
+  - backend/test/trinks-local-store.test.js
+  - docs/analysis/2026-09-04-aria-chao-1-2-tetos.md
+  - docs/qa/gates/2026-09-04-chao-1-2-oferta-snapshot.yml
+
+# ---------------------------------------------------------------------------
+# 8. AUTO-DECISÕES
+# ---------------------------------------------------------------------------
+auto_decisions:
+  - '[AUTO-DECISION] Stories em Draft, não InReview → sem transição Status (razão: qa-gate.md post-gate exige InReview).'
+  - '[AUTO-DECISION] ACs/T3 marcados — Orion autorizou se PASS e blocks_publish vazio.'
+  - '[AUTO-DECISION] tess.turn (chão 5) no mesmo server/assembler não entra neste veredito (razão: fatia já gated em 2026-09-04-chao-5-credito.yml).'
+  - '[AUTO-DECISION] Sem CodeRabbit / sem patch (razão: anti-self-review; Dex implementou; Quinn só gate).'
+  - '[AUTO-DECISION] Veredito PASS não CONCERNS (razão: hunts 1–7 verdes; TEST-01/MNT-01 low; sem AC vermelho).'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, paste 46589, smoke 0007, André 10:30, CREATE 9800 nem deploy.'

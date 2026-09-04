@@ -515,6 +515,55 @@ async function dumpFloorCorpus(db, { fromIso, toIso, dedup = true } = {}) {
   };
 }
 
+const BASELINE_INTENT_NULL = 383;
+
+/**
+ * Replay local: quantas rows user com intent null ganhariam rótulo via passive persist.
+ * Puro — zero write no banco.
+ *
+ * @param {Array<{ role?: string, intent?: string|null, text?: string, content?: string, last4?: string }>} rows
+ * @param {{ classify?: Function, persist?: Function, baselineNull?: number }} opts
+ */
+function replayIntentNullDrop(rows, { classify, persist, baselineNull } = {}) {
+  const { classifyTessIntent, intentToPersist } = require('./tess-context-intent');
+  const classifyFn = classify || ((text) => classifyTessIntent(text, [], []));
+  const persistFn = persist
+    || ((result, text, opts) => intentToPersist(result, text, opts || { path: 'passive' }));
+
+  const userRows = (rows || []).filter((r) => r.role === 'user');
+  const nullRows = userRows.filter((r) => r.intent == null);
+  const filledSample = [];
+  let wouldFill = 0;
+
+  for (const row of nullRows) {
+    const text = row.text ?? row.content ?? '';
+    const result = classifyFn(text, [], []);
+    const persisted = persistFn(result, text, { path: 'passive' });
+    if (persisted != null) {
+      wouldFill += 1;
+      if (filledSample.length < 12) {
+        filledSample.push({
+          last4: row.last4 || null,
+          text: redactCorpusText(text).slice(0, 120),
+          would_intent: persisted,
+        });
+      }
+    }
+  }
+
+  const baseline = baselineNull != null ? baselineNull : BASELINE_INTENT_NULL;
+
+  return {
+    baseline_null: baseline,
+    user_n: userRows.length,
+    null_rows: nullRows.length,
+    would_fill: wouldFill,
+    replay_null: baseline - wouldFill,
+    drop: wouldFill,
+    filled_sample: filledSample,
+  };
+}
+
 module.exports = {
   listStuckThreadsFiltered,
   listAckWithoutOutbound,
@@ -523,6 +572,7 @@ module.exports = {
   relatarSloEventos,
   listarFilaAtendimento,
   dumpFloorCorpus,
+  replayIntentNullDrop,
   normalizeCorpusText,
   redactCorpusText,
 };

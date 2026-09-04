@@ -112,6 +112,69 @@ function isMediaMessage(messageText) {
     || s.includes(STICKER_MARKER);
 }
 
+function isAudioTranscript(messageText) {
+  return /\[AUDIO TRANSCRITO\]/i.test(String(messageText || ''));
+}
+
+const PASSIVE_PERSIST_INTENTS = new Set([INTENTS.SCHEDULING, INTENTS.FAQ]);
+
+function hasPersistibleSignal(norm) {
+  return hasServiceSignal(norm)
+    || hasDateSignal(norm)
+    || hasProfessionalSignal(norm)
+    || hasFaqSignal(norm)
+    || hasSchedulingAsk(norm);
+}
+
+function isLaughterOrEmojiOnly(text) {
+  const stripped = String(text || '').replace(/\s+/g, '');
+  return /^(k{2,}|haha+|rs+|kkk+|lol|👍|😊|🙏)+$/i.test(stripped);
+}
+
+function isDurationAlone(norm) {
+  if (hasDateSignal(norm)) return false;
+  const hourRe = /\b(\d{1,2})\s*h\b|\b(\d{1,2})h(\d{2})\b/g;
+  let m;
+  let hasHourToken = false;
+  while ((m = hourRe.exec(norm)) !== null) {
+    hasHourToken = true;
+    if (!isDurationHourToken(norm, m.index)) return false;
+  }
+  return hasHourToken;
+}
+
+function isLeroUtterance(messageText) {
+  const norm = normalizeText(messageText);
+  if (!norm) return true;
+  if (hasPersistibleSignal(norm)) return false;
+  if (isTrivialAllowlist(messageText)) return true;
+  if (isLaughterOrEmojiOnly(messageText)) return true;
+  if (/^dia[\s-]a[\s-]dia$/i.test(norm)) return true;
+  if (/\b(ja tem cliente|já tem cliente|opcao que ja tem cliente|opção que já tem cliente)\b/i.test(norm)) {
+    return true;
+  }
+  if (isDurationAlone(norm)) return true;
+  return false;
+}
+
+function isIntentDenylist(messageText) {
+  if (isMediaMessage(messageText)) return true;
+  if (isAudioTranscript(messageText)) return true;
+  if (!normalizeText(messageText)) return true;
+  if (isLeroUtterance(messageText)) return true;
+  return false;
+}
+
+function intentToPersist(result, text, { path = 'passive' } = {}) {
+  if (isIntentDenylist(text)) return null;
+  const intent = result?.intent;
+  if (path === 'passive') {
+    if (PASSIVE_PERSIST_INTENTS.has(intent)) return intent;
+    return null;
+  }
+  return intent || null;
+}
+
 function isTrivialAllowlist(text) {
   const norm = normalizeText(text);
   if (!norm) return false;
@@ -365,7 +428,9 @@ module.exports = {
   PROFESSIONAL_RE,
   ROLE_RE,
   DATE_RE,
+  PASSIVE_PERSIST_INTENTS,
   classifyTessIntent,
+  intentToPersist,
   isTrivialAllowlist,
   shouldSkipTess,
   hasCompoundIntent,
@@ -374,6 +439,9 @@ module.exports = {
   isSchedulingContinuation,
   isConfirmationUtterance,
   isMediaMessage,
+  isAudioTranscript,
+  isIntentDenylist,
+  isLeroUtterance,
   hasProfessionalSignal,
   isDurationHourToken,
   trivialSkipResponse,

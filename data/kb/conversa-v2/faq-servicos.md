@@ -3,7 +3,7 @@
 ## Perguntas Frequentes
 
 ### 1. Quanto custa o corte masculino?
-Consulte SERVICOS DISPONIVEIS. Snapshot Trinks (ago/2026): Corte Masculino (Erick) R$ 90; TA - Corte Masculino (Tiago e André) R$ 105. Terça e quarta podem ter condição promocional — só cite valor promo se estiver no snapshot.
+Consulte SERVICOS DISPONIVEIS. Snapshot Trinks (ago/2026): Corte Masculino (Erick) R$ 90; Corte Masculino com Tiago ou André R$ 105. Ao falar com o cliente, use **"Corte Masculino"** / **"com o Tiago"** / **"com o André"** — **nunca** cite o prefixo interno `TA -` como nome falável. Terça e quarta podem ter condição promocional — só cite valor promo se estiver no snapshot.
 
 ### 2. Quanto custa o corte feminino?
 Consulte SERVICOS DISPONIVEIS. Snapshot: Corte Feminino R$ 190. NÃO contraste Tiago vs equipe a menos que a cliente pergunte o preço com o Tiago — aí use o SKU "Tiago - Corte Feminino". Terça e quarta podem ter promoção; não invente o valor promo.

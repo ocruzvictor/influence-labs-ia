@@ -12,6 +12,13 @@ const {
   compactBookingSlotsBlock,
   formatFullSlotsBlock,
   pickStartsForPeriod,
+  extractSpeechDurationMin,
+  resolveOfferDurationMin,
+  skuDurationFrom,
+  subtractOccupiedSlotStarts,
+  shouldEmitSnapshotOffer,
+  buildSnapshotOfferEventPayload,
+  SNAPSHOT_STALE_OFFER_MIN,
 } = require('../lib/tess-context-slots');
 
 const ERICK_STARTS = [
@@ -234,5 +241,150 @@ describe('detectNamedProfessionals Onda 2 (§8 N)', () => {
 
   test('N3 — corte com Tiago inalterado', () => {
     assert.ok(detectNamedProfessionals('corte com o Tiago').includes('tiago'));
+  });
+});
+
+const FAT_CATALOG_11 = [
+  { id: 1, nome: 'Corte Masculino', profissionais: ['André'], duracaoEmMinutos: 60 },
+  { id: 2, nome: 'TA - Corte Masculino', profissionais: ['André'], duracaoEmMinutos: 60 },
+  { id: 3, nome: 'Corte Feminino', profissionais: ['Giovanna'], duracaoEmMinutos: 120 },
+  { id: 4, nome: 'Maquiagem', profissionais: ['Fefe'], duracaoEmMinutos: 120 },
+  { id: 5, nome: 'Maquiagem Social', profissionais: ['Fefe'], duracaoEmMinutos: 120 },
+  { id: 6, nome: 'Maquiagem Noiva', profissionais: ['Fefe'], duracaoEmMinutos: 120 },
+  { id: 7, nome: 'Make Express', profissionais: ['Fefe'], duracaoEmMinutos: 120 },
+  { id: 8, nome: 'Manicure', profissionais: ['Dylan'], duracaoEmMinutos: 45 },
+  { id: 9, nome: 'Pedicure', profissionais: ['Dylan'], duracaoEmMinutos: 45 },
+  { id: 10, nome: 'Coloração Global', profissionais: ['Jackie'], duracaoEmMinutos: 90 },
+  { id: 11, nome: 'Retoque de Raiz', profissionais: ['Jackie'], duracaoEmMinutos: 60 },
+];
+
+const FOUR_MAQUIAGEM_120 = FAT_CATALOG_11.filter((s) => s.nome.startsWith('Maquiagem') || s.nome === 'Make Express');
+
+describe('extractSpeechDurationMin / resolveOfferDurationMin (Chão 1)', () => {
+  test('S1-1 — não são 2h de atendimento?', () => {
+    assert.equal(extractSpeechDurationMin('não são 2h de atendimento?'), 120);
+  });
+
+  test('S1-2 — leva 2h', () => {
+    assert.equal(extractSpeechDurationMin('leva 2h'), 120);
+  });
+
+  test('S1-3 — as 16h / sábado 14h não são duração', () => {
+    assert.equal(extractSpeechDurationMin('as 16h'), 0);
+    assert.equal(extractSpeechDurationMin('quero cortar sábado 14h'), 0);
+  });
+
+  test('S1-4 — 2h isolado não é duração', () => {
+    assert.equal(extractSpeechDurationMin('2h'), 0);
+  });
+
+  test('S1-5 — 11 SKUs mistos sem opts → 0 (live cap)', () => {
+    assert.equal(resolveOfferDurationMin(FAT_CATALOG_11), 0);
+  });
+
+  test('S1-6 — família homogénea >3 SKUs → 120', () => {
+    assert.equal(resolveOfferDurationMin(FOUR_MAQUIAGEM_120), 120);
+  });
+
+  test('S1-7 — família maquiagem + fala atual → 120', () => {
+    assert.equal(
+      resolveOfferDurationMin(FOUR_MAQUIAGEM_120, { messageText: 'quero maquiagem com a Fefe' }),
+      120,
+    );
+  });
+
+  test('S1-8 — speech 2h com catálogo misto → 120', () => {
+    assert.equal(
+      resolveOfferDurationMin(FAT_CATALOG_11, { messageText: 'não são 2h de atendimento?' }),
+      120,
+    );
+  });
+
+  test('S1-9 — sem SKU nem duração → 0', () => {
+    assert.equal(resolveOfferDurationMin([], { messageText: 'oi' }), 0);
+    assert.equal(resolveOfferDurationMin([], { messageText: 'oi' }), 0);
+  });
+
+  test('S1-10 — 1 SKU 120 sem opts intacto', () => {
+    assert.equal(resolveOfferDurationMin([{ duracaoEmMinutos: 120 }]), 120);
+  });
+
+  test('skuDurationFrom — misturado >3 → 0', () => {
+    assert.equal(skuDurationFrom(FAT_CATALOG_11), 0);
+  });
+});
+
+describe('compactBookingSlotsBlock duration occupancy (Chão 1)', () => {
+  test('S1-11 — durationMin 120 sem janela contínua, sem relógio inventado', () => {
+    const text = compactBookingSlotsBlock({
+      label: '05/09 (sábado)',
+      professionals: [{
+        name: 'Fefe',
+        professionalId: '826936',
+        startsAt: ['2026-09-05T12:30:00-03:00'],
+      }],
+      messageText: 'quero maquiagem no sábado',
+      durationMin: 120,
+      allowedProfessionalNames: ['Fefe'],
+    });
+    assert.match(text, /sem janela contínua de 120min/);
+    assert.doesNotMatch(text, /há vagas/);
+    assert.doesNotMatch(text, /12:30/);
+  });
+});
+
+describe('subtractOccupiedSlotStarts (Chão 2)', () => {
+  test('F2 — appointment 12:00/60 remove start 12:30', () => {
+    const professionals = [{
+      name: 'Fefe',
+      professionalId: '826936',
+      startsAt: ['2026-09-05T12:30:00-03:00'],
+    }];
+    const appointments = [{
+      professional_id: '826936',
+      scheduled_at: '2026-09-05T12:00:00-03:00',
+      duration_min: 60,
+    }];
+    const { professionals: filtered, subtractedOccupied } = subtractOccupiedSlotStarts(
+      professionals,
+      appointments,
+    );
+    assert.ok(subtractedOccupied >= 1);
+    assert.equal(filtered.length, 0);
+  });
+
+  test('F3 — outro profissional / outro dia não remove', () => {
+    const professionals = [{
+      name: 'Erick',
+      professionalId: '1',
+      startsAt: ['2026-09-05T12:30:00-03:00'],
+    }];
+    const appointments = [{
+      professional_id: '826936',
+      scheduled_at: '2026-09-05T12:00:00-03:00',
+      duration_min: 60,
+    }];
+    const { professionals: filtered, subtractedOccupied } = subtractOccupiedSlotStarts(
+      professionals,
+      appointments,
+    );
+    assert.equal(subtractedOccupied, 0);
+    assert.deepEqual(filtered[0].startsAt, ['2026-09-05T12:30:00-03:00']);
+  });
+});
+
+describe('snapshot.offer helpers (Chão 2)', () => {
+  test('E1 — snapshot fresco emite offer sem exigir stale', () => {
+    assert.equal(shouldEmitSnapshotOffer('BOOKING', 'HORARIOS VAGOS 02/09'), true);
+    const evt = buildSnapshotOfferEventPayload({ snapshotAgeMin: 10 });
+    assert.equal(evt.event, 'snapshot.offer');
+    assert.equal(evt.payload.snapshot_age_min, 10);
+    assert.equal(evt.payload.stale_after_min, SNAPSHOT_STALE_OFFER_MIN);
+  });
+
+  test('E2 — snapshot velho: stale threshold intacto', () => {
+    const evt = buildSnapshotOfferEventPayload({ snapshotAgeMin: 90 });
+    assert.equal(evt.payload.snapshot_age_min, 90);
+    assert.equal(evt.payload.stale_after_min, 45);
   });
 });

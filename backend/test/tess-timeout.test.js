@@ -53,13 +53,13 @@ test('evento de timeout não contém conteúdo da mensagem do cliente', () => {
     kapsoConversationId: 'kapso-test',
     intent: INTENTS.CANCEL,
     contextProfile: 'CANCEL',
-    timeoutMs: 25_000,
+    timeoutMs: 13_000,
   });
   assert.equal(event.event, 'tess.timeout');
   assert.deepEqual(event.payload, {
     intent: INTENTS.CANCEL,
     contextProfile: 'CANCEL',
-    timeout_ms: 25_000,
+    timeout_ms: 13_000,
   });
   assert.equal(JSON.stringify(event).includes('mensagem do cliente'), false);
 });

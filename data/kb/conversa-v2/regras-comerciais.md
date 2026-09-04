@@ -107,6 +107,11 @@ Onde cada *rate* é a taxa (0.0–1.0) sobre o histórico de agendamentos do cli
 - Atraso até 15 min é tratado proativamente, sem cobrança.
 - Acima disso, escalar para a recepção decidir.
 
+## Pé vs pezinho
+
+- **"Fazer pé" / "pé e mão"** = pedicure (+ manicure no combo). Upsell depilação de pé ok, sem misturar SKUs.
+- **"Pezinho" / "pezinho do cabelo" / contorno orelha-pescoço** = acabamento de corte — **NÃO** pedicure, **NÃO** Cabelo e Barba. Sem SKU isolado no snapshot → `[HANDOFF_HUMAN motivo=orcamento_referencia]`.
+
 ## Regras duras de segurança comercial
 
 - Máximo **1 mensagem proativa por semana** por cliente.

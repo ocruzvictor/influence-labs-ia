@@ -442,6 +442,19 @@ function createTrinksLocalStore(db) {
     return allRows(result);
   }
 
+  async function listActiveAppointmentWindowsForDate(date) {
+    const result = await db.query(
+      `SELECT professional_id, scheduled_at, duration_min
+         FROM trinks_appointments
+        WHERE scheduled_at::date = $1::date
+          AND status IN ('scheduled', 'confirmed')
+          AND deleted_at IS NULL
+        ORDER BY scheduled_at`,
+      [date],
+    );
+    return allRows(result);
+  }
+
   async function upsertAppointment(appointment) {
     const result = await db.query(
       `INSERT INTO trinks_appointments
@@ -549,6 +562,7 @@ function createTrinksLocalStore(db) {
     listAppointmentsByClient,
     listAppointmentsByProfessional,
     listAppointmentsByTrinksClient,
+    listActiveAppointmentWindowsForDate,
     upsertAppointment,
     markAppointmentStatus,
   };

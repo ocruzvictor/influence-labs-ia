@@ -203,13 +203,53 @@ function asksForClockList(text) {
   return ASK_TIMES_RE.test(normalizeText(text));
 }
 
-function resolveOfferDurationMin(services) {
-  if (!Array.isArray(services) || !services.length || services.length > 3) return 0;
+const DURATION_HOUR_PATTERNS = [
+  /\b(\d{1,2})\s*h\s+(de\s+)?(atendimento|duracao|servico|sessao)\b/g,
+  /\b(leva|demora|dura[m]?|sao|são)\s+(\d{1,2})\s*h\b/g,
+];
+
+function extractSpeechDurationMin(text) {
+  const norm = normalizeText(text);
+  if (!norm) return 0;
+
+  const direct = DURATION_HOUR_PATTERNS[0];
+  direct.lastIndex = 0;
+  let match = direct.exec(norm);
+  if (match) {
+    const hours = parseInt(match[1], 10);
+    if (hours > 0) return hours * 60;
+  }
+
+  const verb = DURATION_HOUR_PATTERNS[1];
+  verb.lastIndex = 0;
+  match = verb.exec(norm);
+  if (match) {
+    const hours = parseInt(match[2], 10);
+    if (hours > 0) return hours * 60;
+  }
+  return 0;
+}
+
+function skuDurationFrom(services) {
+  if (!Array.isArray(services) || !services.length) return 0;
   const durs = services
     .map((s) => Number(s?.duracaoEmMinutos ?? s?.duration_min ?? 0))
     .filter((n) => n > 0);
   if (!durs.length) return 0;
-  return Math.max(...durs);
+  if (services.length <= 3) return Math.max(...durs);
+  const unique = [...new Set(durs)];
+  if (unique.length === 1) return unique[0];
+  return 0;
+}
+
+function resolveOfferDurationMin(services, opts) {
+  if (!opts?.messageText) {
+    return skuDurationFrom(services);
+  }
+  const speech = extractSpeechDurationMin(opts.messageText);
+  const sku = skuDurationFrom(services);
+  if (speech && sku) return Math.max(speech, sku);
+  return speech || sku;
 }
 
 function startsFittingDuration(starts, durationMin) {
@@ -288,6 +328,93 @@ function occupancyLine(profName, startsAt, timeZone = SALON_TZ) {
   return `- ${profName}: há vagas de tarde.`;
 }
 
+function occupancyLineForOffer(profName, startsAt, durationMin, timeZone = SALON_TZ) {
+  const pool = durationMin > 0 ? startsFittingDuration(startsAt, durationMin) : startsAt;
+  if (durationMin > 0 && !pool.length) {
+    return `- ${profName}: sem janela contínua de ${durationMin}min neste dia.`;
+  }
+  return occupancyLine(profName, pool, timeZone);
+}
+
+function periodOccupancyLineForOffer(profName, startsAt, period, durationMin, timeZone = SALON_TZ) {
+  const pool = durationMin > 0 ? startsFittingDuration(startsAt, durationMin) : startsAt;
+  if (durationMin > 0 && !pool.length) {
+    return `- ${profName}: sem janela contínua de ${durationMin}min neste dia.`;
+  }
+  return periodOccupancyLine(profName, pool, period, timeZone);
+}
+
+/**
+ * Remove starts_at que caem dentro de [scheduled_at, scheduled_at+duration).
+ */
+function subtractOccupiedSlotStarts(professionals, appointments) {
+  const apptsByProf = new Map();
+  for (const appt of appointments || []) {
+    const key = String(appt.professional_id);
+    if (!apptsByProf.has(key)) apptsByProf.set(key, []);
+    apptsByProf.get(key).push(appt);
+  }
+
+  let subtractedOccupied = 0;
+  const nextProfessionals = (professionals || []).map((prof) => {
+    const profAppts = apptsByProf.get(String(prof.professionalId)) || [];
+    const kept = [];
+    for (const startsAt of prof.startsAt || []) {
+      const startMs = new Date(startsAt).getTime();
+      if (Number.isNaN(startMs)) continue;
+      let occupied = false;
+      for (const appt of profAppts) {
+        const apptStart = new Date(appt.scheduled_at).getTime();
+        if (Number.isNaN(apptStart)) continue;
+        const dur = Math.max(Number(appt.duration_min) || 30, 1);
+        const apptEnd = apptStart + dur * 60000;
+        if (startMs >= apptStart && startMs < apptEnd) {
+          occupied = true;
+          subtractedOccupied += 1;
+          break;
+        }
+      }
+      if (!occupied) kept.push(startsAt);
+    }
+    return { ...prof, startsAt: kept };
+  }).filter((prof) => prof.startsAt.length > 0);
+
+  return { professionals: nextProfessionals, subtractedOccupied };
+}
+
+const CLOCK_HONESTY_FOOTER = [
+  'Só ofereça os inícios listados (grade real Trinks).',
+  'Só ofereça se duracaoMinutos ≤ minutos contínuos anotados.',
+  'Não some janelas nem invente horário. Se o cliente pedir um horário que não está aqui, diga que não cabe e ofereça 1 alternativa listada ou HANDOFF_HUMAN motivo=encaixe.',
+].join(' ');
+
+const SNAPSHOT_STALE_OFFER_MIN = 45;
+
+function shouldEmitSnapshotOffer(contextProfile, horariosBlock) {
+  return contextProfile === 'BOOKING'
+    && typeof horariosBlock === 'string'
+    && horariosBlock.includes('HORARIOS VAGOS');
+}
+
+function buildSnapshotOfferEventPayload({
+  snapshotAgeMin,
+  staleAfterMin = SNAPSHOT_STALE_OFFER_MIN,
+  refreshed = false,
+  subtractedOccupied = 0,
+  traceId = null,
+}) {
+  return {
+    event: 'snapshot.offer',
+    payload: {
+      snapshot_age_min: snapshotAgeMin,
+      stale_after_min: staleAfterMin,
+      refreshed: Boolean(refreshed),
+      subtracted_occupied: Number(subtractedOccupied) || 0,
+      trace_id: traceId || null,
+    },
+  };
+}
+
 /**
  * Agrupa slots abertos por profissional (estrutura testável).
  */
@@ -338,14 +465,6 @@ const PERIOD_FOOTER = [
   'se não couber, 1–2 do outro período no mesmo dia (como alternativas);',
   'depois outro dia ou HANDOFF encaixe. Nunca despeje a grade.',
 ].join(' ');
-
-const CLOCK_HONESTY_FOOTER = [
-  'Só ofereça os inícios listados (grade real Trinks).',
-  'Só ofereça se duracaoMinutos ≤ minutos contínuos anotados.',
-  'Não some janelas nem invente horário. Se o cliente pedir um horário que não está aqui, diga que não cabe e ofereça 1 alternativa listada ou HANDOFF_HUMAN motivo=encaixe.',
-].join(' ');
-
-const SNAPSHOT_STALE_OFFER_MIN = 45;
 
 function snapshotAgeMinFromSynced(syncedAtList, nowMs = Date.now()) {
   const times = (syncedAtList || [])
@@ -430,7 +549,7 @@ function compactBookingSlotsBlock({
 
   if (!period) {
     const occLines = relevant
-      .map((p) => occupancyLine(p.name, p.startsAt, timeZone))
+      .map((p) => occupancyLineForOffer(p.name, p.startsAt, durationMin, timeZone))
       .filter(Boolean);
     if (!occLines.length) {
       return finish(`HORARIOS VAGOS ${label}:\n- Nenhum horario disponivel no snapshot local.`);
@@ -443,7 +562,7 @@ function compactBookingSlotsBlock({
   }
 
   const occLines = relevant
-    .map((p) => periodOccupancyLine(p.name, p.startsAt, period, timeZone))
+    .map((p) => periodOccupancyLineForOffer(p.name, p.startsAt, period, durationMin, timeZone))
     .filter(Boolean);
   if (!occLines.length) {
     return finish(`HORARIOS VAGOS ${label}:\n- Nenhum horario disponivel no snapshot local.`);
@@ -468,6 +587,12 @@ module.exports = {
   pickStartsForPeriod,
   pickStartsForOffer,
   resolveOfferDurationMin,
+  extractSpeechDurationMin,
+  skuDurationFrom,
+  startsFittingDuration,
+  subtractOccupiedSlotStarts,
+  shouldEmitSnapshotOffer,
+  buildSnapshotOfferEventPayload,
   asksForClockList,
   SNAPSHOT_STALE_OFFER_MIN,
   snapshotAgeMinFromSynced,

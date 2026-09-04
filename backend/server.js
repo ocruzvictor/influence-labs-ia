@@ -31,6 +31,9 @@ const {
   groupOpenSlots,
   formatFullSlotsBlock,
   snapshotAgeMinFromSynced,
+  subtractOccupiedSlotStarts,
+  shouldEmitSnapshotOffer,
+  buildSnapshotOfferEventPayload,
   SNAPSHOT_STALE_OFFER_MIN,
 } = require('./lib/tess-context-slots');
 const {
@@ -43,6 +46,11 @@ const {
   createTessTimeoutResult,
   createTessTimeoutEvent,
 } = require('./lib/tess-timeout');
+const {
+  DEFAULT_ABORT_MS,
+  TESS_TIMEOUT_WALL_MS,
+  resolveTessAbortMs,
+} = require('./lib/tess-timeout-budget');
 const {
   createIdempotencyKey,
   decideCreateIdempotency,
@@ -80,7 +88,8 @@ const TESS_TOKEN = process.env.TESS_API_TOKEN;
 const TESS_AGENT_ID = String(process.env.TESS_AGENT_ID || '46589');
 const TESS_API_BASE = (process.env.TESS_API_BASE || 'https://api.tess.im').replace(/\/+$/, '');
 const TESS_URL = process.env.TESS_API_URL || `${TESS_API_BASE}/agents/${TESS_AGENT_ID}/execute`;
-const TESS_REQUEST_TIMEOUT_MS = 25_000;
+// Parede Node→TESS — não passar ao AbortSignal (orçamento = resolveTessAbortMs).
+const TESS_REQUEST_TIMEOUT_MS = TESS_TIMEOUT_WALL_MS;
 // x-workspace-id obrigatório 01/09/2026. 403 em 2026-03-09 foi workspace de demo (1269475),
 // não a key do 46589. Prod: TESS_WORKSPACE_ID (Victor 2026-08-28: 1458234).
 
@@ -161,6 +170,7 @@ const {
   saveCreditAlertState,
   newlyDropped,
   formatTessCreditAlert,
+  salonDayKey,
 } = require('./lib/tess-credit-usage');
 const { createTrinksApi } = require('./lib/trinks-api');
 const { buildCancelPayload, buildCreateClientPayload, QUEM_CANCELOU } = require('./lib/trinks-mapping');
@@ -184,6 +194,7 @@ const {
 const { parseTessContextConfig } = require('./lib/tess-context-config');
 const {
   classifyTessIntent,
+  intentToPersist,
   shouldSkipTess,
   isMediaMessage,
   trivialSkipResponse,
@@ -293,11 +304,12 @@ function mapSlotPayload(date, payload) {
 
 async function ensureSlotSnapshot(date) {
   const maxAgeHours = SNAPSHOT_STALE_OFFER_MIN / 60;
-  if (!date || await trinksLocalStore.hasSlotSnapshotForDate(date, { maxAgeHours })) return;
+  if (!date || await trinksLocalStore.hasSlotSnapshotForDate(date, { maxAgeHours })) return false;
   const payload = await trinksApi.request(`/agendamentos/profissionais/${date}`, {
     origin: 'slot_outside_snapshot',
   });
   await trinksLocalStore.replaceSlotsForDate(date, mapSlotPayload(date, payload));
+  return true;
 }
 
 const DYNAMIC_CONTEXT_PREFIX = 'CONTEXTO DINAMICO - TRINKS (snapshot local alimentado por webhooks):';
@@ -533,9 +545,10 @@ let globalLastOkAt = null;
 async function fetchSlotsGrouped(date) {
   const from = new Date(`${date}T00:00:00-03:00`);
   const to = new Date(from.getTime() + 86400000);
-  const [slots, professionals] = await Promise.all([
+  const [slots, professionals, appointments] = await Promise.all([
     trinksLocalStore.listSlots({ from, to }),
     trinksLocalStore.listProfessionals(),
+    trinksLocalStore.listActiveAppointmentWindowsForDate(date),
   ]);
   const openSlots = filterSlotsWithinExpediente(slots);
   const professionalNames = new Map(professionals.map((p) => [
@@ -547,10 +560,15 @@ async function fetchSlotsGrouped(date) {
     professionalNames,
     (profName, startsAt) => isClaudiaFridaySlot(profName, startsAt),
   );
+  const { professionals: filtered, subtractedOccupied } = subtractOccupiedSlotStarts(
+    grouped,
+    appointments,
+  );
   return {
     label: formatDateLabel(date),
     date,
-    professionals: grouped,
+    professionals: filtered,
+    subtractedOccupied,
     snapshotAgeMin: snapshotAgeMinFromSynced(openSlots.map((slot) => slot.synced_at)),
   };
 }
@@ -1078,7 +1096,10 @@ async function createBookingInTrinks(booking, professionalsData, { clientPhone, 
 // --- TESS helper ---
 // root_id usado para manter thread TESS. Contexto dinamico injetado no user message (nao system),
 // pois o agente TESS tem system prompt proprio no dashboard e ignora o role:system da API.
-async function callTESS(messages, rootId) {
+async function callTESS(messages, rootId, { timeoutMs } = {}) {
+  const abortMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
+    ? Number(timeoutMs)
+    : DEFAULT_ABORT_MS.FULL;
   const body = { messages, wait_execution: true };
   if (Number.isInteger(rootId)) body.root_id = rootId;
   // Story 1.5: anexa memory_collections quando configurado — TESS faz RAG semantic
@@ -1090,7 +1111,7 @@ async function callTESS(messages, rootId) {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TESS_REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(abortMs),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -1247,9 +1268,10 @@ async function runOperatorResumeTurn(phone, operatorNote) {
 
   console.log(`[${sessionId}] operator_resume TESS turn (note_len=${operatorNote.length})`);
 
+  const abortMs = resolveTessAbortMs(assembledCtx.contextProfile);
   const tessRaw = await callTESS([
     { role: 'user', content: assembledCtx.userMessageWithContext },
-  ], state.rootId);
+  ], state.rootId, { timeoutMs: abortMs });
 
   let tessText = extractTESSResponse(tessRaw);
   const premiumResult = await sanitizePremiumResponse({
@@ -1260,7 +1282,7 @@ async function runOperatorResumeTurn(phone, operatorNote) {
         { role: 'user', content: assembledCtx.userMessageWithContext },
         { role: 'assistant', content: tessText },
         { role: 'user', content: RETRY_USER_MESSAGE },
-      ], state.rootId);
+      ], state.rootId, { timeoutMs: abortMs });
       return extractTESSResponse(retryRaw);
     },
   });
@@ -1353,6 +1375,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   const intentResult = classifyTessIntent(messageText, historyForClassify, futureBookingsForClassify, {
     lastBookingOutcome: state.lastBookingOutcome,
   });
+  const persistedIntent = intentToPersist(intentResult, messageText, { path: 'bot' });
   const isMedia = isMediaMessage(messageText);
 
   let pendingOperatorNote = null;
@@ -1424,12 +1447,16 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       { confidence: intentResult.confidence, traceId: turnTraceId },
     );
     persistContextBytesEvent(db, skipBytes, phone).catch(() => {});
+    const skipSalonDay = salonDayKey();
     logTessTurnTelemetry({
       sessionId,
       intent: intentResult.intent,
       contextProfile,
       skippedTess: true,
-      tessCredits: null,
+      tessCredits: 0,
+      sentChars: 0,
+      timedOut: false,
+      salonDay: skipSalonDay,
     });
     recordTessCredits(db, tessCredits ?? 0);
     persistTessTurnEvent(db, {
@@ -1439,11 +1466,26 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       contextProfile,
       tessCredits: 0,
       skippedTess: true,
+      sentChars: 0,
+      timedOut: false,
+      salonDay: skipSalonDay,
       totalChars: skipBytes?.blocks?.total?.chars || 0,
       traceId: turnTraceId,
       sessionId,
     }).catch(() => {});
   } else {
+    const snapshotOfferMeta = { refreshed: false, subtractedOccupied: 0 };
+    async function ensureSlotSnapshotTracked(date) {
+      const refreshed = await ensureSlotSnapshot(date);
+      if (refreshed) snapshotOfferMeta.refreshed = true;
+      return refreshed;
+    }
+    async function getSlotsGroupedTracked(date) {
+      const grouped = await getSlotsGrouped(date);
+      const subtracted = Number(grouped.subtractedOccupied) || 0;
+      if (subtracted > 0) snapshotOfferMeta.subtractedOccupied += subtracted;
+      return grouped;
+    }
     assembledCtx = await assembleTessContext({
       sessionId,
       messageText,
@@ -1457,13 +1499,14 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       trinksCanonicalName,
       operatorResumeNote: pendingOperatorNote,
       genderQualifier: state.genderQualifier,
+      lastBookingOutcome: state.lastBookingOutcome,
       buildDynamicContext,
       getSlots,
-      getSlotsGrouped,
+      getSlotsGrouped: getSlotsGroupedTracked,
       getProfessionals,
       getServicesText,
       loadClientFutureBookings,
-      ensureSlotSnapshot,
+      ensureSlotSnapshot: ensureSlotSnapshotTracked,
       getNextBusinessDays,
       mergeSlotContextDates,
       nextSaturdayDates,
@@ -1479,6 +1522,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       data: Array.isArray(assembledCtx.profsPayload?.data) ? assembledCtx.profsPayload.data : [],
     };
     contextProfile = assembledCtx.contextProfile;
+    const abortMs = resolveTessAbortMs(contextProfile);
     const assembledBytes = emitContextBytesLog(
       assembledCtx,
       sessionId,
@@ -1511,11 +1555,26 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         },
       }).catch(() => {});
     }
+    if (shouldEmitSnapshotOffer(assembledCtx.contextProfile, assembledCtx.blocks?.horarios)) {
+      const offerEvent = buildSnapshotOfferEventPayload({
+        snapshotAgeMin: assembledCtx.snapshotAgeMin,
+        staleAfterMin: SNAPSHOT_STALE_OFFER_MIN,
+        refreshed: snapshotOfferMeta.refreshed,
+        subtractedOccupied: snapshotOfferMeta.subtractedOccupied,
+        traceId: turnTraceId,
+      });
+      emitOperationalEvent(db, {
+        ...offerEvent,
+        clientPhone: phone,
+        kapsoConversationId,
+        motivo: `age_min=${assembledCtx.snapshotAgeMin ?? 'null'}`,
+      }).catch(() => {});
+    }
 
     try {
       tessRaw = await callTESS([
         { role: 'user', content: assembledCtx.userMessageWithContext },
-      ], state.rootId);
+      ], state.rootId, { timeoutMs: abortMs });
 
       tessText = extractTESSResponse(tessRaw);
       const premiumResult = await sanitizePremiumResponse({
@@ -1526,7 +1585,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
             { role: 'user', content: assembledCtx.userMessageWithContext },
             { role: 'assistant', content: tessText },
             { role: 'user', content: RETRY_USER_MESSAGE },
-          ], state.rootId);
+          ], state.rootId, { timeoutMs: abortMs });
           const retryRoot = extractTESSRootId(retryRaw);
           if (retryRoot) state.rootId = retryRoot;
           return extractTESSResponse(retryRaw);
@@ -1542,12 +1601,37 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         kapsoConversationId,
         intent: intentResult.intent || null,
         contextProfile,
-        timeoutMs: TESS_REQUEST_TIMEOUT_MS,
+        timeoutMs: abortMs,
       })).catch(() => {});
+      const timeoutSalonDay = salonDayKey();
+      const timeoutSentChars = assembledCtx?.userMessageWithContext?.length || 0;
+      logTessTurnTelemetry({
+        sessionId,
+        intent: intentResult.intent,
+        contextProfile,
+        skippedTess: false,
+        tessCredits: null,
+        sentChars: timeoutSentChars,
+        timedOut: true,
+        salonDay: timeoutSalonDay,
+      });
+      persistTessTurnEvent(db, {
+        clientPhone: phone,
+        intent: intentResult.intent,
+        confidence: intentResult.confidence,
+        contextProfile,
+        tessCredits: null,
+        skippedTess: false,
+        sentChars: timeoutSentChars,
+        timedOut: true,
+        salonDay: timeoutSalonDay,
+        traceId: turnTraceId,
+        sessionId,
+      }).catch(() => {});
       if (phone) {
         saveConversationTurns(phone, [
-          { role: 'user', content: messageText, intent: intentResult.intent },
-          { role: 'assistant', content: timeoutResult.response, agent: 'tess-timeout', intent: intentResult.intent },
+          { role: 'user', content: messageText, intent: persistedIntent },
+          { role: 'assistant', content: timeoutResult.response, agent: 'tess-timeout', intent: persistedIntent },
         ], turnTraceId).catch((saveErr) => console.error('[DB] Save TESS timeout turns error:', saveErr.message));
       }
       state.history.push({ role: 'assistant', content: timeoutResult.response });
@@ -1561,12 +1645,17 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       return timeoutResult;
     }
     tessCredits = extractTessCredits(tessRaw);
+    const turnSalonDay = salonDayKey();
+    const turnSentChars = assembledCtx.userMessageWithContext.length;
     logTessTurnTelemetry({
       sessionId,
       intent: intentResult.intent,
       contextProfile,
       skippedTess: false,
       tessCredits,
+      sentChars: turnSentChars,
+      timedOut: false,
+      salonDay: turnSalonDay,
     });
     recordTessCredits(db, tessCredits ?? 0);
     persistTessTurnEvent(db, {
@@ -1576,6 +1665,9 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       contextProfile,
       tessCredits,
       skippedTess: false,
+      sentChars: turnSentChars,
+      timedOut: false,
+      salonDay: turnSalonDay,
       totalChars: assembledBytes?.blocks?.total?.chars || 0,
       traceId: turnTraceId,
       sessionId,
@@ -1610,7 +1702,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     }).catch((err) => console.error('[empty-handoff] error:', err.message));
     if (phone) {
       saveConversationTurns(phone, [
-        { role: 'assistant', content: fallback, agent: 'tess-fallback', intent: intentResult.intent },
+        { role: 'assistant', content: fallback, agent: 'tess-fallback', intent: persistedIntent },
       ], turnTraceId).catch((err) => console.error('[DB] Save empty-TESS fallback error:', err.message));
     }
     return {
@@ -1680,8 +1772,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   // Persist conversation turns to PostgreSQL (fire-and-forget, non-blocking)
   if (phone) {
     saveConversationTurns(phone, [
-      { role: 'user', content: messageText, intent: intentResult.intent },
-      { role: 'assistant', content: displayText, intent: intentResult.intent },
+      { role: 'user', content: messageText, intent: persistedIntent },
+      { role: 'assistant', content: displayText, intent: persistedIntent },
     ], turnTraceId).catch(err => console.error('[DB] Save turns error:', err.message));
   }
 
@@ -2344,7 +2436,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         role: 'assistant',
         content,
         agent: 'trinks-2phase',
-        intent: intentResult.intent,
+        intent: persistedIntent,
       })),
       turnTraceId,
     ).catch((err) => console.error('[DB] Save 2-phase turns error:', err.message));
@@ -2752,8 +2844,10 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   // a triagem do Tiago. Sem isso, conversation_history so tem msgs whitelisted (testes).
   // Marca como agent='passive' para distinguir das msgs efetivamente atendidas pelo bot.
   if (sessionPhone) {
+    const passiveIntentResult = classifyTessIntent(messageText, [], []);
+    const passiveIntent = intentToPersist(passiveIntentResult, messageText, { path: 'passive' });
     saveConversationTurns(sessionPhone, [
-      { role: 'user', content: messageText, agent: 'passive' }
+      { role: 'user', content: messageText, agent: 'passive', intent: passiveIntent },
     ], inboundTraceId).catch(err => console.error('[passive-log] erro:', err.message));
   }
 
@@ -3632,4 +3726,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, processMessage };
+module.exports = { app, processMessage, callTESS, runOperatorResumeTurn };

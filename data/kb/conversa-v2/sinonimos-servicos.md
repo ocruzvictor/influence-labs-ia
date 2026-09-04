@@ -1,7 +1,7 @@
 # Sinônimos de Serviços — Studio Tirra
 
-**Versão:** v1.1 (2026-08-20 — feedback Bruuna laser)
-**Como o LLM usa:** quando o cliente menciona um termo coloquial ou abreviado, use este dicionário para mapear ao serviço oficial em `fichas-tecnicas-servicos.md` antes de oferecer slot ou preço. Em caso de ambiguidade (ex: "pé" pode ser pedicure ou depilação), pergunte ao cliente qual ele quer.
+**Versão:** v1.2 (2026-09-04 — chão 4: pezinho ≠ pedicure)
+**Como o LLM usa:** quando o cliente menciona um termo coloquial ou abreviado, use este dicionário para mapear ao serviço oficial em `fichas-tecnicas-servicos.md` antes de oferecer slot ou preço. Em caso de ambiguidade (ex: "pé" pode ser pedicure ou depilação), pergunte ao cliente qual ele quer. **Exceção obrigatória:** "pezinho" / "pezinho do cabelo" / contorno orelha-pescoço **≠** pedicure e **≠** Cabelo e Barba — é acabamento de corte; não remapeie por "pé".
 
 ---
 
@@ -13,6 +13,7 @@
 | cortar a barba / fazer a barba / aparar a barba / barbear | Barba |
 | corte e barba / completo / combo | Cabelo e Barba |
 | cabelo + barba / tudo | Cabelo e Barba |
+| pezinho / pezinho do cabelo / contorno orelha-pescoço / acabamento do corte | Acabamento de corte — **NÃO** pedicure, **NÃO** Cabelo e Barba. Se snapshot não tiver SKU isolado → `[HANDOFF_HUMAN motivo=orcamento_referencia]` |
 | pintar / pintar o cabelo / tintura | Coloração · Retoque de Coloração (perguntar se é só raiz ou completo) |
 | camuflagem / camuflar os brancos / pintar só os brancos / cobrir branco / gloss (marca) | Camuflagem de fios brancos — ver regras-comerciais.md. NÃO é SKU Gloss. Mapear ao SKU de coloração do snapshot (Coloração / Tonalização, Retoque de Raiz ou Coloração Global) depois de esclarecer se é só raiz. Tonalizante nos brancos = UM serviço, não combo. |
 | platinar / ficar loira / clarear muito | Mechas (FLUXO CONSULTIVO — não dar preço direto) |
@@ -79,7 +80,7 @@
 
 ## Regras de uso (importante)
 
-1. **Em caso de ambiguidade**, pergunte ao cliente — nunca chute. Ex: "Quando você diz 'fazer o pé', você quer dizer pedicure ou depilação?"
+1. **Em caso de ambiguidade**, pergunte ao cliente — nunca chute. Ex: "Quando você diz 'fazer o pé', você quer dizer pedicure ou depilação?" **"Pezinho" / "pezinho do cabelo" / contorno orelha-pescoço** = acabamento de corte — **NUNCA** pedicure, **NUNCA** Cabelo e Barba; não passar por regra de "pé"→unha.
 2. **Termos com fluxo consultivo** (mechas, visagismo, penteado, maquiagem) — aplicar `regras-comerciais.md`. Penteado/maquiagem: pode citar “a partir de” o snapshot; **não** agendar. Mechas: Teste de Mechas, sem preço fechado.
 3. **Termos masculinizados** — se contexto / nome do cliente indica masculino e existe variante "Masculina" do serviço (ex: Pedicure Masculina, Manicure Masculina), sugerir a variante.
 4. **Termo do cliente não está na lista** — tentar inferir pelo contexto; se não tiver certeza, escalonar com `[HANDOFF_HUMAN motivo=servico_nao_mapeado]` ou perguntar.

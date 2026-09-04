@@ -1,0 +1,230 @@
+schema: 1
+slice: '2026-09-04-chao-6-timeout'
+slice_title: 'Chão 6 — timeout por perfil (abort_ms, não 25s para tudo)'
+scope_type: 'operational-slice'   # story Draft, não InReview; SOT = Aria tetos
+gate: CONCERNS
+status_reason: >
+  Abort por perfil bate a tabela Aria (lean 13000 / heavy 22000). AbortSignal
+  nunca recebe 25000. AC3 permanece aberto: não há p95 live; piso heavy 22000
+  ≥ 12400 medido. Sem inventar p95. Sem publish.
+reviewer: 'Quinn (Test Architect)'
+sot: 'docs/analysis/2026-09-04-aria-chao-6-timeout-tetos.md'
+story: 'docs/stories/salon-whatsapp-chao-6-timeout-perfil.md'
+reviewed_revision: 'uncommitted-on-7482d3d'
+reviewed_worktree: 'dirty — chão 6 uncommitted em cima de 7482d3d; worktree tem outras fatias'
+deployed_revision: '7482d3d — live intocado; este gate não publica'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T14:15:00-03:00'
+expires: '2026-09-18T14:15:00-03:00'
+quality_score: 94
+waiver: { active: false }
+last4_only: true
+
+# ---------------------------------------------------------------------------
+# 1. HUNTS PEDIDOS
+# ---------------------------------------------------------------------------
+requested_checks:
+  abort_signal_never_wall:
+    status: PASS
+    hunt: 1
+    evidence:
+      - 'callTESS: AbortSignal.timeout(abortMs). abortMs = timeoutMs válido ou DEFAULT_ABORT_MS.FULL (22000).'
+      - 'TESS_REQUEST_TIMEOUT_MS = TESS_TIMEOUT_WALL_MS (25000). Comentário: parede, não orçamento. Grep: símbolo só na definição — zero uso como signal.'
+      - 'processMessage + resume + premium retry passam resolveTessAbortMs(...). Nenhuma chamada com 25000.'
+    notes: 'callTESS não clampa timeoutMs explícito à parede (MNT-01). Callers de produção passam resolveTessAbortMs.'
+
+  table_canonical:
+    status: PASS
+    hunt: 2
+    evidence:
+      - 'DEFAULT_ABORT_MS: MIN/FAQ/PRICE/CANCEL=13000; BOOKING/FULL=22000.'
+      - 'resolveTessAbortMs(undefined|NOPE) → 22000. Todos < 25000. BOOKING/FULL ≥ 12400.'
+      - 'Quinn rerun 6.1: 9/9.'
+    notes: 'Inteiros Aria copiados. Sem terceira banda. Sem 25000 no signal.'
+
+  env_clamp:
+    status: PASS
+    hunt: 3
+    evidence:
+      - 'parseAbortCaps: aceita só 3000 ≤ n ≤ 24000. 0/abc/25000/30000/2000 → default da tabela.'
+      - 'TESS_ABORT=off: zero hits no código. Só o veto no SOT Aria §5.'
+      - 'infra/.env.example: seis TESS_ABORT_MS_* comentados. TESS_SKIP_TRIVIAL=false intacto.'
+    notes: 'Fail-open ≥25000 rejeitado. Sem kill switch ilimitado.'
+
+  cancel_0007_honest:
+    status: PASS
+    hunt: 4
+    evidence:
+      - '6.3: timeout_ms===13000; abortTimeouts=[13000]; CANCEL_TIMEOUT_COPY; tess.turn timed_out=true; tess_credits=null.'
+      - 'last4=0007 na coluna. Payload tess.timeout / tess.turn sem phone/client_phone.'
+      - 'assertZeroMutation: zero UPDATE bot_thread_state / trinks_api_requests / booking.cancelled / tags.parsed.'
+    notes: 'commit-12 intacto no abort lean. Quinn rerun.'
+
+  faq_pix_not_cancel:
+    status: PASS
+    hunt: 5
+    evidence:
+      - '6.4: aceita pix? → FAQ; timeout_ms===13000; response===DEFAULT_TIMEOUT_COPY; não-CANCEL.'
+      - 'skipped_tess=false no stdout. skip_trivial=false no boot. OP013 continua off.'
+      - 'tess.turn timed_out=true. Zero mutação.'
+    notes: 'FAQ aborta no lean. Skip inbound não ligou.'
+
+  heavy_floor_no_invented_p95:
+    status: PASS
+    hunt: 6
+    evidence:
+      - '6.5 BOOKING scoped timeout_ms===22000. FULL mode timeout_ms===22000. 22000 ≥ 12400 e < 25000.'
+      - 'Zero p95 no código, nos testes ou neste gate. Piso = âncora HEAVY 12400 + fórmula Aria.'
+    notes: 'AC3 da story permanece unchecked. Não é p95. É o teto conservador do SOT.'
+
+  calltess_omit_retry_resume:
+    status: PASS
+    hunt: 7
+    evidence:
+      - '6.6: callTESS sem timeoutMs → AbortSignal 22000, não 25000.'
+      - '6.7 premium: abortTimeouts=[13000,13000] no mesmo turno CANCEL.'
+      - 'Resume: resolveTessAbortMs(assembledCtx.contextProfile); tess.turn count=0 (OBS-01 da 5 — sem persist novo).'
+    notes: 'Dois callTESS (principal + retry) compartilham abortMs do perfil.'
+
+  commit12_unit:
+    status: PASS
+    hunt: 8
+    evidence:
+      - 'tess-timeout.test.js: isTessTimeoutError + CANCEL copy + DEFAULT copy + resultado enviável + payload sem mensagem. Fixture timeout_ms 13000.'
+      - 'Quinn: 5/5 neste arquivo. Pacote focado 23/23.'
+    notes: 'Contrato commit-12 palavra por palavra. Só o inteiro do fixture mudou.'
+
+  veto_surfaces:
+    status: PASS
+    hunt: 9
+    evidence:
+      - 'git diff HEAD backend/lib/tess-context-budget.js vazio. tess-timeout.js vazio (copy intacta).'
+      - 'Nginx location / webhook continua proxy_read_timeout 35s. Diff nginx = n8n/chatwoot pausados + /mcp — fatia alheia, não Dex chão 6.'
+      - 'data/kb e 46589 dirty = chão 4 / onda 2. Fora da allowlist Dex.'
+      - 'Quinn não executou Hostinger, religar, BOT_ACCEPT_ALL, smoke 0007, paste 46589, Kapso painel.'
+    notes: 'Mesmo critério onda2/chão 5: dirty alheio não FAIL deste slice.'
+
+# ---------------------------------------------------------------------------
+# 2. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues:
+  - id: 'REQ-01'
+    severity: medium
+    finding: >
+      AC3 (BOOKING/FULL ≥ p95 da story 5) permanece aberto. Não há p95 live:
+      persist tess.turn da 5 é local CONCERNS, sem duration_ms, não publicado.
+    evidence: >
+      SOT Aria §1.2. Teto heavy = 22000 ≥ HEAVY_ANCHOR 12400. Quinn não inventa p95.
+    impact: >
+      O dente detecta degradação antes da parede. Não calibra contra distribuição live.
+      Recalibrar só quando houver duration_ms + um dia publicado.
+    suggested_action: >
+      Deixar AC3 aberto. Não apertar BOOKING/FULL abaixo de 22000 sem relógio live.
+      duration_ms é fatia futura (SOT §7 veto).
+    suggested_owner: 'sm'
+    blocks_publish: false
+
+  - id: 'MNT-01'
+    severity: low
+    finding: >
+      callTESS aceita timeoutMs > 0 sem clamp à parede. Um caller futuro com 25000
+      voltaria ao bug. Produção hoje só passa resolveTessAbortMs (≤24000).
+    evidence: 'backend/server.js callTESS: Number(timeoutMs) > 0 → AbortSignal.timeout(abortMs).'
+    suggested_action: 'Opcional: clamp abortMs = min(n, TESS_ABORT_HARD_CEILING_MS) dentro de callTESS.'
+    suggested_owner: 'dev'
+    blocks_publish: false
+
+  - id: 'OBS-01'
+    severity: low
+    finding: >
+      Resume continua sem persist tess.turn (chão 5 OBS-01). Este slice só ligou
+      o abort do perfil. Denominador do resume segue furo.
+    evidence: '6.7 assert turnEvents.length===0. SOT §4: não acrescentar persist no resume.'
+    suggested_action: 'Fora. Não é patch Dex deste slice.'
+    suggested_owner: 'sm'
+    blocks_publish: false
+
+# ---------------------------------------------------------------------------
+# 3. EVIDÊNCIA DE TESTES
+# ---------------------------------------------------------------------------
+evidence:
+  slice_test_command: "node --test test/tess-timeout-budget.test.js test/server-tess-timeout.test.js test/tess-timeout.test.js"
+  slice_test_result: '# tests 23 / # pass 23 / # fail 0 — Quinn reexecutou'
+  syntax: 'PASS — node --check tess-timeout-budget.js server.js tess-timeout.js'
+  hunt_probes: >
+    CANCEL last4=0007 timeout_ms=13000 timed_out credits=null;
+    FAQ aceita pix? DEFAULT_TIMEOUT_COPY skip off;
+    BOOKING/FULL 22000; omit 22000; premium [13000,13000]; resume sem tess.turn
+  coverage_gap: 'AC3 sem p95 live; callTESS sem clamp de parede; resume sem tess.turn'
+  not_executed:
+    - 'p95 / duration_ms / query live tess.turn.'
+    - 'Suíte completa do repo.'
+    - 'Deploy, rsync, Hostinger, rebuild de container.'
+    - 'Religar bot / BOT_ACCEPT_ALL / POST Trinks / smoke 0007 / paste 46589 / Nginx reload / Kapso painel.'
+
+# ---------------------------------------------------------------------------
+# 4. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      last4=0007. Payload tess.timeout/tess.turn sem telefone. Zero mutação Trinks
+      no abort. Sem TESS_ABORT=off. BOT_ACCEPT_ALL intocado.
+  reliability:
+    status: PASS
+    notes: >
+      Lean aborta em 13s; heavy em 22s; omit/unknown = 22000. Fallback commit-12
+      intacto. Parede 25s não sobe.
+  maintainability:
+    status: PASS
+    notes: 'Módulo puro sem db/fetch. Env clamp fail-closed para default. MNT-01 residual.'
+  performance:
+    status: PASS
+    notes: >
+      Não há p95. Teto heavy 22000 é folga sobre 12400 medido, 3s antes da parede.
+      Não é medição live.
+  observability:
+    status: CONCERNS
+    notes: >
+      tess.timeout.timeout_ms agora é o abort do perfil. AC3/p95 continua
+      infalsificável sem duration_ms. REQ-01.
+
+# ---------------------------------------------------------------------------
+# 5. PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: no
+publish_note: >
+  CONCERNS com blocks_publish vazio: Orion pode continuar o epic sem publish.
+  Este gate NÃO autoriza deploy, religar, BOT_ACCEPT_ALL, smoke 0007,
+  Hostinger, rsync, paste 46589, Nginx reload, Kapso, POST Trinks.
+  AC3 não bloqueia o abort por perfil; bloqueia afirmar que o teto heavy
+  é um p95.
+
+slice_allowlist:
+  - backend/lib/tess-timeout-budget.js
+  - backend/server.js
+  - backend/test/tess-timeout-budget.test.js
+  - backend/test/server-tess-timeout.test.js
+  - backend/test/tess-timeout.test.js
+  - infra/.env.example
+  - docs/analysis/2026-09-04-aria-chao-6-timeout-tetos.md
+  - docs/stories/salon-whatsapp-chao-6-timeout-perfil.md
+  - docs/qa/gates/2026-09-04-chao-6-timeout.yml
+  - docs/handoffs/2026-09-04-quinn-gate-chao-6.md
+
+# ---------------------------------------------------------------------------
+# 6. AUTO-DECISÕES
+# ---------------------------------------------------------------------------
+auto_decisions:
+  - '[AUTO-DECISION] Story Status=Draft (não InReview) → sem transição Done/InProgress (razão: qa-gate.md post-gate exige InReview).'
+  - '[AUTO-DECISION] Veredito CONCERNS não PASS (razão: AC3 aberto — sem p95 live; hunt 6 pediu honestidade).'
+  - '[AUTO-DECISION] AC3 unchecked (razão: inventar p95 seria STOP; 22000 ≥ 12400 é âncora, não p95).'
+  - '[AUTO-DECISION] T3 marcado; AC4 Quinn confirmado só após este gate (razão: Dex checou AC4 cedo; Quinn agora gateou).'
+  - '[AUTO-DECISION] nginx/kb/46589 dirty vs HEAD não atribui a Dex (razão: fora da allowlist; P-BUDGET e tess-timeout.js diff vazio).'
+  - '[AUTO-DECISION] Sem patch (razão: missão gate; anti-self-review; Dex implementou).'
+  - '[AUTO-DECISION] MNT-01 low não FAIL (razão: callers de produção usam resolveTessAbortMs; omit → 22000).'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, paste 46589, smoke 0007, Hostinger, religar, Nginx reload nem deploy.'

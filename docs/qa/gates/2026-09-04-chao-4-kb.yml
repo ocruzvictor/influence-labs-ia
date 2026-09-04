@@ -1,0 +1,196 @@
+schema: 1
+slice: '2026-09-04-chao-4-kb'
+slice_title: 'Chão 4 — memories TESS 39496 (diff local KB; sem PATCH)'
+scope_type: 'operational-slice'   # story Draft, não InReview; SOT = programa Orion
+gate: PASS
+re_gate: true
+prior_gate: CONCERNS
+prior_gate_reason: 'REQ-01 — visagismo/mechas/laser ride-along no live vs HEAD'
+status_reason: >
+  Re-gate pós-isolamento Orion: live conversa-v2 vs HEAD é só os 4 arquivos
+  do IN (pezinho + TA). padroes-fala / info-estatica / laser = HEAD.
+  Visagismo 900 / mechas 880 / rewrite laser só no park et11, não no live.
+reviewer: 'Quinn (Test Architect)'
+sot: 'docs/analysis/2026-09-04-orion-programa-chao-unico.md'
+story: 'docs/stories/salon-whatsapp-chao-4-kb-memories-tess.md'
+story_title: 'Memories TESS 39496 alinhadas ao chão (não só o markdown local)'
+reviewed_revision: 'wt-digest:c2eb2acaa50b'
+reviewed_worktree: 'dirty — chão 4 isolado (4 files) em cima de 7482d3d; outras fatias no tree não são desta story'
+deployed_revision: '7482d3d — live TESS 39496 intocado; este gate não publica'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T14:12:00-03:00'
+expires: '2026-09-18T14:12:00-03:00'
+quality_score: 96
+waiver: { active: false }
+last4_only: true
+authorizes_tess_patch: false
+authorizes_open: false
+authorizes_smoke_0007: false
+authorizes_hostinger: false
+
+# ---------------------------------------------------------------------------
+# 1. HUNTS PEDIDOS (re-gate)
+# ---------------------------------------------------------------------------
+requested_checks:
+  pezinho_explicit_not_pedicure_not_cabelo_barba:
+    status: PASS
+    hunt: 1
+    evidence:
+      - 'sinonimos header v1.2: "pezinho" / "pezinho do cabelo" / contorno orelha-pescoço ≠ pedicure e ≠ Cabelo e Barba.'
+      - 'sinonimos tabela (Cabelos e barba): pezinho / pezinho do cabelo / contorno / acabamento do corte → Acabamento de corte — NÃO pedicure, NÃO Cabelo e Barba; sem SKU → HANDOFF orcamento_referencia.'
+      - 'sinonimos regra 1: NUNCA pedicure, NUNCA Cabelo e Barba; não passar por "pé"→unha.'
+      - 'regras-comerciais § Pé vs pezinho: mesma exceção + handoff orcamento_referencia.'
+    notes: 'Snapshot HEAD não tem pezinho. Live tem em header + tabela + regra + regras-comerciais.'
+
+  fazer_pe_ainda_unha:
+    status: PASS
+    hunt: 2
+    evidence:
+      - 'regras-comerciais: "Fazer pé" / "pé e mão" = pedicure (+ manicure no combo).'
+      - 'sinonimos Unhas: pé / pés / fazer o pé / cuidar do pé → Pedicure (default).'
+      - 'sinonimos Unhas: pé e mão / mão e pé → Manicure e Pedicure (combo).'
+      - 'sinonimos regra 1: "fazer o pé" ainda pergunta pedicure vs depilação; pezinho é a exceção, não o default.'
+    notes: 'Não over-fix. F2 (pé=pedicure) preservado. Só pezinho sai da regra de unha.'
+
+  ta_prefix_not_speakable:
+    status: PASS
+    hunt: 3
+    evidence:
+      - 'faq Q1: fala "Corte Masculino" / "com o Tiago" / "com o André" — nunca cite o prefixo interno `TA -` como nome falável.'
+      - 'fichas regras: internamente Trinks usa `TA -`; Ao cliente: nunca `TA -` como nome.'
+      - 'fichas tabela Tiago - Corte Masculino: SKU interno `TA - Corte Masculino` — falar profissional, não o prefixo.'
+      - 'rg "TA -" nos 4 live: 0 hits em sinonimos e regras; 1 em faq (proibição); 2 em fichas (SKU interno + nunca como nome).'
+    notes: 'Restos de `TA -` são nota ops. Não ensina o cliente a dizer TA -.'
+
+  snapshot_pre_edit:
+    status: PASS
+    hunt: 4
+    evidence:
+      - 'Pasta docs/intake/kb-proposta-v1/archive-live-pre-chao4-2026-09-04/ existe com os 4 arquivos.'
+      - 'cksum snapshot == git show HEAD (sinonimos 3880318439, regras 2113392671, faq 1698479338, fichas 1590018989).'
+      - 'snapshot ≠ live (4/4 differ). Snapshot = velho. Live = novo.'
+      - 'Snapshot faq ainda cita "TA - Corte Masculino (Tiago e André) R$ 105" — propositalmente PRE.'
+    notes: 'Rito Etapa 11 respeitado: snapshot é HEAD pré-edit, não cópia do live.'
+
+  scope_no_visagismo_mechas_laser_in_live:
+    status: PASS
+    hunt: 5
+    evidence:
+      - 'Live faq Q10 visagismo ainda R$ 750; Q11 mechas ainda 835/925. Sem 900. Sem 880.'
+      - 'Live fichas: Visagismo 750,00; Mechas 835,00 / Tiago 925,00. Sem rewrite André-only.'
+      - 'Live regras-comerciais: Visagismo R$ 750; mechas 835/925. Sem bloco 900/880.'
+      - 'padroes-fala.md / info-estatica.md / depilacao-laser-claudia.md: git diff HEAD vazio; cksum live == HEAD.'
+      - '900/880 só em docs/intake/kb-proposta-v1/archive-et11-uncommitted-2026-09-04/ (park; NÃO TESS sync).'
+      - 'sync-kb-content-to-tess.cjs/.mjs mtime 2026-09-02; Quinn não rodou o script.'
+    notes: 'REQ-01 fechado. OUT está no park, não no live.'
+
+  diff_stat_four_files_only:
+    status: PASS
+    hunt: 6
+    evidence:
+      - 'git diff --stat data/kb/conversa-v2/ = 4 files, +12/−6.'
+      - 'Allowlist: sinonimos-servicos.md, regras-comerciais.md, faq-servicos.md, fichas-tecnicas-servicos.md.'
+      - 'Nenhum outro arquivo em data/kb/conversa-v2/ modificado vs HEAD.'
+    notes: 'Pacote mínimo do IN. Isolamento Orion confirmado.'
+
+# ---------------------------------------------------------------------------
+# 2. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues: []
+
+resolved_issues:
+  - id: 'REQ-01'
+    severity: medium
+    status: resolved
+    finding: 'Pacote live era ride-along visagismo/mechas/laser + padroes/info.'
+    resolution: >
+      Orion restaurou padroes-fala / info-estatica / laser ao HEAD e removeu
+      hunks 900/880 das 4 allowlist. Rewrite estacionado em
+      archive-et11-uncommitted-2026-09-04/ (não é sync TESS).
+    resolved_at: '2026-09-04T14:12:00-03:00'
+  - id: 'DOC-01'
+    severity: low
+    status: resolved
+    finding: 'File List descrevia só pezinho/TA enquanto o diff era maior.'
+    resolution: 'Diff agora é 4 files; File List inclui o park et11. Bate.'
+
+# ---------------------------------------------------------------------------
+# 3. EVIDÊNCIA
+# ---------------------------------------------------------------------------
+evidence:
+  tests_reviewed: 0
+  risks_identified: 0
+  snapshot_vs_head: 'IDENTICAL 4/4'
+  snapshot_vs_live: 'DIFFERS 4/4'
+  wt_digest: 'c2eb2acaa50b'
+  prior_wt_digest: 'bb7197ff921c'
+  base: '7482d3d'
+  conversa_v2_diff_stat: '4 files, +12/−6'
+  sync_script_run: false
+  memories_39496: 'STILL OLD (Etapa 11 / 02/09) — este gate não puxou TESS e não autoriza PATCH'
+  et11_park: 'docs/intake/kb-proposta-v1/archive-et11-uncommitted-2026-09-04/ — NOT for TESS sync'
+  trace:
+    ac_covered: [1, 2, 4]
+    ac_gaps: [3]
+  not_executed:
+    - 'PATCH collection 39496 / sync-kb-content-to-tess.cjs'
+    - 'Leitura live das memories 163141–163147'
+    - 'OPEN / WhatsApp / smoke 0007 / Hostinger / paste 46589'
+    - 'Suíte do repo / lint / typecheck (story é markdown KB)'
+
+# ---------------------------------------------------------------------------
+# 4. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Sem token, sem Hostinger, sem OPEN. Sem PII nova.'
+  performance:
+    status: PASS
+    notes: 'Markdown only. Sem assembler, sem slot, sem crédito neste File List.'
+  reliability:
+    status: PASS
+    notes: 'Local pezinho/TA correto e isolado. RAG 39496 ainda é o dicionário 02/09 até Victor ACK + sync (AC3/T3).'
+  maintainability:
+    status: PASS
+    notes: 'File List honesta. Snapshot PRE. Diff allowlist = IN only. Park et11 fora do live.'
+
+# ---------------------------------------------------------------------------
+# 5. PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: no
+publish_note: >
+  PASS com blocks_publish vazio: T2 da story marcado (Quinn no diff).
+  AC3/T3 permanecem abertos. Este gate NÃO autoriza TESS PATCH, OPEN,
+  smoke 0007, Hostinger, rsync, paste 46589, BOT_ACCEPT_ALL, POST Trinks.
+  Memories 39496 continuam OLD até Victor dizer sync.
+
+slice_allowlist:
+  - data/kb/conversa-v2/sinonimos-servicos.md
+  - data/kb/conversa-v2/regras-comerciais.md
+  - data/kb/conversa-v2/faq-servicos.md
+  - data/kb/conversa-v2/fichas-tecnicas-servicos.md
+  - docs/intake/kb-proposta-v1/archive-live-pre-chao4-2026-09-04/
+  - docs/intake/kb-proposta-v1/archive-et11-uncommitted-2026-09-04/
+  - docs/stories/salon-whatsapp-chao-4-kb-memories-tess.md
+  - docs/qa/gates/2026-09-04-chao-4-kb.yml
+  - docs/handoffs/2026-09-04-quinn-gate-chao-4.md
+
+out_of_story_dirty:
+  - backend/lib/tess-context-slots.js   # chão 1–3; não Dex desta story
+  - backend/lib/tess-context-bytes.js   # chão 5; não Dex desta story
+
+# ---------------------------------------------------------------------------
+# 6. AUTO-DECISÕES
+# ---------------------------------------------------------------------------
+auto_decisions:
+  - '[AUTO-DECISION] Story Status=Draft (não InReview) → sem transição Done/InProgress (razão: qa-gate.md post-gate exige InReview; AC3/T3 ainda abertos).'
+  - '[AUTO-DECISION] Veredito PASS não CONCERNS (razão: hunts 1–6 PASS; REQ-01 isolado; live vs HEAD = 4 files só pezinho+TA).'
+  - '[AUTO-DECISION] T2 marcado (razão: missão — PASS com blocks_publish vazio).'
+  - '[AUTO-DECISION] AC3/T3 ficam abertos (razão: missão + 39496 ainda OLD; sem ACK Victor).'
+  - '[AUTO-DECISION] Sem patch de KB neste gate (razão: anti-self-review; Dex/Orion escreveram o diff).'
+  - '[AUTO-DECISION] authorizes_tess_patch permanece false (razão: missão — não autorizar PATCH; 39496 OLD).'
+  - 'Este gate não autoriza TESS PATCH, OPEN, smoke 0007, Hostinger, paste 46589 nem religar.'

@@ -388,3 +388,79 @@ describe('Onda 2 triagem tetos (§8 I)', () => {
     assert.equal(r.intent, INTENTS.SCHEDULING);
   });
 });
+
+describe('Chão 3 intent persist (§8.1–8.2)', () => {
+  const { intentToPersist, isIntentDenylist } = require('../lib/tess-context-intent');
+  const { buildContextProfile, PROFILES } = require('../lib/tess-context-profiles');
+
+  const fixtures = [
+    ['L1', 'Oi, vim pelo Studio Tirra. Quero agendar', INTENTS.SCHEDULING, 'SCHEDULING', 'SCHEDULING'],
+    ['L2', 'vim pelo Studio Tirra', INTENTS.SCHEDULING, 'SCHEDULING', 'SCHEDULING'],
+    ['D1', 'sexta final do dia', INTENTS.SCHEDULING, 'SCHEDULING', 'SCHEDULING'],
+    ['D2', 'horário na sexta final do dia', INTENTS.SCHEDULING, 'SCHEDULING', 'SCHEDULING'],
+    ['N1', 'com o André', INTENTS.SCHEDULING, 'SCHEDULING', 'SCHEDULING'],
+    ['C1', 'sexta final do dia com o André', INTENTS.SCHEDULING, 'SCHEDULING', 'SCHEDULING'],
+    ['F1', 'aceita pix?', INTENTS.FAQ, 'FAQ', 'FAQ'],
+    ['F2', 'qual o endereço?', INTENTS.FAQ, 'FAQ', 'FAQ'],
+    ['F3', 'horário de funcionamento', INTENTS.FAQ, 'FAQ', 'FAQ'],
+    ['S1', 'quero cortar sábado 14h com o Erick', INTENTS.SCHEDULING, 'SCHEDULING', 'SCHEDULING'],
+    ['S2', 'É masculino', INTENTS.SCHEDULING, 'SCHEDULING', 'SCHEDULING'],
+  ];
+
+  for (const [id, input, expectedClassify, passive, bot] of fixtures) {
+    test(`${id} — classify + persist`, () => {
+      const r = classifyTessIntent(input, [], []);
+      assert.equal(r.intent, expectedClassify, `${id} classify`);
+      assert.equal(intentToPersist(r, input, { path: 'passive' }), passive, `${id} passive`);
+      assert.equal(intentToPersist(r, input, { path: 'bot' }), bot, `${id} bot`);
+      if (['L1', 'L2', 'D1', 'D2', 'N1', 'C1'].includes(id)) {
+        const p = buildContextProfile(r, { effectiveMode: 'scoped', hasServiceSignal: false });
+        assert.equal(p.profile, PROFILES.MIN, `${id} profile MIN`);
+        assert.equal(p.fetchCatalog, false);
+      }
+      if (id === 'S1' || id === 'S2') {
+        const p = buildContextProfile(r, { effectiveMode: 'scoped', hasServiceSignal: true });
+        assert.equal(p.profile, PROFILES.BOOKING, `${id} profile BOOKING`);
+      }
+      if (id.startsWith('F')) {
+        const p = buildContextProfile(r, { effectiveMode: 'scoped' });
+        assert.equal(p.profile, PROFILES.FAQ, `${id} profile FAQ`);
+      }
+    });
+  }
+
+  const denylist = [
+    ['Z1', '[CLIENTE ENVIOU IMAGEM]'],
+    ['Z2', '[CLIENTE ENVIOU STICKER]'],
+    ['Z3', '[AUDIO TRANSCRITO]: quero agendar sexta com o André'],
+    ['Z4a', ''],
+    ['Z4b', '   '],
+    ['Z5a', 'oi'],
+    ['Z5b', 'kkkkk'],
+    ['Z5c', '👍'],
+    ['Z6', 'dia a dia'],
+    ['Z7', 'opção que já tem cliente'],
+    ['Z8', 'não são 2h de atendimento?'],
+  ];
+
+  for (const [id, input] of denylist) {
+    test(`${id} — denylist → null`, () => {
+      const r = classifyTessIntent(input, [], []);
+      assert.ok(isIntentDenylist(input), `${id} isIntentDenylist`);
+      assert.equal(intentToPersist(r, input, { path: 'passive' }), null, `${id} passive`);
+      assert.equal(intentToPersist(r, input, { path: 'bot' }), null, `${id} bot`);
+    });
+  }
+
+  test('passive UNCERTAIN → null', () => {
+    const r = { intent: INTENTS.UNCERTAIN, confidence: 'low', signals: [] };
+    assert.equal(intentToPersist(r, 'mensagem longa sem sinal claro '.repeat(5), { path: 'passive' }), null);
+  });
+
+  test('bot UNCERTAIN → UNCERTAIN (grain 33 intacto)', () => {
+    const text = 'mensagem longa sem sinal claro '.repeat(5);
+    const r = classifyTessIntent(text, [], []);
+    assert.equal(r.intent, INTENTS.UNCERTAIN);
+    assert.equal(intentToPersist(r, text, { path: 'bot' }), INTENTS.UNCERTAIN);
+  });
+});

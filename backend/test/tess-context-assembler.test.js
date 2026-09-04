@@ -136,10 +136,14 @@ describe('assembleTessContext', () => {
   test('scoped BOOKING de tarde → compact occupancy sem relógios', async () => {
     const deps = mockDeps({
       messageText: 'de tarde',
-      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['scheduling_in_progress'] },
       requestedDate: '2026-09-03',
+      historyForModel: [
+        { role: 'assistant', content: 'Qual horário você prefere?' },
+      ],
     });
     const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'BOOKING');
     assert.match(result.blocks.horarios, /período tarde/);
     assert.doesNotMatch(result.blocks.horarios, /\d{2}:\d{2} \(\d+min contínuos\)/);
   });
@@ -210,8 +214,12 @@ describe('assembleTessContext', () => {
   test('scoped BOOKING passa durationMin e filtra buraco curto', async () => {
     const deps = mockDeps({
       messageText: 'de tarde com o Erick',
-      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['scheduling_in_progress'] },
       requestedDate: '2026-09-02',
+      historyForModel: [
+        { role: 'user', content: 'quero maquiagem com o Erick' },
+        { role: 'assistant', content: 'Qual horário você prefere?' },
+      ],
       catalogData: [
         { id: 1, nome: 'Maquiagem', profissionais: ['Erick'], duracaoEmMinutos: 120 },
       ],
@@ -354,5 +362,113 @@ describe('assembleTessContext', () => {
     );
     assert.ok(filtered?.some((s) => s.nome === 'Corte Masculino'));
     assert.ok(!filtered?.some((s) => s.nome === 'Corte Feminino'));
+  });
+});
+
+const FAT_CATALOG_11 = [
+  { id: 1, nome: 'Corte Masculino', profissionais: ['André'], duracaoEmMinutos: 60 },
+  { id: 2, nome: 'TA - Corte Masculino', profissionais: ['André'], duracaoEmMinutos: 60 },
+  { id: 3, nome: 'Corte Feminino', profissionais: ['Giovanna'], duracaoEmMinutos: 120 },
+  { id: 4, nome: 'Maquiagem', profissionais: ['Fefe'], duracaoEmMinutos: 120 },
+  { id: 5, nome: 'Maquiagem Social', profissionais: ['Fefe'], duracaoEmMinutos: 120 },
+  { id: 6, nome: 'Maquiagem Noiva', profissionais: ['Fefe'], duracaoEmMinutos: 120 },
+  { id: 7, nome: 'Make Express', profissionais: ['Fefe'], duracaoEmMinutos: 120 },
+  { id: 8, nome: 'Manicure', profissionais: ['Dylan'], duracaoEmMinutos: 45 },
+  { id: 9, nome: 'Pedicure', profissionais: ['Dylan'], duracaoEmMinutos: 45 },
+  { id: 10, nome: 'Coloração Global', profissionais: ['Jackie'], duracaoEmMinutos: 90 },
+  { id: 11, nome: 'Retoque de Raiz', profissionais: ['Jackie'], duracaoEmMinutos: 60 },
+];
+
+describe('assembleTessContext Chão 1+2', () => {
+  test('A1 — catálogo gordo maquiagem + buraco 30min → sem janela 120min', async () => {
+    const deps = mockDeps({
+      messageText: 'quero maquiagem com a Fefe no sábado',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-05',
+      historyForModel: [
+        { role: 'user', content: 'quanto custa o corte e tem horário sábado?' },
+        { role: 'assistant', content: 'Corte Masculino é R$ 90.' },
+      ],
+      catalogData: FAT_CATALOG_11,
+      getSlotsGrouped: async () => ({
+        label: '05/09 (sábado)',
+        date: '2026-09-05',
+        snapshotAgeMin: 10,
+        subtractedOccupied: 0,
+        professionals: [{
+          name: 'Fefe',
+          professionalId: '826936',
+          startsAt: ['2026-09-05T12:30:00-03:00'],
+        }],
+      }),
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'BOOKING');
+    assert.match(result.blocks.horarios, /sem janela contínua de 120min/);
+    assert.doesNotMatch(result.blocks.horarios, /12:30/);
+  });
+
+  test('A2 — sem keyword nem duração → durationMin 0, occupancy permitida', async () => {
+    const deps = mockDeps({
+      messageText: 'tem horário sábado?',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-05',
+      historyForModel: [
+        { role: 'user', content: 'quanto custa o corte?' },
+        { role: 'assistant', content: 'Corte Masculino é R$ 90.' },
+        { role: 'user', content: 'e maquiagem?' },
+      ],
+      catalogData: FAT_CATALOG_11,
+      getSlotsGrouped: async () => ({
+        label: '05/09 (sábado)',
+        date: '2026-09-05',
+        snapshotAgeMin: 10,
+        professionals: [{
+          name: 'Fefe',
+          professionalId: '826936',
+          startsAt: ['2026-09-05T12:30:00-03:00', '2026-09-05T14:00:00-03:00'],
+        }],
+      }),
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'BOOKING');
+    assert.doesNotMatch(result.blocks.horarios, /sem janela contínua de 120min/);
+    assert.match(result.blocks.horarios, /há vagas/);
+  });
+
+  test('A5 — scoped BOOKING snapshot calls ≤ 2', async () => {
+    const deps = mockDeps({
+      messageText: 'quero cortar amanhã',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['booking'] },
+      requestedDate: '2026-09-03',
+    });
+    await assembleTessContext(deps);
+    assert.ok(deps.calls.snapshot <= 2);
+  });
+
+  test('G7 — landing Studio Tirra scoped → MIN, catálogo não pedido', async () => {
+    const deps = mockDeps({
+      messageText: 'Oi, vim pelo Studio Tirra. Quero agendar',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['compound', 'booking'] },
+      historyForModel: [],
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'MIN');
+    assert.equal(deps.calls.catalog, 0);
+    assert.equal(deps.calls.slots, 0);
+    assert.equal(result.fetchMeta.catalogRequested, false);
+  });
+
+  test('G8 — 10h mid-funnel in-progress → BOOKING', async () => {
+    const deps = mockDeps({
+      messageText: '10h',
+      intentResult: { intent: INTENTS.SCHEDULING, confidence: 'high', signals: ['scheduling_in_progress'] },
+      historyForModel: [
+        { role: 'assistant', content: 'Qual horário você prefere?' },
+      ],
+      requestedDate: '2026-09-03',
+    });
+    const result = await assembleTessContext(deps);
+    assert.equal(result.contextProfile, 'BOOKING');
   });
 });

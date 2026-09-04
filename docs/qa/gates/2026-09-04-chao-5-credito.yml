@@ -1,0 +1,217 @@
+schema: 1
+slice: '2026-09-04-chao-5-credito'
+slice_title: 'Chão 5 — crédito Tess por turno (tess.turn dimensões)'
+scope_type: 'operational-slice'   # story Draft, não InReview; SOT = Dara schema
+gate: CONCERNS
+status_reason: >
+  Persist do turno está no contrato Dara (intent × profile × sent_chars × tess_credits
+  + timed_out + salon_day). Timeout grava tess.turn sem recordTessCredits. AC2 coberto
+  por unit. AC3 (reconcile ±1 turno) está só no SQL do SOT — sem teste, sem CLI.
+reviewer: 'Quinn (Test Architect)'
+sot: 'docs/analysis/2026-09-04-dara-chao-5-credito-schema.md'
+story: 'docs/stories/salon-whatsapp-chao-5-credito-dimensao.md'
+reviewed_revision: 'uncommitted-on-7482d3d'
+reviewed_worktree: 'dirty — chão 5 uncommitted em cima de 7482d3d; worktree tem outras fatias'
+deployed_revision: '7482d3d — live intocado; este gate não publica'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T14:05:00-03:00'
+expires: '2026-09-18T14:05:00-03:00'
+quality_score: 90
+waiver: { active: false }
+last4_only: true
+
+# ---------------------------------------------------------------------------
+# 1. HUNTS PEDIDOS
+# ---------------------------------------------------------------------------
+requested_checks:
+  payload_four_axes_plus_timeout_day:
+    status: PASS
+    hunt: 1
+    evidence:
+      - 'persistTessTurnEvent payload: intent, confidence, context_profile, tess_credits, sent_chars, timed_out, skipped_tess, salon_day, trace_id, sessionId.'
+      - 'AC2 fixture: SCHEDULING × BOOKING × sent_chars=10742 × tess_credits=18.4 + timed_out=false + salon_day=2026-09-04.'
+      - 'Stdout logTessTurnTelemetry espelha sent_chars, timed_out, salon_day. Probe timeout: sent_chars=1002 timed_out=true tess_credits=null salon_day=2026-09-04.'
+    notes: 'total_chars só se o caller passar (telemetria velha). Relatório lê sent_chars.'
+
+  sent_chars_not_blocks_total:
+    status: PASS
+    hunt: 2
+    evidence:
+      - 'skip: sentChars=0. sucesso: assembledCtx.userMessageWithContext.length. timeout: assembledCtx?.userMessageWithContext?.length || 0.'
+      - 'Nenhum sentChars = measureContextBlocks().total.chars. total_chars continua separado no persist.'
+      - 'Quinn rerun timeout: context_bytes user_payload.chars=1002 total.chars=1981; tess.turn sent_chars=1002. Dimensão ≠ total.'
+    notes: 'AC2 unit injeta sentChars; o predicado live no sucesso é code-review. Timeout prova o fio.'
+
+  timeout_persist_no_daily:
+    status: PASS
+    hunt: 3
+    evidence:
+      - 'catch isTessTimeoutError: persistTessTurnEvent timedOut=true tessCredits=null. Zero recordTessCredits no ramo.'
+      - 'tess.timeout continua. Timeout test: tess.turn=1, timed_out=true, tess_credits=null, sent_chars>0.'
+      - 'Skip/sucesso ainda chamam recordTessCredits (?? 0).'
+    notes: 'Teste de timeout não asserta ausência de INSERT tess_credit_usage_daily (TEST-02). Código do catch está limpo.'
+
+  phone_column_only:
+    status: PASS
+    hunt: 4
+    evidence:
+      - 'payload sem client_phone/phone. motivo = intent:profile. stdout tess.turn sem telefone (sessionId só).'
+      - 'emitOperationalEvent: dígitos só na coluna client_phone.'
+      - 'Timeout test last4=0007 na coluna; payload sem chave phone. Probe stdout sem E.164.'
+    notes: 'Fixtures de persist ainda passam dígitos completos na coluna (pré-existente + Dex). Payload limpo. last4 only neste gate.'
+
+  no_table_no_migration_no_slots:
+    status: PASS
+    hunt: 5
+    evidence:
+      - 'git diff HEAD infra/migrations vazio. Sem 018_*. Sem tess_turn_credits. Sem VPS.'
+      - 'Allowlist Dex: bytes + assembler + server + 2 testes. assembler hunk = só logTessTurnTelemetry.'
+      - 'compactBookingSlotsBlock / resolveOfferDurationMin vivem em tess-context-slots.js — fora da allowlist Dex.'
+    notes: >
+      Worktree dirty em tess-context-slots.js (+135) é fatia alheia, não este slice.
+      Não FAIL por arquivo fora da allowlist (mesmo critério onda2).
+
+  ac2_unit_ac3_honesty:
+    status: CONCERNS
+    hunt: 6
+    evidence:
+      - 'AC2: persistTessTurnEvent writes SCHEDULING BOOKING with sent_chars and tess_credits — PASS no rerun Quinn.'
+      - 'AC3: zero teste com calls_delta / credits_delta / query Dara §4.1. Zero CLI. SQL só no SOT.'
+      - 'Dara §8: CLI dimensão opcional / story 6. Contrato (salon_day, timed_out, credits null no timeout) habilita o SUM.'
+    notes: 'Honesto: AC3 documentado, não testado. Não é FAIL do persist. Não autoriza relatório live.'
+
+  focused_tests_quinn:
+    status: PASS
+    hunt: 7
+    evidence:
+      - 'Quinn: node --test backend/test/tess-context-bytes-persist.test.js backend/test/server-tess-timeout.test.js'
+      - '# tests 6 / # pass 6 / # fail 0'
+      - 'node --check bytes + assembler + server — syntax OK'
+    notes: 'Dex 6/6 corroborado. Quinn reexecutou.'
+
+# ---------------------------------------------------------------------------
+# 2. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues:
+  - id: 'TEST-01'
+    severity: medium
+    finding: >
+      AC3 (reconcile ±1 turno vs tess_credit_usage_daily) não tem teste nem CLI.
+      O predicado mora só em docs/analysis/2026-09-04-dara-chao-5-credito-schema.md §4.1.
+    evidence: >
+      rg calls_delta|turn_credits|reconcile em backend/test = zero hits deste contrato.
+      Dara marca CLI como opcional / chão 6.
+    impact: >
+      Persist habilita o SUM (salon_day, timeout fora do daily). Ninguém prova
+      abs(calls_delta)≤1 neste slice. G-P6 continua infalsificável até rodar a query.
+    suggested_action: >
+      Não é patch Dex deste persist. Próximo dente (chão 6 / CLI) ou um unit que
+      monte daily + turns e aplique o SQL §4.1. Sem WhatsApp. Sem VPS.
+    suggested_owner: 'dev'
+    blocks_publish: false
+
+  - id: 'TEST-02'
+    severity: low
+    finding: >
+      server-tess-timeout.test.js não asserta ausência de INSERT em tess_credit_usage_daily.
+    evidence: 'Teste cobre tess.turn timed_out; catch não chama recordTessCredits (code review).'
+    suggested_action: 'Opcional: assert.doesNotMatch(sql, /tess_credit_usage_daily/).'
+    suggested_owner: 'dev'
+    blocks_publish: false
+
+  - id: 'PII-01'
+    severity: low
+    finding: >
+      Fixtures de persistTessTurnEvent ainda passam dígitos completos no argumento
+      da coluna. Dara §7 pede last4 em teste de persistência publicado.
+    evidence: 'Timeout integration já usa last4=0007. Payload sem telefone nos três fixtures novos.'
+    suggested_action: 'Trocar o argumento da coluna para 0007 nos fixtures novos. Sem mudar emitOperationalEvent.'
+    suggested_owner: 'dev'
+    blocks_publish: false
+
+  - id: 'OBS-01'
+    severity: low
+    finding: >
+      runOperatorResumeTurn chama callTESS e não persiste tess.turn. Fora da tabela
+      de escrita Dara §3/§8 deste story (skip / processMessage ok / timeout).
+    evidence: 'server.js runOperatorResumeTurn ~1251 — sem persistTessTurnEvent / recordTessCredits.'
+    suggested_action: 'Fora deste slice. Anotar no chão 6 se resume precisar de denominador.'
+    suggested_owner: 'sm'
+    blocks_publish: false
+
+# ---------------------------------------------------------------------------
+# 3. EVIDÊNCIA DE TESTES
+# ---------------------------------------------------------------------------
+evidence:
+  slice_test_command: "node --test backend/test/tess-context-bytes-persist.test.js backend/test/server-tess-timeout.test.js"
+  slice_test_result: '# tests 6 / # pass 6 / # fail 0 — Quinn reexecutou'
+  syntax: 'PASS — node --check tess-context-bytes.js tess-context-assembler.js server.js'
+  hunt_probes: 'PASS — timeout stdout sent_chars=1002 vs blocks.total=1981; payload sem phone'
+  coverage_gap: 'AC3 reconcile só no papel; timeout test sem assert daily; resume sem tess.turn'
+  not_executed:
+    - 'Query Dara §4.1 contra Postgres / VPS.'
+    - 'Suíte completa do repo.'
+    - 'Deploy, rsync, Hostinger, rebuild de container.'
+    - 'Religar bot / BOT_ACCEPT_ALL / POST Trinks / smoke 0007 / paste 46589.'
+
+# ---------------------------------------------------------------------------
+# 4. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: >
+      Telefone só na coluna. Payload/stdout/motivo sem E.164. Sem migration.
+      BOT_ACCEPT_ALL intocado. Sem mutação Trinks. last4=0007 neste artefato.
+  reliability:
+    status: PASS
+    notes: >
+      Timeout agora tem tess.turn (credits null). Daily não infla no abort.
+      persist fire-and-forget .catch intacto.
+  maintainability:
+    status: PASS
+    notes: 'sent_chars canônico separado de total_chars. Sem tabela nova.'
+  performance:
+    status: PASS
+    notes: 'Um insert a mais no abort 25s. Sem índice novo (Dara: migration futura, não agora).'
+  observability:
+    status: CONCERNS
+    notes: >
+      Dimensão do turno existe. Relatório G-P6 / reconcile AC3 ainda não corre.
+      TEST-01.
+
+# ---------------------------------------------------------------------------
+# 5. PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: no
+publish_note: >
+  CONCERNS com blocks_publish vazio: Orion pode continuar o epic sem publish.
+  Este gate NÃO autoriza deploy, religar, BOT_ACCEPT_ALL, smoke 0007,
+  Hostinger, rsync, paste 46589, POST Trinks, CREATE 9800 nem replay André.
+  AC3 não bloqueia o persist; bloqueia afirmar que o dia já reconcilia.
+
+slice_allowlist:
+  - backend/lib/tess-context-bytes.js
+  - backend/lib/tess-context-assembler.js
+  - backend/server.js
+  - backend/test/tess-context-bytes-persist.test.js
+  - backend/test/server-tess-timeout.test.js
+  - docs/analysis/2026-09-04-dara-chao-5-credito-schema.md
+  - docs/stories/salon-whatsapp-chao-5-credito-dimensao.md
+  - docs/qa/gates/2026-09-04-chao-5-credito.yml
+  - docs/handoffs/2026-09-04-quinn-gate-chao-5.md
+
+# ---------------------------------------------------------------------------
+# 6. AUTO-DECISÕES
+# ---------------------------------------------------------------------------
+auto_decisions:
+  - '[AUTO-DECISION] Story Status=Draft (não InReview) → sem transição Done/InProgress (razão: qa-gate.md post-gate exige InReview).'
+  - '[AUTO-DECISION] Veredito CONCERNS não PASS (razão: AC3 reconcile só documentado; hunt 6 pediu honestidade).'
+  - '[AUTO-DECISION] TEST-01 medium não FAIL (razão: Dara §8 CLI opcional/chão 6; contrato de persist está verde).'
+  - '[AUTO-DECISION] slots.js dirty vs HEAD não atribui a Dex (razão: fora da allowlist; assembler hunk só telemetry).'
+  - '[AUTO-DECISION] Sem patch (razão: missão gate; anti-self-review; Dex implementou).'
+  - '[AUTO-DECISION] AC2+AC4+T3 marcados; AC3 fica aberto (razão: Orion — AC4/T3 se CONCERNS-with-notes; AC2 unit verificado).'
+  - 'Este gate não autoriza BOT_ACCEPT_ALL, paste 46589, smoke 0007, André 10:30, CREATE 9800 nem deploy.'

@@ -148,6 +148,9 @@ async function persistTessTurnEvent(db, {
   contextProfile,
   tessCredits,
   skippedTess,
+  sentChars,
+  timedOut,
+  salonDay,
   totalChars,
   traceId,
   sessionId,
@@ -159,11 +162,16 @@ async function persistTessTurnEvent(db, {
     confidence: confidence || null,
     context_profile: contextProfile || null,
     tess_credits: tessCredits == null ? null : Number(tessCredits),
+    sent_chars: Number(sentChars) || 0,
+    timed_out: Boolean(timedOut),
     skipped_tess: Boolean(skippedTess),
-    total_chars: Number(totalChars) || 0,
+    salon_day: salonDay || null,
     trace_id: traceId || null,
     sessionId: sessionId || null,
   };
+  if (totalChars != null) {
+    payload.total_chars = Number(totalChars) || 0;
+  }
   await emitOperationalEvent(db, {
     event: 'tess.turn',
     clientPhone,

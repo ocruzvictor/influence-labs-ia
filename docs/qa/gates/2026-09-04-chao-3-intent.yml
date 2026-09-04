@@ -1,0 +1,213 @@
+schema: 1
+slice: '2026-09-04-chao-3-intent'
+slice_title: 'Chão 3 — intent cauda (persist + MIN + replay helper)'
+scope_type: 'operational-slice'   # story Draft, não InReview; SOT = Aria tetos
+gate: PASS
+status_reason: >
+  Persist passivo grava SCHEDULING/FAQ via intentToPersist; denylist fica null;
+  landing/daypart/named ficam SCHEDULING + MIN sem SKU. Replay helper é write-free.
+  AC4 inteiros do dump ficam com Dara — este gate não inventa N nem fecha 383.
+reviewer: 'Quinn (Test Architect)'
+sot: 'docs/analysis/2026-09-04-aria-chao-3-intent-tetos.md'
+story: 'docs/stories/salon-whatsapp-chao-3-intent-cauda.md'
+story_title: 'A cauda da semana deixa de entrar sem intent'
+reviewed_revision: 'wt-digest:20557e2203b5'
+reviewed_worktree: 'dirty — chão 3 uncommitted em cima de 7482d3d; worktree tem outras fatias'
+deployed_revision: '7482d3d — live intocado; este gate não publica'
+branch: 'feature/tess-commit-honesty'
+updated: '2026-09-04T14:08:50-03:00'
+expires: '2026-09-18T14:08:50-03:00'
+quality_score: 96
+waiver: { active: false }
+last4_only: true
+authorizes_tess_patch: false
+authorizes_open: false
+authorizes_smoke_0007: false
+authorizes_hostinger: false
+
+# ---------------------------------------------------------------------------
+# 1. HUNTS PEDIDOS
+# ---------------------------------------------------------------------------
+requested_checks:
+  passive_kapso_persist_scheduling_faq:
+    status: PASS
+    hunt: 1
+    evidence:
+      - 'server.js ~2836: classifyTessIntent(messageText, [], []) + intentToPersist(..., { path: "passive" }).'
+      - 'saveConversationTurns ainda agent: "passive", agora com intent: passiveIntent.'
+      - 'PASSIVE_PERSIST_INTENTS = {SCHEDULING, FAQ}. UNCERTAIN/TRIVIAL/PRICING/CANCEL no passivo → null.'
+      - 'Bot path (~1368, timeout ~1622, sucesso ~1764, 2-phase ~2428) usa path: "bot".'
+      - 'Telemetry / persistTessTurnEvent continua intentResult.intent (classificado), não denylist.'
+    notes: 'Furo A do SOT fechado. Kill switch off continua a gravar a coluna — ops, não religar.'
+
+  denylist_stays_null:
+    status: PASS
+    hunt: 2
+    evidence:
+      - 'isIntentDenylist: media + [AUDIO TRANSCRITO] + empty/whitespace + isLeroUtterance.'
+      - 'Z1 imagem, Z2 sticker, Z3 áudio transcrito com "quero agendar", Z4 vazio, Z5 oi/kkkk/👍, Z6 dia a dia, Z7 já tem cliente, Z8 2h de atendimento → persist null nos dois paths.'
+      - 'conversation-history: media e [AUDIO TRANSCRITO] gravam null.'
+    notes: 'Lero não inclui landing / sexta / André / PIX. Classificador de Z3 ainda pode ver SCHEDULING; a coluna é null.'
+
+  ac2_landing_scheduling_min:
+    status: PASS
+    hunt: 3
+    evidence:
+      - 'L1 "Oi, vim pelo Studio Tirra. Quero agendar" → classify SCHEDULING, persist SCHEDULING, profile MIN, fetchCatalog=false.'
+      - 'G7 assembler: history [], scoped → contextProfile MIN, catalogRequested=false, zero slots.'
+      - 'I7 Onda 2 permanece verde.'
+    notes: 'Sem dump FULL. FORCE_FULL residual intacto (veto).'
+
+  ac3_daypart_named_not_null:
+    status: PASS
+    hunt: 4
+    evidence:
+      - 'D1 "sexta final do dia" + D2 "horário na sexta final do dia" → persist SCHEDULING.'
+      - 'N1 "com o André" → persist SCHEDULING.'
+      - 'C1 composto daypart+named → SCHEDULING (bundle date+pro).'
+      - 'DATE_RE intocado — sem somar "final do dia". Hit via sext[ao].'
+    notes: 'Profile scoped 1º turno = MIN (sem SKU). Residual: sem slots até stem ou draft.'
+
+  scoped_scheduling_min_unless_funnel:
+    status: PASS
+    hunt: 5
+    evidence:
+      - 'G1: SCHEDULING scoped + hasServiceSignal=false → MIN zero fetch.'
+      - 'G2: omitir hasServiceSignal → BOOKING (default true).'
+      - 'G3: keepBookingWithoutSku=true → BOOKING sem SKU.'
+      - 'G8 assembler: "10h" + assistant "Qual horário…" → BOOKING.'
+      - 'G5 FULL + sem SKU → FULL inalterado. G6 FAQ pix → FAQ.'
+    notes: 'assembler passa hasServiceSignal(norm) + in-progress/draft/pós-failed.'
+
+  no_ninth_intent_no_filter_reopen:
+    status: PASS
+    hunt: 6
+    evidence:
+      - 'INTENTS = 8 (TRIVIAL FAQ SCHEDULING PRICING CANCEL RESCHEDULE HANDOFF_LIKELY UNCERTAIN). Sem 9º.'
+      - 'git diff HEAD backend/lib/booking-parser.js = vazio. FILTER/CATALOG_SYNONYMS/stems intocados.'
+      - 'tess-context-intent.js: zero sku_id. Sem leitura de sinonimos-servicos.md.'
+      - 'DATE_RE / ROLE_RE / hasSchedulingAsk (vim pelo) não reabertos — só persist + denylist + exports.'
+      - 'I5/I6/I7 verdes. vinicius angeli + C6 pé e mão 2/2 (booking-parser intocado).'
+    notes: 'sinonimos-servicos.md dirty é chão 4, fora desta File List.'
+
+  live_hunks_preserved:
+    status: PASS
+    hunt: 7
+    evidence:
+      - 'assembler ainda chama resolveOfferDurationMin(svcPayload.data, { messageText }).'
+      - 'logTessTurnTelemetry ainda emite sent_chars / timed_out / salon_day.'
+      - 'UNCERTAIN → MIN (scoped e full) intacto.'
+    notes: 'Chão 1+2 e chão 5 não foram desfeitos por este persist.'
+
+  replay_write_free_dump_dedup_default:
+    status: PASS
+    hunt: 8
+    evidence:
+      - 'replayIntentNullDrop: puro, sem db.query. path=passive. baseline_null default 383.'
+      - 'Miniatura §8.4: would_fill=3, drop>=1, replay_null=380, Z1 fora do fill, last4 only.'
+      - 'replay_intent_null.js note: Zero UPDATE. dumpFloorCorpus SELECT only.'
+      - 'dump_corpus_semana.js git status limpo. dumpFloorCorpus({ dedup = true }). CLI default --no-dedup? false → true.'
+    notes: >
+      Helper prova a fórmula. Inteiros live user_n / would_fill do dump 01–04/09
+      são T3 Dara. Quinn não rodou o dump e não inventa N.
+
+  no_whatsapp_no_smoke_no_publish:
+    status: PASS
+    hunt: 9
+    evidence:
+      - 'Quinn não abriu WhatsApp, não rodou smoke 0007, não tocou Hostinger, não PATCH TESS, não religou.'
+      - 'BOT_ACCEPT_ALL / kill switch / 46589 fora deste gate.'
+    notes: 'Publish execution = false.'
+
+# ---------------------------------------------------------------------------
+# 2. FINDINGS
+# ---------------------------------------------------------------------------
+top_issues: []
+
+# ---------------------------------------------------------------------------
+# 3. EVIDÊNCIA
+# ---------------------------------------------------------------------------
+evidence:
+  slice_test_command: "node --test backend/test/tess-context-intent.test.js backend/test/tess-context-profiles.test.js backend/test/tess-context-assembler.test.js backend/test/conversation-history.test.js backend/test/salao-cli-ops.test.js"
+  slice_test_result: '# tests 125 / # pass 125 / # fail 0 — Quinn reexecutou'
+  preserved_tests: 'vinicius angeli + C6 pé e mão — 2/2'
+  syntax: 'PASS — node --check intent + profiles + assembler + salao-cli-ops + replay_intent_null + server'
+  wt_digest: '20557e2203b5'
+  base: '7482d3d'
+  replay_live_integers: 'UNPUBLISHED — Dara T3; Quinn não inventa'
+  baseline_constant: 383
+  did_not_write: ['~80%', 'fecha 383', 'would_fill live']
+  trace:
+    ac_covered: [1, 2, 3, 5]
+    ac_gaps: [4]
+  not_executed:
+    - 'replay_intent_null.js contra dump 01–04/09 (T3 Dara)'
+    - 'Suíte completa do repo / lint / typecheck do monorepo'
+    - 'WhatsApp / smoke 0007 / Hostinger / TESS PATCH / religar / BOT_ACCEPT_ALL / paste 46589 / POST Trinks'
+
+# ---------------------------------------------------------------------------
+# 4. NFR
+# ---------------------------------------------------------------------------
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'last4 only no helper (redactCorpusText). Sem E.164 neste artefato. Sem migration. Sem SKU inventido.'
+  performance:
+    status: PASS
+    notes: 'classifyTessIntent no inbound passivo (já existia no bot). Zero fetch no MIN sem SKU — evita dump FULL.'
+  reliability:
+    status: PASS
+    notes: 'Denylist impede UNCERTAIN-de-mídia na coluna. Grain bot UNCERTAIN (33) intacto. Replay não UPDATE.'
+  maintainability:
+    status: PASS
+    notes: '8 intents. FILTER/stems fora. Contrato intentToPersist isolado do skip TESS.'
+  observability:
+    status: PASS
+    notes: 'Coluna passa a ter rótulo na cauda. AC4 live ainda sem inteiro Dara — não é telemetria falsa.'
+
+# ---------------------------------------------------------------------------
+# 5. PUBLISH
+# ---------------------------------------------------------------------------
+blocks_publish: []
+publish_planning_allowed: true
+publish_execution_allowed: false
+publish: no
+publish_note: >
+  PASS com blocks_publish vazio: T4 marcado. AC4/T3 ficam abertos até Dara
+  colar inteiros do dump (baseline_null, user_n, would_fill, replay_null)
+  sem percentagem-alvo. Este gate NÃO autoriza deploy, religar, BOT_ACCEPT_ALL,
+  smoke 0007, Hostinger, rsync, TESS PATCH, paste 46589, POST Trinks.
+  Não fecha 383. Não escreve ~80%.
+
+slice_allowlist:
+  - backend/lib/tess-context-intent.js
+  - backend/lib/tess-context-profiles.js
+  - backend/lib/tess-context-assembler.js
+  - backend/server.js
+  - backend/lib/salao-cli-ops.js
+  - backend/scripts/salao/contexto/replay_intent_null.js
+  - backend/test/tess-context-intent.test.js
+  - backend/test/tess-context-profiles.test.js
+  - backend/test/tess-context-assembler.test.js
+  - backend/test/conversation-history.test.js
+  - backend/test/salao-cli-ops.test.js
+  - docs/analysis/2026-09-04-aria-chao-3-intent-tetos.md
+  - docs/stories/salon-whatsapp-chao-3-intent-cauda.md
+  - docs/qa/gates/2026-09-04-chao-3-intent.yml
+  - docs/handoffs/2026-09-04-quinn-gate-chao-3.md
+
+out_of_story_dirty:
+  - data/kb/conversa-v2/sinonimos-servicos.md   # chão 4
+  - backend/lib/tess-context-slots.js           # chão 1–2
+  - backend/lib/tess-context-bytes.js           # chão 5
+
+# ---------------------------------------------------------------------------
+# 6. AUTO-DECISÕES
+# ---------------------------------------------------------------------------
+auto_decisions:
+  - '[AUTO-DECISION] Story Status=Draft (não InReview) → sem transição Done/InProgress (razão: qa-gate.md post-gate exige InReview).'
+  - '[AUTO-DECISION] Veredito PASS não CONCERNS (razão: 9 hunts verdes; AC4 é T3 Dara, não falha do persist Dex).'
+  - '[AUTO-DECISION] AC4/T3 ficam abertos (razão: missão — não inventar inteiro do replay; não fechar 383).'
+  - '[AUTO-DECISION] AC5 + T4 marcados (razão: PASS com blocks_publish vazio).'
+  - '[AUTO-DECISION] Sem patch de aplicação (razão: anti-self-review; Dex implementou).'
+  - 'Este gate não autoriza WhatsApp, smoke 0007, Hostinger, TESS PATCH, religar, BOT_ACCEPT_ALL nem paste 46589.'
