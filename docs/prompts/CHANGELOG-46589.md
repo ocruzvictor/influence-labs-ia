@@ -1,5 +1,21 @@
 # Changelog — prompt TESS 46589
 
+## v3.2.6 — 2026-09-05
+
+**Motivo:** P2.2 alternativas (2–3 da grade quando não cabe) + P2.3 linger handoff (frase obrigatória, sem "um momento" e sumir). Backend já live (`683857d`).
+
+**Prompt:** I.1.8, I.13 (novo), I.6 linger, Lista A A-7/A-8, I.11, P NUNCA/SEMPRE, Ex.2/5/6/10b/10c/11/12/16, VALIDE 31–33.
+
+**Cola TESS:** Victor colou v3.2.6 no 46589 (~17:09 BRT, “colei v3.2.6”). Substituiu prompt inteiro (P2 integrado; remove addendum duplicado se havia).
+
+**Rollback prompt:** `archive/tess-conversa-46589-v3.2.5-2026-09-04.md`
+
+## v3.2.5 — 2026-09-04
+
+**Motivo:** Baseline pós v3.2.4 (pezinho) — arquivo vivo antes do merge P2.
+
+**Rollback prompt:** `archive/tess-conversa-46589-v3.2.4-2026-09-04.md`
+
 ## v3.2.4 — 2026-09-04
 
 **Motivo:** Chão 8 — pezinho do cabelo = cortesia no intervalo, gratuito, sem agendar. Tess resolve sozinha; zero handoff orcamento_referencia, zero BOOKING_CREATE, zero SKU inventido.

@@ -1,5 +1,7 @@
 # Cola TESS 46589 — P2.2 alternativas + P2.3 linger
 
+**Superseded:** integrado em `tess-conversa-v3-clean.md` **v3.2.6** (2026-09-05). Cola o arquivo inteiro — não use este addendum separado.
+
 **Onde:** no fim do prompt do agente 46589 (não apaga o v3.2.5).  
 **Quando:** 2026-09-05 · Orion / Victor  
 **Não cola:** OPEN, preço, SKU novo, “recorrente = HANDOFF” (chão 10 STOP).

@@ -4,8 +4,8 @@ O prompt do agente **não vive só no dashboard TESS**. Cada versão colada prec
 
 | Arquivo | Papel |
 |---|---|
-| `tess-conversa-v3-clean.md` | **Vivo.** É o bloco que se cola no TESS. Primeira linha = versão (`v3.2.4`). |
-| `archive/tess-conversa-46589-v3.2.3-2026-09-04.md` | Snapshot anterior (Onda 2 léxico). Rollback se a v3.2.4 falhar. |
+| `tess-conversa-v3-clean.md` | **Vivo.** É o bloco que se cola no TESS. Primeira linha = versão (`v3.2.6`). |
+| `archive/tess-conversa-46589-v3.2.5-2026-09-04.md` | Snapshot anterior (pré-P2). Rollback se a v3.2.6 falhar. |
 | `archive/tess-conversa-46589-v3.2.2-2026-09-03.md` | Snapshot anterior (honestidade I.8 / tag ≠ reserva). |
 | `archive/tess-conversa-46589-v3.1.9-2026-09-02.md` | Snapshot (Validação/TA). |
 | `archive/tess-conversa-46589-v3.1.7-2026-09-01.md` | Snapshot anterior (tags allowlist). |
@@ -21,7 +21,7 @@ O prompt do agente **não vive só no dashboard TESS**. Cada versão colada prec
 
 ## Como colar
 1. Abrir `tess-conversa-v3-clean.md`.
-2. Copiar o arquivo **inteiro** (incluindo a linha `v3.2.4`).
+2. Copiar o arquivo **inteiro** (incluindo a linha `v3.2.6`).
 3. Substituir o campo de instrução do agente 46589. Salvar. Não mudar modelo/Thinking/tools.
 
 ## Como reverter

@@ -416,4 +416,16 @@ Victor ACK 14:35 BRT: orquestrar o que falta para testar no `0007`. Gates 1+2 PA
 
 **Abort:** `UPDATE bot_toggles SET enabled=false WHERE key='global'`.
 
+## 2026-09-05 ~19:27Z — P2 alternativas + linger live
+
+**Ritual:** Victor ACK plano 1–6. Gage push `683857d` → kill `global=false` → backup `backend.bak.20260905T192718Z` → archive só `backend/` → build `--no-cache` → `global=true`. Sem `startPilot`. Whitelist intocada.
+
+**After:** health `ok` · `WHITELIST` · `accept_all=false` · `pilot=false` · allow só `0007` · `trinks_ping=ok`. SHA live `683857d`.
+
+**Código:** P2.2 ALTERNATIVAS 2–3 · P2.3 linger/Ok · P2.4 `[booking.digest]` · `duration_ms` em `tess.turn`.
+
+**Boca:** cola 46589 ainda com Victor (`docs/prompts/tess-46589-p2-alternativas-handoff-linger.md`).
+
+**Abort:** `UPDATE bot_toggles SET enabled=false WHERE key='global'`.
+
 
