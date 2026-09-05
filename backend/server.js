@@ -3094,9 +3094,11 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   try {
     // 5b. Transcrição de áudio em background. Bot avisa "vou escutar" antes,
     // transcreve via TESS, e concatena ao messageText antes do processMessage.
-    if (audioEvents.length > 0 && !quietAudio) {
-      await sendKapsoMessage(sessionId, `Recebi seu áudio${audioEvents.length > 1 ? 's' : ''}! Vou escutar 🎧`, phoneNumberId)
-        .catch(err => console.error('[audio] msg ponte falhou:', err.message));
+    if (audioEvents.length > 0) {
+      if (!quietAudio) {
+        await sendKapsoMessage(sessionId, `Recebi seu áudio${audioEvents.length > 1 ? 's' : ''}! Vou escutar 🎧`, phoneNumberId)
+          .catch(err => console.error('[audio] msg ponte falhou:', err.message));
+      }
       const transcriptions = [];
       const failures = [];
       for (const e of audioEvents) {
@@ -3118,7 +3120,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
       for (const t of transcriptions) {
         messageText = messageText ? `${messageText}\n[AUDIO TRANSCRITO]: ${t}` : `[AUDIO TRANSCRITO]: ${t}`;
       }
-      // Se tudo era áudio e tudo falhou, manda mensagem honesta e encerra.
+      // Se tudo era áudio e tudo falhou: allow/owner fala; info-open/not_allow = silent.
       if (transcriptions.length === 0 && !messageText.trim()) {
         if (quietAudio) {
           outbox.markFinal();
