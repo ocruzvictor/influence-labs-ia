@@ -11,6 +11,7 @@ const {
   shouldSkipTess,
   hasCompoundIntent,
   isSchedulingInProgress,
+  isPilotClaimableTurn,
 } = require('../lib/tess-context-intent');
 
 describe('classifyTessIntent', () => {
@@ -462,5 +463,49 @@ describe('Chão 3 intent persist (§8.1–8.2)', () => {
     const r = classifyTessIntent(text, [], []);
     assert.equal(r.intent, INTENTS.UNCERTAIN);
     assert.equal(intentToPersist(r, text, { path: 'bot' }), INTENTS.UNCERTAIN);
+  });
+});
+
+describe('isPilotClaimableTurn (P2.1 / 2185)', () => {
+  test('2185 — FAQ técnica/produto + SCHEDULING → false', () => {
+    assert.equal(
+      isPilotClaimableTurn({
+        intent: INTENTS.SCHEDULING,
+        text: 'quais técnicas de progressiva vocês usam?',
+      }),
+      false,
+    );
+    assert.equal(
+      isPilotClaimableTurn({ intent: INTENTS.SCHEDULING, text: 'qual produto vocês usam no alisamento?' }),
+      false,
+    );
+  });
+
+  test('serviço sozinho → false', () => {
+    assert.equal(
+      isPilotClaimableTurn({ intent: INTENTS.SCHEDULING, text: 'quero saber do corte' }),
+      false,
+    );
+    assert.equal(
+      isPilotClaimableTurn({ intent: INTENTS.SCHEDULING, text: 'progressiva' }),
+      false,
+    );
+  });
+
+  test('ask de marcar + data/serviço → true', () => {
+    assert.equal(
+      isPilotClaimableTurn({ intent: INTENTS.SCHEDULING, text: 'quero marcar corte sábado' }),
+      true,
+    );
+    assert.equal(
+      isPilotClaimableTurn({ intent: INTENTS.SCHEDULING, text: 'corte com o André sexta' }),
+      true,
+    );
+  });
+
+  test('CANCEL/RESCHEDULE → true; FAQ → false', () => {
+    assert.equal(isPilotClaimableTurn({ intent: INTENTS.CANCEL, text: 'cancela' }), true);
+    assert.equal(isPilotClaimableTurn({ intent: INTENTS.RESCHEDULE, text: 'remarcar' }), true);
+    assert.equal(isPilotClaimableTurn({ intent: INTENTS.FAQ, text: 'qual o endereço?' }), false);
   });
 });

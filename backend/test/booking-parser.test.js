@@ -177,6 +177,25 @@ test('postFail.8397 — cancel copy intacta (sem tag booking)', () => {
   assert.match(out, /recepção resolver/);
 });
 
+test('postFail.9343 — endereço/te esperamos pós-block não finge sucesso', () => {
+  const out = sanitizePrematureConfirm(
+    'Ok! Nosso endereço é Rua Example, 100. Te esperamos no Studio!',
+    { afterFailOrBlock: true },
+  );
+  assert.ok(!/nosso endereço/i.test(out));
+  assert.ok(!/te esperamos no studio/i.test(out));
+});
+
+test('postFail.enderecoFAQ — qual o endereço? intacto sem flag', () => {
+  const out = sanitizePrematureConfirm('Qual o endereço do studio?');
+  assert.match(out, /Qual o endereço/i);
+});
+
+test('postFail.enderecoFAQ — qual o endereço? intacto com flag (pergunta FAQ)', () => {
+  const out = sanitizePrematureConfirm('Qual o endereço do studio?', { afterFailOrBlock: true });
+  assert.match(out, /Qual o endereço/i);
+});
+
 // --- item 2: renderHabilitacaoMap ---
 test('item2.1 — lista vazia / null → string vazia', () => {
   assert.equal(renderHabilitacaoMap([]), '');

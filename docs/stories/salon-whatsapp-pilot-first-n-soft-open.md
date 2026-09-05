@@ -111,6 +111,7 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 - 2026-09-04 — Dex/Orion: implementação + 27 testes verdes (`bot-pilot`, `bot-state`, `bot-thread-state`). Aria desenho em `docs/architecture/pilot-first-n-soft-open.md` ([Aria](830ab4a6-549e-43a3-a988-ce9907e5dae4) também falhou no spawn; @aios-master executou o desenho). Status → ready-for-review. Live = Gage + 018 + CLI start.
 - 2026-09-05 — Orion: lote pós-live P1 (Ana leftover + Rodolfo I1/zero_price + Ronaldo regressão). Fonte: handoffs A+B. P2 e chão 3/5/6/10 estacionados.
 - 2026-09-05 — Dex: P1 implementado (T6–T8). Helpers `resolveCreateMoveLeftoverId` + `hydrateCatalogPrice`; create-as-move cancel leftover; confirmo-aqui global; zero_price blocked outcome. 119 testes fatia verdes.
+- 2026-09-05 — Dex: P2 local (P2.AC1 claim 2185 + P2.AC2 endereço pós-block). `isPilotClaimableTurn`; tryClaim exige sinal de marcar; POST_FAIL endereço/studio. 161/161 gate verdes.
 
 ## Pós-live P1 — floor 2026-09-05 (addendum)
 
@@ -133,9 +134,16 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 - [x] **T7 (P1.AC2, P1.AC3):** Padrão “confirmo aqui” no sanitize global; hydrate `getService().price_cents` antes do guard; outcome blocked. Teste Q2.
 - [x] **T8 (P1.AC4, Q4):** Regressão Ronaldo + `node --test` fatia + `node --check backend/server.js`.
 
-### Estacionado (Handoff B + P2)
+### P2 local (antes do VPS)
 
-Não neste PR: P2.1–P2.4 (P2.1 alinha a `classifyTessIntent` / chão 3 — persist-only, sem classificador novo); chão 10 STOP; stories 5–6 medida live; replay 383; smoke #8 Tiago/André; novo run PILOT.
+- [x] **P2.AC1 claim 2185:** `tryClaim` SCHEDULING só com sinal de marcar (ask / bundle 2-de-3 data|serviço|pro). “Quais técnicas / qual produto” / serviço sozinho **não** claima. Sem 9º intent — reusa `tess-context-intent` (`hasSchedulingAsk`, `isSimpleBookingBundle`, `hasFaqSignal`). CANCEL/RESCHEDULE intactos.
+- [x] **P2.AC2 Quinn residual:** após `blocked`/`failed`, sanitize cobre “endereço” / “te esperamos” como fechamento (não sucesso). Não stripar FAQ legítimo sem a flag.
+
+### Estacionado (Handoff B + P2.2–P2.4 + ops)
+
+P2.2 alternativas / P2.3 linger / P2.4 digest · chão 10 STOP · stories 5–6 medida live · replay 383 · smoke #8 · `startPilot` sem ACK.
+
+**Restore allowlist (só no ritual VPS final):** `stopPilot` + whitelist só dono (`isOwnerPhone` / last4 dono). Cohort PILOT e números de teste **saem** de `allow`. Não OPEN. Novo PILOT ou abertura de clientes = ACK depois do resultado.
 
 ### File List (P1 addendum)
 
@@ -145,6 +153,17 @@ Não neste PR: P2.1–P2.4 (P2.1 alinha a `classifyTessIntent` / chão 3 — per
 - `backend/test/reschedule-sku.test.js` — Q1 Ana leftover (8528)
 - `backend/test/cancel-sku.test.js` — Q3 Ronaldo regressão (5482)
 - `docs/stories/salon-whatsapp-pilot-first-n-soft-open.md` — addendum P1
+
+### File List (P2 local)
+
+- `backend/lib/tess-context-intent.js` — `isPilotClaimableTurn`
+- `backend/lib/bot-pilot.js` — `tryClaim` + text gate
+- `backend/lib/booking-parser.js` — POST_FAIL endereço/studio
+- `backend/server.js` — passa `text` no tryClaim
+- `backend/test/bot-pilot.test.js` — 2185 + bookable text
+- `backend/test/tess-context-intent.test.js` — unit isPilotClaimableTurn
+- `backend/test/booking-parser.test.js` — postFail endereço
+- `docs/stories/salon-whatsapp-pilot-first-n-soft-open.md` — P2 checkboxes
 
 ## QA Results
 

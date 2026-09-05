@@ -3004,7 +3004,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
         console.log(`[kapso][${sessionId}] pilot skip intent=${intentResult.intent}`);
         return res.json({ ok: true });
       }
-      const claim = await tryClaim({ phone: sessionPhone, intent: intentResult.intent });
+      const claim = await tryClaim({ phone: sessionPhone, intent: intentResult.intent, text: messageText });
       if (!claim.claimed) {
         console.log(`[kapso][${sessionId}] pilot reject ${claim.reason}`);
         emitOperationalEvent(db, {
@@ -3093,7 +3093,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
         outbox.markFinal();
         return;
       }
-      const claim = await tryClaim({ phone: sessionPhone, intent: intentResult.intent });
+      const claim = await tryClaim({ phone: sessionPhone, intent: intentResult.intent, text: messageText });
       if (!claim.claimed) {
         console.log(`[kapso][${sessionId}] pilot audio reject ${claim.reason}`);
         emitOperationalEvent(db, {

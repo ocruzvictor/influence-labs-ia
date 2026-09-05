@@ -274,6 +274,37 @@ function hasMultipleIntents(norm) {
   return count >= 2;
 }
 
+const PRODUCT_TECHNIQUE_FAQ_RE = /\b(quais?\s+(tecnicas?|t[eé]cnicas?|produtos?)|qual\s+(produto|t[eé]cnica)|que\s+produto)\b/i;
+
+function isProductTechniqueFaq(norm) {
+  return PRODUCT_TECHNIQUE_FAQ_RE.test(norm);
+}
+
+/**
+ * PILOT claim: SCHEDULING só consome vaga com sinal explícito de marcar.
+ * Não altera classifyTessIntent — filtro fino em tryClaim.
+ */
+function isPilotClaimableTurn({ intent, text }) {
+  const intentStr = String(intent || '');
+  const nonClaimable = [
+    INTENTS.FAQ,
+    INTENTS.TRIVIAL,
+    INTENTS.PRICING,
+    INTENTS.UNCERTAIN,
+    INTENTS.HANDOFF_LIKELY,
+  ];
+  if (nonClaimable.includes(intentStr)) return false;
+  if (intentStr === INTENTS.CANCEL || intentStr === INTENTS.RESCHEDULE) return true;
+  if (intentStr !== INTENTS.SCHEDULING) return false;
+
+  const norm = normalizeText(text);
+  if (isProductTechniqueFaq(norm) && !hasSchedulingAsk(norm)) return false;
+  if (hasSchedulingAsk(norm)) return true;
+  if (isSimpleBookingBundle(norm)) return true;
+  if (hasDateSignal(norm) && (hasServiceSignal(norm) || hasProfessionalSignal(norm))) return true;
+  return false;
+}
+
 function classifyTessIntent(messageText, history = [], futureBookings = [], opts = {}) {
   const { lastBookingOutcome } = opts;
   const signals = [];
@@ -455,4 +486,5 @@ module.exports = {
   isDraftSchedulingContext,
   hasSchedulingAsk,
   isSimpleBookingBundle,
+  isPilotClaimableTurn,
 };

@@ -261,6 +261,10 @@ const POST_FAIL_CONFIRM_PATTERNS = [
   /\bj[aá]\s+confirmamos\b[^\n]*/gi,
   /\btudo certo com\b[^\n]*/gi,
   /\bseu agendamento est[aá][^\n]*/gi,
+  /\bnosso endere[cç]o\s+[eé][^\n]*/gi,
+  /\b(endere[cç]o|localiza[cç][aã]o):\s*[^?\n]+/gi,
+  /\bte esperamos no studio\b[^\n]*/gi,
+  /\bficamos na\b[^\n]*/gi,
 ];
 
 const COMBO_FUSION_PATTERNS = [

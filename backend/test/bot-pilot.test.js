@@ -163,11 +163,13 @@ test('trivial não claima', async () => {
   assert.equal(status.claimed_count, 0);
 });
 
+const BOOKABLE = 'quero marcar corte sábado';
+
 test('SCHEDULING claima e vira allow', async () => {
   setupMocks();
   const { startPilot, tryClaim, getPilotStatus } = require('../lib/bot-pilot');
   await startPilot({ n: 5 });
-  const r = await tryClaim({ phone: '5511999000002', intent: 'SCHEDULING' });
+  const r = await tryClaim({ phone: '5511999000002', intent: 'SCHEDULING', text: BOOKABLE });
   assert.equal(r.claimed, true);
   assert.equal(r.reason, 'claimed');
   assert.equal(whitelist.get('5511999000002'), 'allow');
@@ -180,8 +182,8 @@ test('race: n=1, dois phones → um claimed', async () => {
   setupMocks();
   const { startPilot, tryClaim } = require('../lib/bot-pilot');
   await startPilot({ n: 1 });
-  const a = await tryClaim({ phone: '5511999000011', intent: 'SCHEDULING' });
-  const b = await tryClaim({ phone: '5511999000012', intent: 'CANCEL' });
+  const a = await tryClaim({ phone: '5511999000011', intent: 'SCHEDULING', text: BOOKABLE });
+  const b = await tryClaim({ phone: '5511999000012', intent: 'CANCEL', text: 'quero cancelar' });
   assert.equal(a.claimed, true);
   assert.equal(b.claimed, false);
   assert.equal(b.reason, 'cap_reached');
@@ -194,7 +196,7 @@ test('6º número após teto 5 → cap_reached', async () => {
   const { startPilot, tryClaim } = require('../lib/bot-pilot');
   await startPilot({ n: 5 });
   for (let i = 1; i <= 5; i += 1) {
-    const r = await tryClaim({ phone: `55119990000${10 + i}`, intent: 'SCHEDULING' });
+    const r = await tryClaim({ phone: `55119990000${10 + i}`, intent: 'SCHEDULING', text: BOOKABLE });
     assert.equal(r.claimed, true);
   }
   const sixth = await tryClaim({ phone: '5511999000099', intent: 'CANCEL' });
@@ -208,8 +210,8 @@ test('already_claimed não incrementa', async () => {
   setupMocks();
   const { startPilot, tryClaim, getPilotStatus } = require('../lib/bot-pilot');
   await startPilot({ n: 5 });
-  await tryClaim({ phone: '5511999000033', intent: 'SCHEDULING' });
-  const again = await tryClaim({ phone: '5511999000033', intent: 'CANCEL' });
+  await tryClaim({ phone: '5511999000033', intent: 'SCHEDULING', text: BOOKABLE });
+  const again = await tryClaim({ phone: '5511999000033', intent: 'CANCEL', text: 'quero cancelar' });
   assert.equal(again.claimed, true);
   assert.equal(again.reason, 'already_claimed');
   assert.equal((await getPilotStatus()).claimed_count, 1);
@@ -219,7 +221,7 @@ test('owner não ocupa vaga', async () => {
   setupMocks();
   const { startPilot, tryClaim, getPilotStatus } = require('../lib/bot-pilot');
   await startPilot({ n: 5 });
-  const r = await tryClaim({ phone: '5511937750330', intent: 'SCHEDULING' });
+  const r = await tryClaim({ phone: '5511937750330', intent: 'SCHEDULING', text: BOOKABLE });
   assert.equal(r.claimed, false);
   assert.equal(r.reason, 'owner_excluded');
   assert.equal((await getPilotStatus()).claimed_count, 0);
@@ -229,7 +231,7 @@ test('stop congela e desliga toggle', async () => {
   setupMocks();
   const { startPilot, tryClaim, stopPilot } = require('../lib/bot-pilot');
   await startPilot({ n: 5 });
-  await tryClaim({ phone: '5511999000044', intent: 'RESCHEDULE' });
+  await tryClaim({ phone: '5511999000044', intent: 'RESCHEDULE', text: 'quero remarcar corte sexta' });
   const stopped = await stopPilot({ reason: 'cli' });
   assert.equal(stopped.mode, 'OFF');
   assert.equal(stopped.run_status, 'frozen');
@@ -241,7 +243,7 @@ test('stop congela e desliga toggle', async () => {
 test('tryClaim sem run ativo → no_active_run', async () => {
   setupMocks();
   const { tryClaim } = require('../lib/bot-pilot');
-  const r = await tryClaim({ phone: '5511999000055', intent: 'SCHEDULING' });
+  const r = await tryClaim({ phone: '5511999000055', intent: 'SCHEDULING', text: BOOKABLE });
   assert.equal(r.claimed, false);
   assert.equal(r.reason, 'no_active_run');
 });
@@ -251,9 +253,38 @@ test('block na whitelist não claima nem sobrescreve', async () => {
   whitelist.set('5511999000066', 'block');
   const { startPilot, tryClaim, getPilotStatus } = require('../lib/bot-pilot');
   await startPilot({ n: 5 });
-  const r = await tryClaim({ phone: '5511999000066', intent: 'SCHEDULING' });
+  const r = await tryClaim({ phone: '5511999000066', intent: 'SCHEDULING', text: BOOKABLE });
   assert.equal(r.claimed, false);
   assert.equal(r.reason, 'denylist');
   assert.equal(whitelist.get('5511999000066'), 'block');
+  assert.equal((await getPilotStatus()).claimed_count, 0);
+});
+
+test('2185-class — SCHEDULING FAQ produto/técnica sem ask não claima', async () => {
+  setupMocks();
+  const { startPilot, tryClaim, getPilotStatus } = require('../lib/bot-pilot');
+  await startPilot({ n: 5 });
+  const r = await tryClaim({
+    phone: '5511999021850',
+    intent: 'SCHEDULING',
+    text: 'quais técnicas de progressiva vocês usam?',
+  });
+  assert.equal(r.claimed, false);
+  assert.equal(r.reason, 'intent_not_claimable');
+  assert.equal((await getPilotStatus()).claimed_count, 0);
+  assert.equal(whitelist.has('5511999021850'), false);
+});
+
+test('SCHEDULING serviço sozinho não claima', async () => {
+  setupMocks();
+  const { startPilot, tryClaim, getPilotStatus } = require('../lib/bot-pilot');
+  await startPilot({ n: 5 });
+  const r = await tryClaim({
+    phone: '5511999000077',
+    intent: 'SCHEDULING',
+    text: 'quero saber do corte',
+  });
+  assert.equal(r.claimed, false);
+  assert.equal(r.reason, 'intent_not_claimable');
   assert.equal((await getPilotStatus()).claimed_count, 0);
 });

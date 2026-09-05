@@ -6,6 +6,7 @@
 const db = require('../db');
 const { invalidateCache } = require('./bot-state');
 const { digitsOnly, isOwnerPhone } = require('./owner-access');
+const { isPilotClaimableTurn } = require('./tess-context-intent');
 
 const PILOT_TOGGLE_KEY = 'pilot';
 const PILOT_LOCK_KEY = 881005;
@@ -187,11 +188,14 @@ async function upsertAllow(client, phone) {
 /**
  * @returns {Promise<{ claimed: boolean, reason: string, run_id?: string }>}
  */
-async function tryClaim({ phone, intent }) {
+async function tryClaim({ phone, intent, text }) {
   const digits = digitsOnly(phone);
   if (!digits) return { claimed: false, reason: 'invalid_phone' };
   if (isOwnerPhone(digits)) return { claimed: false, reason: 'owner_excluded' };
   if (!isClaimableIntent(intent)) return { claimed: false, reason: 'intent_not_claimable' };
+  if (String(intent) === 'SCHEDULING' && !isPilotClaimableTurn({ intent, text })) {
+    return { claimed: false, reason: 'intent_not_claimable' };
+  }
 
   if (typeof db.transaction !== 'function') {
     return { claimed: false, reason: 'db_unavailable' };
