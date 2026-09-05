@@ -1,5 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { isSalonOpen } = require('../lib/salon-dates');
 const {
   computeHandoffSlaAt,
@@ -8,6 +10,9 @@ const {
   acceptHandoff,
   HANDOFF_OWNER,
   HANDOFF_SLA_MINUTES,
+  HANDOFF_LINGER_COPY,
+  isHandoffLingerAck,
+  appendHandoffLingerBlocks,
 } = require('../lib/handoff-sla');
 
 test('SLA is 15 min while salon is open', () => {
@@ -72,4 +77,23 @@ test('acceptHandoff emits handoff.accepted', async () => {
   assert.equal(result.accepted, true);
   assert.equal(events[0].event, 'handoff.accepted');
   assert.equal(events[0].payload.owner, 'Tiago');
+});
+
+test('P2.3 linger — Ok é ack; append uma vez', () => {
+  assert.equal(isHandoffLingerAck('Ok'), true);
+  assert.equal(isHandoffLingerAck('quero cortar'), false);
+  const once = appendHandoffLingerBlocks(['Vou passar pra recepção.'], { motivo: 'encaixe' });
+  assert.equal(once.length, 2);
+  assert.equal(once[1], HANDOFF_LINGER_COPY);
+  const twice = appendHandoffLingerBlocks(once, { motivo: 'encaixe' });
+  assert.equal(twice.filter((b) => b === HANDOFF_LINGER_COPY).length, 1);
+});
+
+test('P2.3/P2.4/6 wired in server.js', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+  assert.match(src, /\[booking\.digest\] last4=/);
+  assert.match(src, /appendHandoffLingerBlocks/);
+  assert.match(src, /durationMs: Date\.now\(\) - tessCallStarted/);
+  assert.match(src, /handoff\.linger_ack/);
+  assert.match(src, /isStaffSpokeRecently/);
 });

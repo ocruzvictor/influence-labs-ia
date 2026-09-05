@@ -151,6 +151,7 @@ async function persistTessTurnEvent(db, {
   sentChars,
   timedOut,
   salonDay,
+  durationMs,
   totalChars,
   traceId,
   sessionId,
@@ -169,6 +170,9 @@ async function persistTessTurnEvent(db, {
     trace_id: traceId || null,
     sessionId: sessionId || null,
   };
+  if (durationMs != null && Number.isFinite(Number(durationMs))) {
+    payload.duration_ms = Math.max(0, Math.round(Number(durationMs)));
+  }
   if (totalChars != null) {
     payload.total_chars = Number(totalChars) || 0;
   }

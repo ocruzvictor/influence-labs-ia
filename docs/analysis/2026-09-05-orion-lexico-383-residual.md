@@ -81,4 +81,21 @@ Critério de “lexico fechado”: denylist + classes novas cobrem o que a opera
 | P2.1 claim só com sinal de marcar | Evita queimar vaga; não classifica a cauda histórica |
 | Onda 2 stems + story 3 persist | Já no `a9d5af8`+ |
 
-Próximo artefato de medida: Dara dump 04 tarde + 05 (Onda 6 do plano de sessão).
+## Medida 2026-09-05 (dump 04/09 12:00 → 05/09 16:30 BRT)
+
+User brutos: SCHEDULING 153 · **null 140** · UNCERTAIN 20 · FAQ 15 · PRICING 7 · TRIVIAL 2 · CANCEL 1.
+
+| Janela | agent | nulls / user |
+|---|---|---|
+| **pre** persist (`<17:38` 04/09) | passive | **81 / 81** (furo A antigo) |
+| pre persist | (bot) | 0 / 66 |
+| **pós** persist (`a9d5af8`+) | passive | **56 / 124** |
+| pós persist | (bot) | 3 / 67 |
+
+O 383 da semana 01–04 **11:50** não se reescreve. O dente novo é: **56 null passivos depois do persist**. Amostra 04 15h (ainda pre): “Oi, vim pelo Studio Tirra”, “tem hoje?”, “Pode marcar as 14”, nomes (“Octavio”, “Rodolfo”, “Erick”) — vários **já teriam** label se fossem pós-persist.
+
+Cluster dos 56 (top): `Ok` / `Obrigado` / `certo` / `Sim` / `Beleza` / `Bom dia` · imagem · vazio · *“quanto tempo demora?”* · vaga de recepcionista · “já me achei”.
+
+**Veredito:** **não vale** “matar o léxico por completo”. O residual honesto é ack/lero/mídia (denylist). Dente barato se quiser 2ª onda: FAQ duração (“quanto tempo demora”) → `FAQ`. Sem 9º intent. Sem herdar `sim` como SCHEDULING no escuro.
+
+*[AUTO-DECISION] 2ª onda larga recusada (reason: 56 ≠ 383; maioria ack/mídia; Onda 2 stems + persist já cobriram o chão que importava).*

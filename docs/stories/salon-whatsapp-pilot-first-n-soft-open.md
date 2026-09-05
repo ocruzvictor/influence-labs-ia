@@ -113,6 +113,7 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 - 2026-09-05 — Dex: P1 implementado (T6–T8). Helpers `resolveCreateMoveLeftoverId` + `hydrateCatalogPrice`; create-as-move cancel leftover; confirmo-aqui global; zero_price blocked outcome. 119 testes fatia verdes.
 - 2026-09-05 — Dex: F1–F5 info-open + confirm-hold. `isInfoOpenIntent`, `resolveKapsoAccess`, gate Kapso, `bookingMutationsAllowed`, áudio quieto info-open, `isConfirmAskOutbound` + hold. 170/170 gate verdes.
 - 2026-09-05 — Orion: T11 live `c043a75`. Victor ACK próxima sessão: P2.2–P2.4 + 5 AC3 (05/09 PASS) + 6 `duration_ms` + léxico 383 + chão 10 no plano. Sem novo PILOT. Smoke #8 fechado.
+- 2026-09-05 — Dex/Orion: P2.2 ALTERNATIVAS · P2.3 linger/Ok · P2.4 digest · `duration_ms` em `tess.turn`. Cola 46589 no prompt file. Chão 10 contrato STOP. Léxico 383: 56 null pós-persist = ack/mídia, sem 2ª onda larga.
 
 ### File List (Floor recepção 2026-09-05)
 
@@ -124,6 +125,11 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 - `backend/test/booking-parser.test.js` — confirm-hold
 - `backend/test/bot-pilot.test.js` — resolveKapsoAccess + P2.1 regressão
 - `docs/stories/salon-whatsapp-pilot-first-n-soft-open.md` — F1–F5 / T9–T10
+- `backend/lib/tess-context-slots.js` — P2.2 footer + ALTERNATIVAS
+- `backend/lib/handoff-sla.js` — P2.3 linger
+- `backend/lib/tess-context-bytes.js` — `duration_ms`
+- `backend/server.js` — linger ack, digest, elapsed Tess
+- `docs/prompts/tess-46589-p2-alternativas-handoff-linger.md` — cola 46589
 
 ## Pós-live P1 — floor 2026-09-05 (addendum)
 
@@ -155,9 +161,9 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 
 Plano: `docs/handoffs/2026-09-05-orion-proxima-sessao-p2-chao.md`. Sem novo PILOT. Q5 superseded. Smoke #8 fechado (ACK + log `0007`).
 
-- [ ] **P2.2** alternativas 2–3 quando o slot não cabe (Vinicius `4749` / Daiane `4367` = P3). Trocar “1 alternativa ou handoff” em `CLOCK_HONESTY_FOOTER`.
-- [ ] **P2.3** linger pós-handoff + SLA (Daiane “Ok”). **Depende da cola 46589.**
-- [ ] **P2.4** digest last4 + `trinksId` em `booking.created` (Ronaldo).
+- [x] **P2.2** alternativas 2–3 quando o slot não cabe (Vinicius `4749` / Daiane `4367` = P3). Footer + `ALTERNATIVAS` cross-pro. Cola 46589: `docs/prompts/tess-46589-p2-alternativas-handoff-linger.md`.
+- [x] **P2.3** linger pós-handoff + ack “Ok” (backend). Cola da boca no mesmo arquivo. Recepção no fio (staff 24h) continua silent.
+- [x] **P2.4** digest last4 + `trinksId` em `booking.created` (Ronaldo).
 
 ### Estacionado / outras frentes
 

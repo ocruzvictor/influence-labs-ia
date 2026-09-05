@@ -100,6 +100,33 @@ describe('compactBookingSlotsBlock', () => {
     assert.doesNotMatch(text, /NÃO liste horários/);
   });
 
+  test('P2.2 Vinicius — 14h Tiago não cabe → ALTERNATIVAS de outro pro (2–3)', () => {
+    const tiagoOnlyMorning = [
+      {
+        name: 'Tiago',
+        professionalId: '9',
+        startsAt: ['2026-09-02T11:00:00-03:00'],
+      },
+      {
+        name: 'André',
+        professionalId: '2',
+        startsAt: ['2026-09-02T15:00:00-03:00', '2026-09-02T16:00:00-03:00'],
+      },
+    ];
+    const text = compactBookingSlotsBlock({
+      label: '02/09 (terça)',
+      professionals: tiagoOnlyMorning,
+      messageText: 'quero 14h com o Tiago',
+      allowedProfessionalNames: ['Tiago', 'André'],
+      durationMin: 60,
+    });
+    assert.match(text, /ALTERNATIVAS/);
+    assert.match(text, /André/);
+    assert.match(text, /2–3 alternativas|2-3 alternativas/);
+    const clocks = text.match(/\d{2}:\d{2}/g) || [];
+    assert.ok(clocks.length >= 2, `expected ≥2 clocks, got ${clocks.length} in ${text}`);
+  });
+
   test('profissional conhecido sem período → relógios reais, não occupancy consultiva', () => {
     const text = compactBookingSlotsBlock({
       label: '02/09 (terça)',

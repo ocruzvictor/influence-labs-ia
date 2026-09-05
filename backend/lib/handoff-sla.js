@@ -8,6 +8,10 @@ const { last4FromPhone, normalizeLast4, redactSnippet } = require('./nightwatch-
 
 const HANDOFF_OWNER = 'Tiago';
 const HANDOFF_SLA_MINUTES = 15;
+const HANDOFF_LINGER_COPY =
+  'Já te passei pra recepção — eles te chamam em até 15 min no horário comercial. Se estiver fora do expediente, te chamam na abertura.';
+
+const LINGER_ACK_RE = /^(ok+|tá|ta|beleza|combinado|fechou|obrigad[oa]|valeu|show|👍|👌🏻?)[\s!.]*$/i;
 
 function computeHandoffSlaAt(now = new Date(), slaMinutes = HANDOFF_SLA_MINUTES) {
   const mins = Math.max(1, Number(slaMinutes) || HANDOFF_SLA_MINUTES);
@@ -33,6 +37,22 @@ function buildHandoffSlaPayload(now = new Date()) {
     sla_at: slaAt.toISOString(),
     commercial_hours: Boolean(isSalonOpen(now).open),
   };
+}
+
+function isHandoffLingerAck(text) {
+  return LINGER_ACK_RE.test(String(text || '').trim());
+}
+
+function hasHandoffLingerCopy(text) {
+  return /j[aá]\s+te\s+passei\s+pra\s+recep[cç][aã]o/i.test(String(text || ''));
+}
+
+function appendHandoffLingerBlocks(blocks, handoffHuman) {
+  if (!handoffHuman) return Array.isArray(blocks) ? [...blocks] : [blocks];
+  const list = (Array.isArray(blocks) ? [...blocks] : [blocks]).filter((b) => String(b || '').trim());
+  if (list.some((b) => hasHandoffLingerCopy(b))) return list;
+  list.push(HANDOFF_LINGER_COPY);
+  return list;
 }
 
 function formatHandoffSlaNotice(payload) {
@@ -159,6 +179,10 @@ async function realertBreachedHandoffs(db, { emitEvent } = {}) {
 module.exports = {
   HANDOFF_OWNER,
   HANDOFF_SLA_MINUTES,
+  HANDOFF_LINGER_COPY,
+  isHandoffLingerAck,
+  hasHandoffLingerCopy,
+  appendHandoffLingerBlocks,
   computeHandoffSlaAt,
   buildHandoffSlaPayload,
   formatHandoffSlaNotice,

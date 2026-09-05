@@ -53,6 +53,7 @@ test('persistTessTurnEvent writes SCHEDULING BOOKING with sent_chars and tess_cr
     skippedTess: false,
     traceId: 'trace-2',
     sessionId: 's-booking',
+    durationMs: 12400,
   });
   assert.equal(calls[0].params[0], 'tess.turn');
   assert.equal(calls[0].params[1], '5511964540007');
@@ -67,6 +68,7 @@ test('persistTessTurnEvent writes SCHEDULING BOOKING with sent_chars and tess_cr
   assert.equal(payload.salon_day, '2026-09-04');
   assert.equal(payload.trace_id, 'trace-2');
   assert.equal(payload.sessionId, 's-booking');
+  assert.equal(payload.duration_ms, 12400);
   assert.equal(Object.hasOwn(payload, 'client_phone'), false);
   assert.equal(Object.hasOwn(payload, 'phone'), false);
   assert.equal(Object.hasOwn(payload, 'message'), false);

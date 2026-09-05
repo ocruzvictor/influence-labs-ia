@@ -44,6 +44,8 @@ Código hoje em `CLOCK_HONESTY_FOOTER` (`tess-context-slots.js`): *“ofereça *
 - [x] Story 5 AC3 query live (abaixo)
 - [x] Doc residual 383 + plano de léxico 04–05/09
 
+### Onda 1 — P2.2 (Dex) **feito** · cola em `docs/prompts/tess-46589-p2-alternativas-handoff-linger.md`
+
 ### Onda 1 — P2.2 (Dex, sem prompt)
 
 **AC:** pedido que não cabe → **2–3** alternativas (outro horário **e/ou** outro pro listado). Não uma e calar. Handoff `encaixe` **não** é a primeira resposta se ainda houver grade.
@@ -51,6 +53,8 @@ Código hoje em `CLOCK_HONESTY_FOOTER` (`tess-context-slots.js`): *“ofereça *
 Fixtures: Vinicius (14h Tiago cheio → 2–3 outros) · Daiane (dia 12 seco → alternativas noutro dia/pro **antes** de handoff).
 
 Aria: 6–10 linhas no story PILOT (não reabrir assembler). Quinn na fatia.
+
+### Onda 2 — P2.4 (Dex, ops) **feito** (`[booking.digest] last4= trinksId=`)
 
 ### Onda 2 — P2.4 (Dex, ops)
 

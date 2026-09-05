@@ -69,6 +69,8 @@ const {
   countActiveSilenced,
   persistStaffOutbound,
   hasStaffOnConversation,
+  isStaffSpokeRecently,
+  STAFF_CONVERSATION_WINDOW_MS,
 } = require('./lib/bot-thread-state');
 const {
   rememberBotSend,
@@ -222,7 +224,13 @@ const { persistContextBytesEvent, persistContextTrimmedEvent, persistTessTurnEve
 const { saveConversationTurns: persistConversationTurns } = require('./lib/conversation-history');
 const { newTraceId, withTrace } = require('./lib/tess-trace');
 const { startOutboundWatchdog } = require('./lib/outbound-outbox');
-const { buildHandoffSlaPayload, formatHandoffSlaNotice } = require('./lib/handoff-sla');
+const {
+  buildHandoffSlaPayload,
+  formatHandoffSlaNotice,
+  HANDOFF_LINGER_COPY,
+  isHandoffLingerAck,
+  appendHandoffLingerBlocks,
+} = require('./lib/handoff-sla');
 
 const app = express();
 app.use(cors());
@@ -1587,6 +1595,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       }).catch(() => {});
     }
 
+    const tessCallStarted = Date.now();
     try {
       tessRaw = await callTESS([
         { role: 'user', content: assembledCtx.userMessageWithContext },
@@ -1641,6 +1650,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         sentChars: timeoutSentChars,
         timedOut: true,
         salonDay: timeoutSalonDay,
+        durationMs: Date.now() - tessCallStarted,
         traceId: turnTraceId,
         sessionId,
       }).catch(() => {});
@@ -1684,6 +1694,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       sentChars: turnSentChars,
       timedOut: false,
       salonDay: turnSalonDay,
+      durationMs: Date.now() - tessCallStarted,
       totalChars: assembledBytes?.blocks?.total?.chars || 0,
       traceId: turnTraceId,
       sessionId,
@@ -2142,16 +2153,20 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         profNome,
         valorFmt,
       }));
+      const createdTrinksId = bookingResult?.id || bookingResult?.agendamentoId || null;
+      const createdLast4 = nightwatchOps.last4FromPhone(clientPhone);
       emitOperationalEvent(db, {
         event: 'booking.created',
         clientPhone,
         kapsoConversationId,
         payload: {
-          trinksId: bookingResult?.id || bookingResult?.agendamentoId,
+          last4: createdLast4,
+          trinksId: createdTrinksId,
           serviceId: bookingData.serviceId,
           afterHours: !isSalonOpen().open,
         },
       }).catch(() => {});
+      console.log(`[booking.digest] last4=${createdLast4 || '?'} trinksId=${createdTrinksId || '?'} serviceId=${bookingData.serviceId || '?'}`);
       if (reschedulesToRun.length) {
         const rescheduleTag = reschedulesToRun.find(
           (r) => !r.service_id || String(r.service_id) === String(bookingData.serviceId),
@@ -2529,14 +2544,14 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   // Anexa mensagens finais (sucesso/falha 2-phase) como blocos extras apos o reply principal.
   // AC11: cancel falhou → não enviar texto prematuro ("Cancelando...") antes da msg de erro.
   // B1: createIdempotentSkip sem 2xx → não deixar "Confirmo aqui" da 2-phase.
-  const allBlocks = selectOutboundBlocks({
+  const allBlocks = appendHandoffLingerBlocks(selectOutboundBlocks({
     formattedResponses: formatted.responses,
     finalMessages,
     createIdempotentSkip,
     bookingCreatedThisTurn,
     cancelsToRun,
     cancelSuccessCount,
-  });
+  }), handoffHuman);
   const result = {
     response: allBlocks[0],
     responses: allBlocks,
@@ -3019,8 +3034,34 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     return res.json({ ok: true });
   }
 
-  if (!ownerHere && (await hasStaffOnConversation(sessionPhone) || await isHumanHandled(sessionPhone))) {
+  const staffSpoke = await isStaffSpokeRecently(sessionPhone, STAFF_CONVERSATION_WINDOW_MS);
+  if (!ownerHere && staffSpoke) {
     console.log(`[kapso][${sessionId}] conversa com outbound humano — bot silencioso`);
+    return res.json({ ok: true });
+  }
+  if (!ownerHere && (await isHumanHandled(sessionPhone))) {
+    if (isHandoffLingerAck(messageText)) {
+      const lingerAcked = await db.query(
+        `SELECT 1 FROM bot_operational_events
+          WHERE event = 'handoff.linger_ack'
+            AND regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') = $1
+            AND received_at >= NOW() - INTERVAL '24 hours'
+          LIMIT 1`,
+        [String(sessionPhone || '').replace(/\D/g, '')],
+      );
+      if (!lingerAcked?.rows?.length) {
+        const okLinger = await sendKapsoMessage(sessionId, HANDOFF_LINGER_COPY, phoneNumberId);
+        if (okLinger) {
+          emitOperationalEvent(db, {
+            event: 'handoff.linger_ack',
+            clientPhone: sessionPhone,
+            kapsoConversationId,
+            motivo: 'ok_after_handoff',
+          }).catch(() => {});
+        }
+      }
+    }
+    console.log(`[kapso][${sessionId}] human-handled — bot silencioso`);
     return res.json({ ok: true });
   }
 

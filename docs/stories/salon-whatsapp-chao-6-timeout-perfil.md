@@ -2,7 +2,7 @@
 
 **Epic:** [EPIC-tess-chao-unico](epics/EPIC-tess-chao-unico.md)  
 **Tipo:** Brownfield  
-**Status:** Done · live `a9d5af8` · AC3 p95 **ainda aberto**: `duration_ms` = 0 rows no VPS (04–05/09). Próximo dente: persist elapsed em `tess.turn` + p95 em tráfego info-open/`0007` — **sem** novo PILOT. Ver `docs/handoffs/2026-09-05-orion-proxima-sessao-p2-chao.md` Onda 5.  
+**Status:** Done · live `a9d5af8` · `duration_ms` **persistido** no payload de `tess.turn` (código; p95 AC3 depois de ≥1 dia info-open/`0007`). Sem novo PILOT. Sem apertar BOOKING abaixo do p95.  
 **Executor:** @architect → @dev  
 **Quality gate:** @qa  
 **Story points:** 5  

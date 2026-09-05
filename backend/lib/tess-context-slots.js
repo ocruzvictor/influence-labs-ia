@@ -425,7 +425,8 @@ function subtractOccupiedSlotStarts(professionals, appointments) {
 const CLOCK_HONESTY_FOOTER = [
   'Só ofereça os inícios listados (grade real Trinks).',
   'Só ofereça se duracaoMinutos ≤ minutos contínuos anotados.',
-  'Não some janelas nem invente horário. Se o cliente pedir um horário que não está aqui, diga que não cabe e ofereça 1 alternativa listada ou HANDOFF_HUMAN motivo=encaixe.',
+  'Não some janelas nem invente horário. Se o cliente pedir um horário que não está aqui, diga que não cabe e ofereça 2–3 alternativas listadas (outro horário e/ou outro profissional em ALTERNATIVAS).',
+  'HANDOFF_HUMAN motivo=encaixe só depois das alternativas, se o cliente recusar todas ou se não houver 2 inícios na grade.',
 ].join(' ');
 
 const SNAPSHOT_STALE_OFFER_MIN = 45;
@@ -501,9 +502,9 @@ const CONSULTIVA_FOOTER = [
 ].join(' ');
 
 const PERIOD_FOOTER = [
-  'Instrução: cite no máximo 1–2 horários do período pedido;',
-  'se não couber, 1–2 do outro período no mesmo dia (como alternativas);',
-  'depois outro dia ou HANDOFF encaixe. Nunca despeje a grade.',
+  'Instrução: cite no máximo 2–3 horários do período pedido;',
+  'se não couber, 2–3 do outro período no mesmo dia e/ou outro profissional (ALTERNATIVAS);',
+  'outro dia antes de HANDOFF encaixe. Nunca despeje a grade.',
 ].join(' ');
 
 function snapshotAgeMinFromSynced(syncedAtList, nowMs = Date.now()) {
@@ -520,14 +521,61 @@ function prependStaleWarning(text, snapshotAgeMin, staleAfterMin = SNAPSHOT_STAL
   return `SNAPSHOT: atualizado há ${Math.round(age)} min — horários podem ter sido preenchidos. Não afirme vaga como certa.\n${text}`;
 }
 
-function formatClockOfferLines(label, relevant, period, exactClock, durationMin, timeZone) {
+function countClockMentions(text) {
+  return (String(text || '').match(/\d{2}:\d{2}/g) || []).length;
+}
+
+function startMatchesExactClock(start, exactClock, timeZone = SALON_TZ) {
+  if (!exactClock || start == null) return false;
+  const ms = uniqueSortedMs([start])[0];
+  if (ms == null) return false;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(ms));
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value);
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value);
+  return hour === exactClock.hour && minute === exactClock.minute;
+}
+
+function collectCrossProAlternatives(professionals, {
+  excludeNames = [],
+  period,
+  exactClock,
+  durationMin,
+  timeZone = SALON_TZ,
+  max = 3,
+} = {}) {
+  const exclude = new Set((excludeNames || []).map((n) => String(n || '').toLowerCase()));
+  const lines = [];
+  let clocks = 0;
+  for (const prof of professionals || []) {
+    if (exclude.has(String(prof.name || '').toLowerCase())) continue;
+    const picked = pickStartsForOffer(prof.startsAt, period, 2, exactClock, durationMin, timeZone);
+    if (!picked.length) continue;
+    const slice = picked.slice(0, Math.max(0, max - clocks));
+    if (!slice.length) break;
+    lines.push(`- ${prof.name}: ${formatPickedAnnotatedTimes(slice, prof.startsAt, timeZone)}`);
+    clocks += slice.length;
+    if (clocks >= max) break;
+  }
+  return lines;
+}
+
+function formatClockOfferLines(label, relevant, period, exactClock, durationMin, timeZone, alternateProfessionals = []) {
   const header = period
     ? `HORARIOS VAGOS ${label} — período ${period === 'morning' ? 'manhã' : 'tarde'} (inícios reais Trinks):`
     : `HORARIOS VAGOS ${label} — inícios reais Trinks (só estes; só se couberem na duração):`;
   const lines = [header];
+  let namedExactHit = false;
   for (const prof of relevant) {
     const primary = pickStartsForOffer(prof.startsAt, period, 2, exactClock, durationMin, timeZone);
     if (primary.length) {
+      if (exactClock && primary.some((s) => startMatchesExactClock(s, exactClock, timeZone))) {
+        namedExactHit = true;
+      }
       lines.push(`- ${prof.name}: ${formatPickedAnnotatedTimes(primary, prof.startsAt, timeZone)}`);
       continue;
     }
@@ -543,6 +591,22 @@ function formatClockOfferLines(label, relevant, period, exactClock, durationMin,
       lines.push(`- ${prof.name}: sem janela contínua de ${durationMin}min neste dia.`);
     } else {
       lines.push(`- ${prof.name}: sem vagas neste dia.`);
+    }
+  }
+  const clockCount = countClockMentions(lines.join('\n'));
+  const needAlts = Boolean(exactClock && !namedExactHit) || clockCount < 2;
+  if (needAlts) {
+    const altLines = collectCrossProAlternatives(alternateProfessionals.length ? alternateProfessionals : relevant, {
+      excludeNames: (relevant || []).map((p) => p.name),
+      period: null,
+      exactClock: null,
+      durationMin,
+      timeZone,
+      max: Math.max(2, 3 - clockCount),
+    });
+    if (altLines.length) {
+      lines.push('ALTERNATIVAS (outros horários / profissionais):');
+      lines.push(...altLines);
     }
   }
   lines.push(period ? `${PERIOD_FOOTER} ${CLOCK_HONESTY_FOOTER}` : CLOCK_HONESTY_FOOTER);
@@ -584,7 +648,7 @@ function compactBookingSlotsBlock({
   const wantsClocks = professionalKnown || (asksForClockList(messageText) && professionalKnown);
 
   if (wantsClocks) {
-    return finish(formatClockOfferLines(label, relevant, period, exactClock, durationMin, timeZone).text);
+    return finish(formatClockOfferLines(label, relevant, period, exactClock, durationMin, timeZone, pool).text);
   }
 
   if (!period) {
@@ -623,6 +687,7 @@ module.exports = {
   groupOpenSlots,
   formatFullSlotsBlock,
   compactBookingSlotsBlock,
+  collectCrossProAlternatives,
   splitStartsByPeriod,
   pickStartsForPeriod,
   pickStartsForOffer,
