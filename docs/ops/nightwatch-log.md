@@ -428,4 +428,15 @@ Victor ACK 14:35 BRT: orquestrar o que falta para testar no `0007`. Gates 1+2 PA
 
 **Abort:** `UPDATE bot_toggles SET enabled=false WHERE key='global'`.
 
+## 2026-09-05 ~20:36Z — publish docs + CLI p95 lib (`5fd2cad`)
+
+**Ritual:** Victor ACK publish leve pós-push `5fd2cad`. Kill `global=false` → backup `backend.bak.20260905T203527Z` → worktree reset `5fd2cad` → archive só `backend/` → build `--no-cache` → `global=true`. Whitelist intocada. Sem `startPilot`.
+
+**After:** health `ok` · `WHITELIST` · `accept_all=false` · `pilot=false` · allow só `0007` · `trinks_ping=ok`. Worktree/live backend `5fd2cad` (`lib/salao-cli-p95.js`). Prompt v3.2.6 só painel.
+
+**p95 hoje:** `WAIT_TRAFFIC` (zero rows com `duration_ms` no salon_day 05/09 — esperado até amanhã).
+
+**Nota:** `scripts/salao/` fora do Dockerfile — ritual usa `node -e` + `lib/salao-cli-p95` no container.
+
+**Abort:** `UPDATE bot_toggles SET enabled=false WHERE key='global'`.
 

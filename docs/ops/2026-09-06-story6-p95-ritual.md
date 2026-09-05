@@ -7,22 +7,25 @@
 
 ## 1. Rodar no VPS (container backend)
 
+O script em `scripts/` **não** está na imagem Docker. Use o one-liner abaixo (lib `salao-cli-p95.js` **está** no container desde `5fd2cad`):
+
 ```bash
 ssh deploy@72.60.155.118
-cd /path/to/app   # mesmo cwd do docker compose
-docker compose exec backend node backend/scripts/salao/observabilidade/medir_p95_tess_turn.js --live
+cd /opt/influence-labs/infra
+docker compose exec -T backend node -e "
+const { medirP95TessTurn } = require('./lib/salao-cli-p95');
+const db = require('./db');
+medirP95TessTurn(db, { salonDay: '2026-09-06' })
+  .then(r => console.log(JSON.stringify(r, null, 2)))
+  .catch(e => { console.error(e); process.exit(1); });
+"
 ```
 
-Ontem (salon_day explícito):
+Alternativa no host (se `node` + `DATABASE_URL` disponíveis):
 
 ```bash
-docker compose exec backend node backend/scripts/salao/observabilidade/medir_p95_tess_turn.js --live --dia 2026-09-06
-```
-
-Amostra mínima menor (só se pouco tráfego):
-
-```bash
-docker compose exec backend node backend/scripts/salao/observabilidade/medir_p95_tess_turn.js --live --min-samples 3
+cd /opt/influence-labs/backend
+node scripts/salao/observabilidade/medir_p95_tess_turn.js --live --dia 2026-09-06
 ```
 
 ---
