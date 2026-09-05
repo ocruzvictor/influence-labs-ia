@@ -7,6 +7,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   resolveRescheduleAgendamentoId,
+  resolveCreateMoveLeftoverId,
   formatRescheduleRefusalMessage,
   serviceSkuMatches,
 } = require('../lib/booking-parser');
@@ -100,4 +101,48 @@ test('agendamento_id explícito com SKU errado → sku_mismatch', () => {
   });
   assert.equal(resolved.agendamentoId, null);
   assert.equal(resolved.reason, 'sku_mismatch');
+});
+
+// --- P1.1 Ana leftover (8528) ---
+test('8528-class Q1 — Rosa manicure hoje + tag reschedule/move → resolve id antigo', () => {
+  const FUTURO_MANICURE_HOJE = {
+    trinks_id: '9008528',
+    service_id: '14232900',
+    service_name: 'Manicure',
+    professional_id: '826936',
+    scheduled_at: '2026-09-05T11:00:00-03:00',
+  };
+  const tag = {
+    service_name: 'Manicure',
+    service_id: '14232900',
+    old_date: '2026-09-05',
+    date_time: '2026-09-12T14:30:00-03:00',
+    professional_id: '826936',
+  };
+  const resolved = resolveCreateMoveLeftoverId({
+    bookingReschedule: tag,
+    futureBookings: [FUTURO_MANICURE_HOJE],
+    findClientBookingResult: null,
+  });
+  assert.equal(resolved.agendamentoId, '9008528');
+  assert.equal(resolved.reason, null);
+});
+
+test('8528-class Q1 — not_owned recusado', () => {
+  const resolved = resolveCreateMoveLeftoverId({
+    bookingReschedule: { agendamento_id: '9999999', service_name: 'Manicure' },
+    futureBookings: [{ trinks_id: '9008528', service_name: 'Manicure', service_id: '14232900' }],
+    findClientBookingResult: null,
+  });
+  assert.equal(resolved.agendamentoId, null);
+  assert.equal(resolved.reason, 'not_owned');
+});
+
+test('8528-class Q1 — sem tag reschedule → no_reschedule_tag', () => {
+  const resolved = resolveCreateMoveLeftoverId({
+    bookingReschedule: null,
+    futureBookings: [],
+  });
+  assert.equal(resolved.agendamentoId, null);
+  assert.equal(resolved.reason, 'no_reschedule_tag');
 });

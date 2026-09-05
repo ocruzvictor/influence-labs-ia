@@ -237,6 +237,7 @@ function stripResidualBookingTags(text) {
 const PREMATURE_CONFIRM_PATTERNS = [
   /\b(agendado|confirmado|pronto)\s*[,!.]*/gi,
   /\b(agendamento )?(realizado|finalizado|fechado)\b/gi,
+  /\bconfirmo aqui\b[^\n]*/gi,
   /\bte esperamos\b/gi,
   /\b(cancelando|cancelado)\b[^\n]*/gi,
   /\bvou (pedir o )?cancelamento\b[^\n]*/gi,
@@ -874,6 +875,46 @@ function resolveRescheduleAgendamentoId({
   return { agendamentoId: null, reason: 'sku_mismatch' };
 }
 
+/**
+ * Resolve agendamentoId antigo para create-as-move no mesmo turno (P1.1 Ana leftover).
+ * Sem tag reschedule → no_reschedule_tag; com tag → delega resolveRescheduleAgendamentoId.
+ */
+function resolveCreateMoveLeftoverId({
+  bookingReschedule,
+  futureBookings,
+  findClientBookingResult = null,
+}) {
+  if (!bookingReschedule) {
+    return { agendamentoId: null, reason: 'no_reschedule_tag' };
+  }
+  return resolveRescheduleAgendamentoId({
+    bookingReschedule,
+    futureBookings,
+    findClientBookingResult,
+  });
+}
+
+/**
+ * Hidrata preço/valor antes do guard zero_price (P1.2B Rodolfo hydrate).
+ * Prioridade: local price_cents > payload preco > tag valor > zero.
+ */
+function hydrateCatalogPrice({ payloadPreco, tagValor, localPriceCents }) {
+  const localCents = Number(localPriceCents) || 0;
+  if (localCents > 0) {
+    const preco = localCents / 100;
+    return { preco, valor: preco, source: 'local' };
+  }
+  const payload = Number(payloadPreco) || 0;
+  if (payload > 0) {
+    return { preco: payload, valor: payload, source: 'payload' };
+  }
+  const tag = Number(tagValor) || 0;
+  if (tag > 0) {
+    return { preco: tag, valor: tag, source: 'tag' };
+  }
+  return { preco: 0, valor: 0, source: 'zero' };
+}
+
 function formatRescheduleRefusalMessage(reason) {
   if (reason === 'rosa_vazio') {
     return 'Não encontrei um agendamento seu na agenda pra remarcar. Me confirma qual serviço e horário você tinha, ou fala com a recepção.';
@@ -927,6 +968,8 @@ module.exports = {
   isBookingOwnedByClient,
   serviceSkuMatches,
   resolveRescheduleAgendamentoId,
+  resolveCreateMoveLeftoverId,
+  hydrateCatalogPrice,
   formatRescheduleRefusalMessage,
   normalizeServiceName,
   CLIENT_IMAGE_MARKER,

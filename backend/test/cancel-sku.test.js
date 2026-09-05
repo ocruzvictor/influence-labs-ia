@@ -128,3 +128,31 @@ test('0007-class B1 — cancel result não conta como booking.created', () => {
   assert.equal(blocks.join('\n'), HONEST_CREATE_SKIP_COPY);
   assert.doesNotMatch(blocks.join('\n'), /Confirmo aqui/i);
 });
+
+// --- P1.3 Ronaldo regressão (5482 / SKU 14232901) ---
+test('5482-class Q3 Ronaldo — sanitize display não mantém confirmo aqui', () => {
+  const { sanitizePrematureConfirm } = require('../lib/booking-parser');
+  const out = sanitizePrematureConfirm('Confirmo aqui o agendamento então');
+  assert.ok(!/confirmo aqui/i.test(out));
+});
+
+test('5482-class Q3 Ronaldo — sucesso pós-commit permanece após sanitize', () => {
+  const { sanitizePrematureConfirm } = require('../lib/booking-parser');
+  const { buildCreateSuccessMessage } = require('../lib/booking-guards');
+  const successMsg = buildCreateSuccessMessage({
+    afterHours: false,
+    dataFmt: '05/09/2026 às 15:30',
+    servicoLinha: '💅 Cabelo e Barba\n',
+    profNome: 'André',
+    valorFmt: '85,00',
+  });
+  const blocks = selectOutboundBlocks({
+    formattedResponses: [sanitizePrematureConfirm('Confirmo aqui o agendamento então')],
+    finalMessages: [successMsg],
+    bookingCreatedThisTurn: true,
+  });
+  const joined = blocks.join('\n');
+  assert.ok(!/confirmo aqui/i.test(joined));
+  assert.match(joined, /Te esperamos/);
+  assert.match(joined, /15:30/);
+});

@@ -161,6 +161,8 @@ const {
   isBookingOwnedByClient,
   resolveCancelAgendamentoId,
   resolveRescheduleAgendamentoId,
+  resolveCreateMoveLeftoverId,
+  hydrateCatalogPrice,
   formatRescheduleRefusalMessage,
   needsReferenceService,
   hasRecentClientImageMarker,
@@ -1799,6 +1801,11 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
   const futureBookings = clientPhone ? await loadClientFutureBookings(clientPhone) : [];
 
+  const reschedulesToRun = bookingReschedules.length
+    ? bookingReschedules
+    : (bookingReschedule ? [bookingReschedule] : []);
+  const leftoverCancelledIds = new Set();
+
   // 4a. Criar agendamento(s) — combo: processa em sequência e para no primeiro erro
   const distinctServiceIds = new Set(
     createsToRun.map((c) => c.service_id).filter((id) => id != null),
@@ -1943,7 +1950,17 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     }
     const svcEntryGuard = svcPayload.data.find(s => String(s.id) === String(bookingData.serviceId));
     const servicoNomeGuard = bookingData.service || svcEntryGuard?.nome || resolveServiceName(svcPayload.data, bookingData.serviceId);
-    const priceZero = !svcEntryGuard?.preco || Number(svcEntryGuard.preco) === 0;
+    const localRow = bookingData.serviceId
+      ? await trinksLocalStore.getService(bookingData.serviceId)
+      : null;
+    const hydrated = hydrateCatalogPrice({
+      payloadPreco: svcEntryGuard?.preco,
+      tagValor: bookingData.valor,
+      localPriceCents: localRow?.price_cents,
+    });
+    if (svcEntryGuard && hydrated.preco > 0) svcEntryGuard.preco = hydrated.preco;
+    if (hydrated.valor > 0) bookingData.valor = hydrated.valor;
+    const priceZero = hydrated.preco === 0;
     if (isConsultiveColorService(servicoNomeGuard)) {
       console.warn(
         `[${sessionId}] Booking BLOCKED consultive:`,
@@ -1974,6 +1991,8 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         kapsoConversationId,
         payload: { serviceId: bookingData.serviceId, serviceName: servicoNomeGuard },
       }).catch(() => {});
+      if (comboFirstSucceeded) comboSecondBlocked = true;
+      markBookingOutcome('blocked');
       break;
     }
     const guard = pickCreateGuard({ compatible, expedienteFit: fit, janelaFit, appointmentConflict });
@@ -2103,6 +2122,77 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
           afterHours: !isSalonOpen().open,
         },
       }).catch(() => {});
+      if (reschedulesToRun.length) {
+        const rescheduleTag = reschedulesToRun.find(
+          (r) => !r.service_id || String(r.service_id) === String(bookingData.serviceId),
+        ) || reschedulesToRun[0];
+        let findResult = null;
+        if (clientPhone && rescheduleTag?.old_date) {
+          const clienteIdForMove = await getClientId(clientPhone);
+          if (clienteIdForMove) {
+            findResult = await findClientBooking(
+              clienteIdForMove,
+              rescheduleTag.old_date,
+              rescheduleTag.professional_id,
+            );
+          }
+        }
+        const leftover = resolveCreateMoveLeftoverId({
+          bookingReschedule: rescheduleTag,
+          futureBookings,
+          findClientBookingResult: findResult,
+        });
+        if (leftover.agendamentoId && !leftoverCancelledIds.has(String(leftover.agendamentoId))) {
+          try {
+            const ownedRow = (futureBookings || []).find(
+              (b) => String(b.trinks_id) === String(leftover.agendamentoId),
+            );
+            await cancelBookingInTrinks(
+              leftover.agendamentoId,
+              'Reagendamento',
+              QUEM_CANCELOU.CLIENTE,
+              { clientPhone, kapsoConversationId },
+            );
+            leftoverCancelledIds.add(String(leftover.agendamentoId));
+            if (state.createKeys) {
+              forgetCreateKeyForAppointment(state.createKeys, {
+                clientPhone,
+                appointment: ownedRow,
+              });
+            }
+            emitOperationalEvent(db, {
+              event: 'booking.cancelled',
+              clientPhone,
+              kapsoConversationId,
+              payload: {
+                trinksId: leftover.agendamentoId,
+                reason: 'create_move_leftover',
+                requestedCount: 1,
+                successCount: 1,
+                outcome: 'all',
+              },
+            }).catch(() => {});
+            console.log(
+              `[${sessionId}] Leftover cancelled after create-as-move: agendamentoId ${leftover.agendamentoId}`,
+            );
+          } catch (leftoverErr) {
+            console.error(
+              `[${sessionId}] Leftover cancel FAILED id=${leftover.agendamentoId}:`,
+              leftoverErr.message,
+            );
+            leftoverCancelledIds.add(String(leftover.agendamentoId));
+            finalMessages.push(
+              'Consegui confirmar o novo horário, mas não consegui liberar o horário anterior automaticamente. ' +
+              'Vou pedir pra recepção ajustar isso com você. Um momento!',
+            );
+          }
+        } else if (leftover.reason === 'not_owned') {
+          console.warn(
+            `[${sessionId}] Leftover not_owned — skip cancel:`,
+            JSON.stringify(rescheduleTag),
+          );
+        }
+      }
       comboFirstSucceeded = true;
     } catch (err) {
       emitOperationalEvent(db, {
@@ -2265,9 +2355,6 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
 
   // 4c. Reagendar agendamento
-  const reschedulesToRun = bookingReschedules.length
-    ? bookingReschedules
-    : (bookingReschedule ? [bookingReschedule] : []);
   for (const bookingReschedule of reschedulesToRun) {
     console.log(`[${sessionId}] Booking reschedule from tag:`, JSON.stringify(bookingReschedule));
     try {
@@ -2290,6 +2377,13 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       }
 
       const agendamentoId = resolved.agendamentoId;
+
+      if (leftoverCancelledIds.has(String(agendamentoId))) {
+        console.log(
+          `[${sessionId}] Reschedule skipped: leftover already cancelled in create-as-move id=${agendamentoId}`,
+        );
+        continue;
+      }
 
       const newBooking = {
         service: bookingReschedule.service_name,

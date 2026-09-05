@@ -11,7 +11,16 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { resolveServiceName, renderFutureBookings, sanitizePrematureConfirm, renderHabilitacaoMap, formatIncompatibleProfServiceMessage, HABILITACAO_HEADER } = require('../lib/booking-parser');
+const {
+  resolveServiceName,
+  renderFutureBookings,
+  sanitizePrematureConfirm,
+  selectOutboundBlocks,
+  hydrateCatalogPrice,
+  renderHabilitacaoMap,
+  formatIncompatibleProfServiceMessage,
+  HABILITACAO_HEADER,
+} = require('../lib/booking-parser');
 
 const SERVICES = [
   { id: 12, nome: 'Corte Masculino' },
@@ -696,4 +705,36 @@ test('S2-S8 — strip TA, HABILITACAO, ID; preserva imagem', () => {
   assert.ok(!/ID\s+14129543/.test(stripResidualBookingTags('Profissionais ID 14129543 disponíveis')));
   assert.ok(!/\(ID\s+14129543\)/.test(stripResidualBookingTags('Ver (ID 14129543) agora')));
   assert.match(stripResidualBookingTags('Referência [CLIENTE ENVIOU IMAGEM] linda'), /\[CLIENTE ENVIOU IMAGEM\]/);
+});
+
+// --- P1.2A Rodolfo confirm (9343) ---
+test('9343-class Q2 — sanitize remove confirmo aqui globalmente', () => {
+  const out = sanitizePrematureConfirm('Confirmo aqui o agendamento então');
+  assert.ok(!/confirmo aqui/i.test(out));
+});
+
+test('9343-class Q2 — selectOutboundBlocks blocked sem commit sem sucesso prematuro', () => {
+  const sanitized = sanitizePrematureConfirm('Confirmo aqui o agendamento então. Te esperamos no Studio!');
+  const blocks = selectOutboundBlocks({
+    formattedResponses: [sanitized],
+    finalMessages: ['Esse serviço tem preço sob avaliação presencial. Vou passar pra recepção.'],
+    bookingCreatedThisTurn: false,
+    bookingResult: null,
+  });
+  const joined = blocks.join('\n');
+  assert.ok(!/confirmo aqui/i.test(joined));
+  assert.ok(!/te esperamos/i.test(joined));
+});
+
+test('9343-class Q2 hydrate — payload 0 + local 7000 → preco 70 source local', () => {
+  const h = hydrateCatalogPrice({ payloadPreco: 0, tagValor: 0, localPriceCents: 7000 });
+  assert.equal(h.preco, 70);
+  assert.equal(h.valor, 70);
+  assert.equal(h.source, 'local');
+});
+
+test('9343-class Q2 hydrate — payload 0 + local 0 → zero', () => {
+  const h = hydrateCatalogPrice({ payloadPreco: 0, tagValor: 0, localPriceCents: 0 });
+  assert.equal(h.preco, 0);
+  assert.equal(h.source, 'zero');
 });

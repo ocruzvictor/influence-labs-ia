@@ -109,3 +109,65 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 
 - 2026-09-04 — River/Orion: draft a partir das travas Victor (N=5, não-trivial, Story B). [River](c863b343-b2cd-4f2d-8c2d-b2a95bcb5889) falhou por limite de modelo; @aios-master executou o *draft.
 - 2026-09-04 — Dex/Orion: implementação + 27 testes verdes (`bot-pilot`, `bot-state`, `bot-thread-state`). Aria desenho em `docs/architecture/pilot-first-n-soft-open.md` ([Aria](830ab4a6-549e-43a3-a988-ce9907e5dae4) também falhou no spawn; @aios-master executou o desenho). Status → ready-for-review. Live = Gage + 018 + CLI start.
+- 2026-09-05 — Orion: lote pós-live P1 (Ana leftover + Rodolfo I1/zero_price + Ronaldo regressão). Fonte: handoffs A+B. P2 e chão 3/5/6/10 estacionados.
+- 2026-09-05 — Dex: P1 implementado (T6–T8). Helpers `resolveCreateMoveLeftoverId` + `hydrateCatalogPrice`; create-as-move cancel leftover; confirmo-aqui global; zero_price blocked outcome. 119 testes fatia verdes.
+
+## Pós-live P1 — floor 2026-09-05 (addendum)
+
+**Status:** ready-for-review  
+**Fontes (não inventar fora):** `docs/handoffs/2026-09-05-orion-pilot-p1-p2-qa.md` (IDs live) · `docs/handoffs/2026-09-04-orion-handoff-chao-restante.md` (contrato intent / STOP)  
+**Conflito:** dossiê ganha no desenho; Handoff A ganha nos last4/evidência. Sem terceiro requisito.  
+**Branch:** `feature/pilot-first-n-soft-open` · allowlist só · dirty tree honesty **não** misturar.  
+**Veto:** `BOT_ACCEPT_ALL`, OPEN, POST Trinks de teste, paste 46589, Hostinger, `startPilot` sem ACK.
+
+### Acceptance Criteria (P1)
+
+- [x] **P1.AC1 Ana leftover:** No mesmo turno que CREATE/PUT de reagendamento, CANCEL ou PUT no `agendamentoId` antigo. Sem leftover “hoje”. Sem `booking.rescheduled` / “reagendei” se o id antigo não saiu. `not_owned` continua recusado. Sem `serieId` (chão 10 STOP).
+- [x] **P1.AC2 Rodolfo confirm:** `sanitizePrematureConfirm` cobre “Confirmo aqui o agendamento”. Endereço / “te esperamos” só após `booking.created`. `catalog.zero_price_blocked` **não** viaja com bolha de “agendado”.
+- [x] **P1.AC3 Rodolfo hydrate:** Guard `zero_price` permanece (feature). Se `trinks_services.price_cents > 0` (ou snapshot local), **não** bloquear; hidratar `preco`/`valor` antes do POST. Bloqueio só se hidratado ainda for 0 e não allowlisted. `markBookingOutcome('blocked')` no block.
+- [x] **P1.AC4 Ronaldo regressão:** CREATE explícito + SKU preço > 0 + slot livre → mock 201 → `booking.created` → sucesso **depois** do 201. Sanitize **não** apaga sucesso pós-commit.
+
+### Tasks
+
+- [x] **T6 (P1.AC1):** Leftover no create-as-move / reschedule+create no mesmo turno. Reusar `resolveRescheduleAgendamentoId` + `cancelBookingInTrinks`. Teste Q1.
+- [x] **T7 (P1.AC2, P1.AC3):** Padrão “confirmo aqui” no sanitize global; hydrate `getService().price_cents` antes do guard; outcome blocked. Teste Q2.
+- [x] **T8 (P1.AC4, Q4):** Regressão Ronaldo + `node --test` fatia + `node --check backend/server.js`.
+
+### Estacionado (Handoff B + P2)
+
+Não neste PR: P2.1–P2.4 (P2.1 alinha a `classifyTessIntent` / chão 3 — persist-only, sem classificador novo); chão 10 STOP; stories 5–6 medida live; replay 383; smoke #8 Tiago/André; novo run PILOT.
+
+### File List (P1 addendum)
+
+- `backend/lib/booking-parser.js` — `resolveCreateMoveLeftoverId`, `hydrateCatalogPrice`, `confirmo aqui` em PREMATURE_CONFIRM
+- `backend/server.js` — leftover cancel pós-CREATE, hydrate preço, zero_price outcome, skip PUT reschedule
+- `backend/test/booking-parser.test.js` — Q2 sanitize + hydrate
+- `backend/test/reschedule-sku.test.js` — Q1 Ana leftover (8528)
+- `backend/test/cancel-sku.test.js` — Q3 Ronaldo regressão (5482)
+- `docs/stories/salon-whatsapp-pilot-first-n-soft-open.md` — addendum P1
+
+## QA Results
+
+### Review Date: 2026-09-05
+
+### Reviewed By: Quinn (Test Architect)
+
+### Reviewed Revision: uncommitted-on-8251f2a (allowlist P1)
+
+### Gate Status
+
+Gate: **CONCERNS** — veredito no chat (sem YAML novo). Commit allowlist **não** bloqueado.
+
+| Caso | Veredito |
+|------|----------|
+| Q1 Ana 8528 | PASS — resolve id; not_owned; sem serieId; 201→cancel + skip PUT (código) |
+| Q2 Rodolfo 9343 | PASS — confirmo/te esperamos; hydrate 7000→70; zero_price + blocked |
+| Q3 Ronaldo 5482 | PASS — create intacto; sucesso pós-201 sobrevive sanitize |
+| Q4 fatia | PASS — 119/119 + `node --check backend/server.js` (Quinn re-rodou) |
+| I1 boca=commit | PASS — Tess sanitizada antes do POST; “Te esperamos” só via finalMessages pós-201 |
+
+Residuais (não bloqueiam): sem teste de integração server do leftover; `endereço` não entra no sanitizer (AC2 literal; turno seguinte Tess/P2).
+
+[AUTO-DECISION] Sem transição InReview→Done (addendum `ready-for-review`, story já live). Sem gate YAML (padrão do repo >20 linhas; missão pediu chat).
+
+P2.1–P2.4, chão 10 STOP, 5–6, replay 383, smoke #8, Hostinger/VPS, POST Trinks, paste 46589, `startPilot` sem ACK: estacionados.
