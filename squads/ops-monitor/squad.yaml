@@ -1,0 +1,49 @@
+name: "ops-monitor"
+version: 0.1.0
+description: "Squad de monitoramento operacional do bot WhatsApp — alertas técnicos entre agentes, resumos em linguagem clara para o dono do projeto"
+author: "Victor Cruz / Influence Labs"
+license: MIT
+
+aios:
+  minVersion: "2.1.0"
+  type: squad
+
+components:
+  agents:
+    - agents/*.yaml
+  tasks:
+    - tasks/*.md
+  templates:
+    - templates/*.md
+
+config:
+  project: "Influence Labs — Studio Tirra WhatsApp"
+  stack:
+    gateway: "Meta Cloud API"
+    orchestrator: "n8n (VPS self-hosted)"
+    crm: "Chatwoot"
+    agent_llm: "TESS"
+    alert_channel: "Grok Bot (grupo ops)"
+  channels:
+    internal:
+      audience: "agentes e bots do squad"
+      language: "tecnica"
+      format: "json, ids, logs, codigos de erro"
+    owner:
+      audience: "Victor (dono do projeto)"
+      language: "portugues simples"
+      format: "resumo humano sem codigo"
+
+keywords:
+  - aios
+  - squad
+  - monitoramento
+  - whatsapp
+  - grokbot
+  - alertas
+
+tags:
+  - aios
+  - ops
+  - monitoring
+  - owner-summary
