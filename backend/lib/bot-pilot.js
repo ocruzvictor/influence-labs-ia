@@ -6,7 +6,7 @@
 const db = require('../db');
 const { invalidateCache } = require('./bot-state');
 const { digitsOnly, isOwnerPhone } = require('./owner-access');
-const { isPilotClaimableTurn } = require('./tess-context-intent');
+const { isPilotClaimableTurn, isInfoOpenIntent } = require('./tess-context-intent');
 
 const PILOT_TOGGLE_KEY = 'pilot';
 const PILOT_LOCK_KEY = 881005;
@@ -253,6 +253,42 @@ async function tryClaim({ phone, intent, text }) {
   }
 }
 
+/**
+ * Gate Kapso puro (F1–F4): decide silent / info-open / claim / full.
+ * Staff e denylist devem ser filtrados pelo caller antes.
+ *
+ * @returns {{ action: 'silent'|'process'|'needs_claim', reason?: string, bookingMutationsAllowed?: boolean, infoOpen?: boolean }}
+ */
+function resolveKapsoAccess({ phoneAccess, intent, owner, pilotActive }) {
+  if (owner) {
+    return { action: 'process', bookingMutationsAllowed: true };
+  }
+
+  if (!phoneAccess.silent) {
+    return { action: 'process', bookingMutationsAllowed: true };
+  }
+
+  const missingFromAllow = phoneAccess.reason === 'not_allowlisted'
+    || phoneAccess.reason === 'env_not_allowlisted';
+
+  if (!missingFromAllow) {
+    return { action: 'silent', reason: phoneAccess.reason || 'not_allowed' };
+  }
+
+  if (isInfoOpenIntent(intent)) {
+    return { action: 'process', bookingMutationsAllowed: false, infoOpen: true };
+  }
+
+  if (isClaimableIntent(intent)) {
+    if (pilotActive) {
+      return { action: 'needs_claim', bookingMutationsAllowed: true };
+    }
+    return { action: 'silent', reason: 'booking_not_allowed' };
+  }
+
+  return { action: 'silent', reason: 'intent_not_open' };
+}
+
 module.exports = {
   PILOT_TOGGLE_KEY,
   PILOT_LOCK_KEY,
@@ -265,4 +301,5 @@ module.exports = {
   startPilot,
   stopPilot,
   tryClaim,
+  resolveKapsoAccess,
 };

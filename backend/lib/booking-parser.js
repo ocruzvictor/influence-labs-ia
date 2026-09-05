@@ -282,6 +282,39 @@ const HONEST_CREATE_SKIP_COPY =
 const HONEST_CANCEL_FAIL_COPY =
   'Não consegui localizar/cancelar seu horário automaticamente 😕\nVou pedir pra recepção resolver com você. Um momento!';
 
+const HOLD_COPY = 'Já estou confirmando na agenda, um instante.';
+
+const INFO_OPEN_MUTATION_COPY =
+  'Pra marcar um horário me fala o dia e o serviço que você quer.';
+
+const CONFIRM_ASK_OUTBOUND_RES = [
+  /\bt[aá]\s+certo\s*\?/i,
+  /\bposso\s+registrar\s*\?/i,
+  /\bpra\s+confirmar\s*:/i,
+  /\bposso\s+confirmar\s*\?/i,
+  /\bconfirma\s*\?/i,
+  /\bconfirmo\s+(esse|o)\s+hor[aá]rio\s*\?/i,
+];
+
+function isConfirmAskOutbound(text) {
+  const s = String(text || '').trim();
+  if (!s) return false;
+  return CONFIRM_ASK_OUTBOUND_RES.some((re) => re.test(s));
+}
+
+function selectConfirmHoldBlocks({
+  displayText,
+  hasBookingTag,
+  mutationsAllowed,
+  alreadyHeld,
+}) {
+  if (hasBookingTag) return null;
+  if (!isConfirmAskOutbound(displayText)) return null;
+  if (!mutationsAllowed) return [];
+  if (alreadyHeld) return [];
+  return [HOLD_COPY];
+}
+
 function sanitizePrematureConfirm(text, options = {}) {
   let s = text;
   for (const re of PREMATURE_CONFIRM_PATTERNS) s = s.replace(re, '');
@@ -975,6 +1008,10 @@ module.exports = {
   resolveCreateMoveLeftoverId,
   hydrateCatalogPrice,
   formatRescheduleRefusalMessage,
+  isConfirmAskOutbound,
+  selectConfirmHoldBlocks,
+  INFO_OPEN_MUTATION_COPY,
+  HOLD_COPY,
   normalizeServiceName,
   CLIENT_IMAGE_MARKER,
   FREE_SERVICE_NAMES,

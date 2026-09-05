@@ -75,7 +75,7 @@ const {
   extractOutboundText,
   isStaffOutbound,
 } = require('./lib/kapso-staff-outbound');
-const { isClaimableIntent, tryClaim, getPilotStatus } = require('./lib/bot-pilot');
+const { isClaimableIntent, tryClaim, getPilotStatus, resolveKapsoAccess } = require('./lib/bot-pilot');
 const { tessAuthHeaders, tessWorkspaceConfigured, tessWorkspaceId } = require('./lib/tess-auth');
 const nightwatchOps = require('./lib/nightwatch-ops');
 const { mountNightwatchMcp } = require('./lib/nightwatch-mcp');
@@ -169,6 +169,8 @@ const {
   detectGenderQualifier,
   isSoloPezinhoTurn,
   suppressSoloPezinhoTags,
+  selectConfirmHoldBlocks,
+  INFO_OPEN_MUTATION_COPY,
 } = require('./lib/booking-parser');
 const { normalizeKapsoMediaContent } = require('./lib/kapso-media');
 
@@ -1332,11 +1334,13 @@ async function runOperatorResumeTurn(phone, operatorNote) {
 
 
 // --- Core message orchestration ---
-async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw, phone = null, kapsoConversationId = null, inboundTraceId = null) {
+async function processMessage(sessionId, messageText, contactName, incomingHistoryRaw, phone = null, kapsoConversationId = null, inboundTraceId = null, opts = {}) {
+  const bookingMutationsAllowed = opts.bookingMutationsAllowed !== false;
   const startTime = Date.now();
   const turnTraceId = inboundTraceId || newTraceId();
   const state = sessionState.get(sessionId) || {
     turn: 0, rootId: null, history: [], persistedMemory: null, genderQualifier: null,
+    confirmHoldSent: false,
   };
 
   // Cold start: load persisted memory from DB (phone sessions) or client-side history fallback (webchat)
@@ -1770,7 +1774,25 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     comboSecondBlocked: false,
   });
   if (afterFailOrBlock) state.lastBookingOutcome = null;
+  const hasBookingTag = createsToRun.length > 0 || cancelsToRun.length > 0
+    || bookingReschedules.length > 0 || Boolean(bookingReschedule);
   const formatted = formatAssistantOutput(displayText, state.turn === 0);
+  const holdBlocks = selectConfirmHoldBlocks({
+    displayText,
+    hasBookingTag,
+    mutationsAllowed: bookingMutationsAllowed,
+    alreadyHeld: Boolean(state.confirmHoldSent),
+  });
+  if (holdBlocks !== null) {
+    if (holdBlocks.length === 0) {
+      formatted.responses = [];
+      formatted.response = '';
+    } else {
+      formatted.responses = holdBlocks;
+      formatted.response = holdBlocks[0];
+      state.confirmHoldSent = true;
+    }
+  }
   state.history.push({ role: 'assistant', content: displayText });
   state.turn += 1;
   state.lastAccess = Date.now();
@@ -1805,6 +1827,13 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     ? bookingReschedules
     : (bookingReschedule ? [bookingReschedule] : []);
   const leftoverCancelledIds = new Set();
+
+  if (!bookingMutationsAllowed) {
+    const mutationTagsPresent = createsToRun.length > 0 || cancelsToRun.length > 0 || reschedulesToRun.length > 0;
+    if (mutationTagsPresent) {
+      finalMessages.push(INFO_OPEN_MUTATION_COPY);
+    }
+  }
 
   // 4a. Criar agendamento(s) — combo: processa em sequência e para no primeiro erro
   const distinctServiceIds = new Set(
@@ -1895,7 +1924,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       }).catch(() => {});
     }
     markBookingOutcome('blocked');
-  } else if (createsToRun.length) {
+  } else if (createsToRun.length && bookingMutationsAllowed) {
     try {
     if (!state.createKeys) state.createKeys = new Set();
     const profsData = Array.isArray(profsPayload.data) ? profsPayload.data : [];
@@ -2092,6 +2121,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         kapsoConversationId,
       });
       bookingCreatedThisTurn = true;
+      state.confirmHoldSent = false;
       state.createKeys.add(idemKey);
       console.log(`[${sessionId}] Booking created in Trinks:`, JSON.stringify(bookingResult));
       const servicoNome = resolveServicoNomeFrom201(
@@ -2264,7 +2294,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
 
   // 4b. Cancelar agendamento(s)
   let cancelSuccessCount = 0;
-  if (cancelsToRun.length) {
+  if (cancelsToRun.length && bookingMutationsAllowed) {
     console.log(`[${sessionId}] Booking cancel from tags:`, cancelsToRun.length);
     const requestedCancelCount = cancelsToRun.length;
     let clienteId = null;
@@ -2355,6 +2385,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   }
 
   // 4c. Reagendar agendamento
+  if (bookingMutationsAllowed) {
   for (const bookingReschedule of reschedulesToRun) {
     console.log(`[${sessionId}] Booking reschedule from tag:`, JSON.stringify(bookingReschedule));
     try {
@@ -2468,6 +2499,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         );
       }
     }
+  }
   }
 
   // 4d. Handoff humano (TESS sinalizou que precisa de pessoa)
@@ -2981,25 +3013,34 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   const missingFromAllow = phoneAccess.silent && (
     phoneAccess.reason === 'not_allowlisted' || phoneAccess.reason === 'env_not_allowlisted'
   );
-  const pilotCandidate = pilotActive && missingFromAllow && !ownerHere;
-  const ownerPilotBypass = ownerHere && pilotActive && phoneAccess.silent;
-  if (phoneAccess.silent && !pilotCandidate && !ownerPilotBypass) {
+
+  if (phoneAccess.reason?.startsWith('mode=')) {
     console.log(`[kapso][${sessionId}] phone ${sessionPhone} ${phoneAccess.reason} — bot inativo`);
     return res.json({ ok: true });
   }
 
-  // 4b. Recepção no fio: tag human-handled OU qualquer outbound que não foi a Tess (painel Kapso).
-  // Dono (Tiago): nunca silenciar — ele comanda a IA neste número.
   if (!ownerHere && (await hasStaffOnConversation(sessionPhone) || await isHumanHandled(sessionPhone))) {
     console.log(`[kapso][${sessionId}] conversa com outbound humano — bot silencioso`);
     return res.json({ ok: true });
   }
 
-  // 4c. PILOT_N: candidato só segue se o claim atômico caber (texto agora; áudio-only depois).
-  let pilotClaimPendingAudio = false;
-  if (pilotCandidate) {
-    if (audioEvents.length === 0) {
-      const intentResult = classifyTessIntent(messageText, [], []);
+  let bookingMutationsAllowed = true;
+  const deferGateForAudio = missingFromAllow && !ownerHere && audioEvents.length > 0;
+  const quietAudio = deferGateForAudio;
+
+  if (!deferGateForAudio && audioEvents.length === 0 && messageText.trim()) {
+    const intentResult = classifyTessIntent(messageText, [], []);
+    const access = resolveKapsoAccess({
+      phoneAccess,
+      intent: intentResult.intent,
+      owner: ownerHere,
+      pilotActive,
+    });
+    if (access.action === 'silent') {
+      console.log(`[kapso][${sessionId}] gate silent ${access.reason} intent=${intentResult.intent}`);
+      return res.json({ ok: true });
+    }
+    if (access.action === 'needs_claim') {
       if (!isClaimableIntent(intentResult.intent)) {
         console.log(`[kapso][${sessionId}] pilot skip intent=${intentResult.intent}`);
         return res.json({ ok: true });
@@ -3023,8 +3064,11 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
         payload: { intent: intentResult.intent, run_id: claim.run_id || null },
       }).catch(() => {});
     } else {
-      pilotClaimPendingAudio = true;
+      bookingMutationsAllowed = access.bookingMutationsAllowed !== false;
     }
+  } else if (!deferGateForAudio && phoneAccess.silent && !ownerHere) {
+    console.log(`[kapso][${sessionId}] phone ${sessionPhone} ${phoneAccess.reason} — bot inativo`);
+    return res.json({ ok: true });
   }
 
   console.log(`[kapso][${sessionId}] message recebida: "${messageText.slice(0, 80)}" pnid=${phoneNumberId}`);
@@ -3050,7 +3094,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
   try {
     // 5b. Transcrição de áudio em background. Bot avisa "vou escutar" antes,
     // transcreve via TESS, e concatena ao messageText antes do processMessage.
-    if (audioEvents.length > 0) {
+    if (audioEvents.length > 0 && !quietAudio) {
       await sendKapsoMessage(sessionId, `Recebi seu áudio${audioEvents.length > 1 ? 's' : ''}! Vou escutar 🎧`, phoneNumberId)
         .catch(err => console.error('[audio] msg ponte falhou:', err.message));
       const transcriptions = [];
@@ -3076,6 +3120,10 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
       }
       // Se tudo era áudio e tudo falhou, manda mensagem honesta e encerra.
       if (transcriptions.length === 0 && !messageText.trim()) {
+        if (quietAudio) {
+          outbox.markFinal();
+          return;
+        }
         const reason = failures.some(f => f.code === 'transcription_not_configured')
           ? 'Ainda não consigo escutar áudios por aqui 😅 Pode me mandar por texto?'
           : 'Tive um problema pra escutar seu áudio. Pode mandar por texto?';
@@ -3086,32 +3134,43 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
       }
     }
 
-    if (pilotClaimPendingAudio) {
+    if (deferGateForAudio) {
       const intentResult = classifyTessIntent(messageText, [], []);
-      if (!isClaimableIntent(intentResult.intent)) {
-        console.log(`[kapso][${sessionId}] pilot audio skip intent=${intentResult.intent}`);
+      const access = resolveKapsoAccess({
+        phoneAccess,
+        intent: intentResult.intent,
+        owner: ownerHere,
+        pilotActive,
+      });
+      if (access.action === 'silent') {
+        console.log(`[kapso][${sessionId}] gate audio silent ${access.reason} intent=${intentResult.intent}`);
         outbox.markFinal();
         return;
       }
-      const claim = await tryClaim({ phone: sessionPhone, intent: intentResult.intent, text: messageText });
-      if (!claim.claimed) {
-        console.log(`[kapso][${sessionId}] pilot audio reject ${claim.reason}`);
+      if (access.action === 'needs_claim') {
+        const claim = await tryClaim({ phone: sessionPhone, intent: intentResult.intent, text: messageText });
+        if (!claim.claimed) {
+          console.log(`[kapso][${sessionId}] pilot audio reject ${claim.reason}`);
+          emitOperationalEvent(db, {
+            event: 'pilot.rejected',
+            clientPhone: sessionPhone,
+            motivo: claim.reason,
+            payload: { intent: intentResult.intent, path: 'audio' },
+          });
+          outbox.markFinal();
+          return;
+        }
+        invalidateCache();
         emitOperationalEvent(db, {
-          event: 'pilot.rejected',
+          event: 'pilot.claimed',
           clientPhone: sessionPhone,
           motivo: claim.reason,
-          payload: { intent: intentResult.intent, path: 'audio' },
+          payload: { intent: intentResult.intent, run_id: claim.run_id || null, path: 'audio' },
         });
-        outbox.markFinal();
-        return;
+        bookingMutationsAllowed = true;
+      } else {
+        bookingMutationsAllowed = access.bookingMutationsAllowed !== false;
       }
-      invalidateCache();
-      emitOperationalEvent(db, {
-        event: 'pilot.claimed',
-        clientPhone: sessionPhone,
-        motivo: claim.reason,
-        payload: { intent: intentResult.intent, run_id: claim.run_id || null, path: 'audio' },
-      });
     }
 
     const kapsoConversationId = firstConv?.id || events[0]?.conversation_id || null;
@@ -3145,7 +3204,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
       return;
     }
 
-    const result = await processMessage(sessionId, messageText, contactName, null, sessionId, kapsoConversationId, inboundTraceId);
+    const result = await processMessage(sessionId, messageText, contactName, null, sessionId, kapsoConversationId, inboundTraceId, { bookingMutationsAllowed });
     const blocks = result.responses?.length ? result.responses : [result.response];
     let sentAny = false;
     for (const block of blocks) {

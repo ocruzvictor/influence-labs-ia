@@ -111,7 +111,18 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 - 2026-09-04 — Dex/Orion: implementação + 27 testes verdes (`bot-pilot`, `bot-state`, `bot-thread-state`). Aria desenho em `docs/architecture/pilot-first-n-soft-open.md` ([Aria](830ab4a6-549e-43a3-a988-ce9907e5dae4) também falhou no spawn; @aios-master executou o desenho). Status → ready-for-review. Live = Gage + 018 + CLI start.
 - 2026-09-05 — Orion: lote pós-live P1 (Ana leftover + Rodolfo I1/zero_price + Ronaldo regressão). Fonte: handoffs A+B. P2 e chão 3/5/6/10 estacionados.
 - 2026-09-05 — Dex: P1 implementado (T6–T8). Helpers `resolveCreateMoveLeftoverId` + `hydrateCatalogPrice`; create-as-move cancel leftover; confirmo-aqui global; zero_price blocked outcome. 119 testes fatia verdes.
-- 2026-09-05 — Dex: P2 local (P2.AC1 claim 2185 + P2.AC2 endereço pós-block). `isPilotClaimableTurn`; tryClaim exige sinal de marcar; POST_FAIL endereço/studio. 161/161 gate verdes.
+- 2026-09-05 — Dex: F1–F5 info-open + confirm-hold. `isInfoOpenIntent`, `resolveKapsoAccess`, gate Kapso, `bookingMutationsAllowed`, áudio quieto info-open, `isConfirmAskOutbound` + hold. 170/170 gate verdes.
+
+### File List (Floor recepção 2026-09-05)
+
+- `backend/lib/tess-context-intent.js` — `isInfoOpenIntent`
+- `backend/lib/bot-pilot.js` — `resolveKapsoAccess`
+- `backend/lib/booking-parser.js` — `isConfirmAskOutbound`, `selectConfirmHoldBlocks`, `INFO_OPEN_MUTATION_COPY`
+- `backend/server.js` — gate Kapso F1–F4, `processMessage` opts, áudio quiet, confirm-hold
+- `backend/test/tess-context-intent.test.js` — unit isInfoOpenIntent
+- `backend/test/booking-parser.test.js` — confirm-hold
+- `backend/test/bot-pilot.test.js` — resolveKapsoAccess + P2.1 regressão
+- `docs/stories/salon-whatsapp-pilot-first-n-soft-open.md` — F1–F5 / T9–T10
 
 ## Pós-live P1 — floor 2026-09-05 (addendum)
 
@@ -143,7 +154,29 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 
 P2.2 alternativas / P2.3 linger / P2.4 digest · chão 10 STOP · stories 5–6 medida live · replay 383 · smoke #8 · `startPilot` sem ACK.
 
-**Restore allowlist (só no ritual VPS final):** `stopPilot` + whitelist só dono (`isOwnerPhone` / last4 dono). Cohort PILOT e números de teste **saem** de `allow`. Não OPEN. Novo PILOT ou abertura de clientes = ACK depois do resultado.
+**Restore allowlist (ritual VPS):** `stopPilot` + whitelist só dono. Cohort/teste saem de `allow`. **Não** `BOT_ACCEPT_ALL`. FAQ/PRICING passam pelo info-open (abaixo). Novo PILOT ou booking customer-wide = ACK depois.
+
+## Floor recepção 2026-09-05 — info-open + confirm-hold
+
+**GO Victor:** recepção no fio (manual) → VPS seguro. FAQ alivia demanda. Confirmações em série no WhatsApp fazem o cliente achar que fechou e sumir; slot some no delay.
+
+### Acceptance Criteria
+
+- [x] **F1 info-open:** inbound `FAQ` ou `PRICING` de número **não** allowlisted / fora do PILOT → Tess **responde**. Sem `tryClaim`. Sem row `allow`. Sem `BOT_ACCEPT_ALL`.
+- [x] **F2 mutation lock:** no caminho info-open, CREATE/CANCEL/RESCHEDULE **não** POST/PATCH. Tags stripped. Copy honesta se Tess tentou marcar (“pra marcar me fala dia e serviço”).
+- [x] **F3 staff wins:** recepção no fio (24h / human-handled) → Tess **silent** mesmo em FAQ.
+- [x] **F4 booking intacto:** SCHEDULING/CANCEL/RESCHEDULE de número novo sem claim/allow/dono → silent (como hoje, com P2.1). Owner sempre passa.
+- [x] **F5 confirm-hold:** turno sem tag de booking cujo texto é só pedido de confirmação (“Tá certo?”, “Posso registrar?”, “Pra confirmar: …”) **não** vai pro WhatsApp como nova pergunta. História Tess guarda o texto. 1ª vez: hold “Já estou confirmando na agenda, um instante.” Repetição no fio: drop. Com tag + 201: uma bolha de sucesso (2-phase já existente). Sem cola 46589.
+
+### Tasks
+
+- [x] **T9 (F1–F4):** Gate Kapso + `bookingMutationsAllowed` em `processMessage`. Testes bot-pilot / intent.
+- [x] **T10 (F5):** Helper `isConfirmAskOutbound` + hold/drop em `selectOutboundBlocks` ou processMessage. Testes booking-parser.
+- [ ] **T11:** VPS ritual (Gage): `global=false` → archive `backend/` → build → health → `stopPilot` → whitelist só dono → `global=true` `pilot=false` `accept_all=false`.
+
+### AUTO-DECISION Orion
+
+Info-open = `FAQ` + `PRICING` só. `TRIVIAL` / `UNCERTAIN` / `HANDOFF_LIKELY` continuam silent fora da allow. Sem 9º intent.
 
 ### File List (P1 addendum)
 

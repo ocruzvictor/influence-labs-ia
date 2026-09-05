@@ -757,3 +757,33 @@ test('9343-class Q2 hydrate — payload 0 + local 0 → zero', () => {
   assert.equal(h.preco, 0);
   assert.equal(h.source, 'zero');
 });
+
+// --- F5 confirm-hold ---
+test('isConfirmAskOutbound — Tess ask vs inbound sim', () => {
+  const { isConfirmAskOutbound } = require('../lib/booking-parser');
+  assert.equal(isConfirmAskOutbound('Tá certo?'), true);
+  assert.equal(isConfirmAskOutbound('Posso registrar?'), true);
+  assert.equal(isConfirmAskOutbound('Pra confirmar: corte sábado 10h'), true);
+  assert.equal(isConfirmAskOutbound('sim'), false);
+  assert.equal(isConfirmAskOutbound('confirmo'), false);
+});
+
+test('selectConfirmHoldBlocks — hold, drop, tag skip, info-open sem hold', () => {
+  const { selectConfirmHoldBlocks, HOLD_COPY } = require('../lib/booking-parser');
+  assert.deepEqual(
+    selectConfirmHoldBlocks({ displayText: 'Tá certo?', hasBookingTag: false, mutationsAllowed: true, alreadyHeld: false }),
+    [HOLD_COPY],
+  );
+  assert.deepEqual(
+    selectConfirmHoldBlocks({ displayText: 'Tá certo?', hasBookingTag: false, mutationsAllowed: true, alreadyHeld: true }),
+    [],
+  );
+  assert.deepEqual(
+    selectConfirmHoldBlocks({ displayText: 'Tá certo?', hasBookingTag: false, mutationsAllowed: false, alreadyHeld: false }),
+    [],
+  );
+  assert.equal(
+    selectConfirmHoldBlocks({ displayText: 'Tá certo?', hasBookingTag: true, mutationsAllowed: true, alreadyHeld: false }),
+    null,
+  );
+});

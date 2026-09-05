@@ -280,6 +280,12 @@ function isProductTechniqueFaq(norm) {
   return PRODUCT_TECHNIQUE_FAQ_RE.test(norm);
 }
 
+/** Info-open (F1): só FAQ e PRICING respondem sem allow/claim. */
+function isInfoOpenIntent(intent) {
+  const i = String(intent || '');
+  return i === INTENTS.FAQ || i === INTENTS.PRICING;
+}
+
 /**
  * PILOT claim: SCHEDULING só consome vaga com sinal explícito de marcar.
  * Não altera classifyTessIntent — filtro fino em tryClaim.
@@ -487,4 +493,5 @@ module.exports = {
   hasSchedulingAsk,
   isSimpleBookingBundle,
   isPilotClaimableTurn,
+  isInfoOpenIntent,
 };

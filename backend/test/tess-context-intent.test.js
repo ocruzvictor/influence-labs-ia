@@ -12,6 +12,7 @@ const {
   hasCompoundIntent,
   isSchedulingInProgress,
   isPilotClaimableTurn,
+  isInfoOpenIntent,
 } = require('../lib/tess-context-intent');
 
 describe('classifyTessIntent', () => {
@@ -507,5 +508,20 @@ describe('isPilotClaimableTurn (P2.1 / 2185)', () => {
     assert.equal(isPilotClaimableTurn({ intent: INTENTS.CANCEL, text: 'cancela' }), true);
     assert.equal(isPilotClaimableTurn({ intent: INTENTS.RESCHEDULE, text: 'remarcar' }), true);
     assert.equal(isPilotClaimableTurn({ intent: INTENTS.FAQ, text: 'qual o endereço?' }), false);
+  });
+});
+
+describe('isInfoOpenIntent', () => {
+  test('FAQ e PRICING → true', () => {
+    assert.equal(isInfoOpenIntent(INTENTS.FAQ), true);
+    assert.equal(isInfoOpenIntent(INTENTS.PRICING), true);
+  });
+
+  test('demais intents → false', () => {
+    assert.equal(isInfoOpenIntent(INTENTS.SCHEDULING), false);
+    assert.equal(isInfoOpenIntent(INTENTS.TRIVIAL), false);
+    assert.equal(isInfoOpenIntent(INTENTS.CANCEL), false);
+    assert.equal(isInfoOpenIntent(INTENTS.UNCERTAIN), false);
+    assert.equal(isInfoOpenIntent(INTENTS.HANDOFF_LIKELY), false);
   });
 });

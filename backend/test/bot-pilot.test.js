@@ -288,3 +288,68 @@ test('SCHEDULING serviço sozinho não claima', async () => {
   assert.equal(r.reason, 'intent_not_claimable');
   assert.equal((await getPilotStatus()).claimed_count, 0);
 });
+
+test('resolveKapsoAccess — FAQ not_allowlisted → info-open sem mutação', () => {
+  setupMocks();
+  const { resolveKapsoAccess } = require('../lib/bot-pilot');
+  const access = resolveKapsoAccess({
+    phoneAccess: { silent: true, reason: 'not_allowlisted' },
+    intent: 'FAQ',
+    owner: false,
+    pilotActive: true,
+  });
+  assert.equal(access.action, 'process');
+  assert.equal(access.bookingMutationsAllowed, false);
+  assert.equal(access.infoOpen, true);
+});
+
+test('resolveKapsoAccess — SCHEDULING sem pilot → silent', () => {
+  setupMocks();
+  const { resolveKapsoAccess } = require('../lib/bot-pilot');
+  const access = resolveKapsoAccess({
+    phoneAccess: { silent: true, reason: 'not_allowlisted' },
+    intent: 'SCHEDULING',
+    owner: false,
+    pilotActive: false,
+  });
+  assert.equal(access.action, 'silent');
+  assert.equal(access.reason, 'booking_not_allowed');
+});
+
+test('resolveKapsoAccess — SCHEDULING com pilot → needs_claim', () => {
+  setupMocks();
+  const { resolveKapsoAccess } = require('../lib/bot-pilot');
+  const access = resolveKapsoAccess({
+    phoneAccess: { silent: true, reason: 'env_not_allowlisted' },
+    intent: 'SCHEDULING',
+    owner: false,
+    pilotActive: true,
+  });
+  assert.equal(access.action, 'needs_claim');
+});
+
+test('resolveKapsoAccess — TRIVIAL fora da allow → silent', () => {
+  setupMocks();
+  const { resolveKapsoAccess } = require('../lib/bot-pilot');
+  const access = resolveKapsoAccess({
+    phoneAccess: { silent: true, reason: 'not_allowlisted' },
+    intent: 'TRIVIAL',
+    owner: false,
+    pilotActive: true,
+  });
+  assert.equal(access.action, 'silent');
+  assert.equal(access.reason, 'intent_not_open');
+});
+
+test('resolveKapsoAccess — owner sempre process', () => {
+  setupMocks();
+  const { resolveKapsoAccess } = require('../lib/bot-pilot');
+  const access = resolveKapsoAccess({
+    phoneAccess: { silent: true, reason: 'not_allowlisted' },
+    intent: 'TRIVIAL',
+    owner: true,
+    pilotActive: true,
+  });
+  assert.equal(access.action, 'process');
+  assert.equal(access.bookingMutationsAllowed, true);
+});
