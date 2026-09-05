@@ -360,4 +360,60 @@ Victor ACK 14:35 BRT: orquestrar o que falta para testar no `0007`. Gates 1+2 PA
 
 **Smoke sugerido:** re-rodar `#2` + `#8` no `0007` se quiser validar pezinho curto + horários 60min.
 
+## 2026-09-04 ~23:57 BRT — re-smoke pós chão 11
+
+**Change:** Victor rodou roteiro contínuo no `0007` (PILOT mode). Log: `conversation_history` 23:33–23:57 BRT.
+
+**Score:** #1 PASS · #2 PASS pezinho · #3–7 PASS · #4 SKIP (histórico confundiu) · #8 PARCIAL (Erick, não Tiago/André). Zero handoff/guard no intervalo.
+
+**Relatório:** `docs/ops/2026-09-04-smoke-0007-resmoke-relatorio.md`. Handoff restante: `docs/handoffs/2026-09-04-orion-handoff-chao-restante.md`.
+
+## 2026-09-04 ~20:32Z — PILOT_N live (first-5)
+
+**Before:** `BOT_ACCEPT_ALL=false`, `mode=WHITELIST`, `global=true`, 1 allow / 9 block / 10 human_only. Código live anterior `8c9c90e`.
+
+**Change:** Victor opção 2. Commit `af2e58b` → push `feature/pilot-first-n-soft-open` → VPS archive backend + 018 + rebuild. Kill switch off durante publish. `startPilot n=5` run `876b8633-a77b-4eaf-bb21-437b830e7813`. `global=true` depois do health. `.env` intocado: `BOT_ACCEPT_ALL=false`. Backup `backend.bak.20260904T203031Z`.
+
+**After:** health `status=ok`, `mode=PILOT`, `accept_all=false`, `pilot.n=5`, `claimed_count=0`. Toggles: `global=t` `pilot=t`.
+
+**Abort:** `UPDATE bot_toggles SET enabled=false WHERE key='global'` **ou** `stopPilot`. Não OPEN.
+
+**Fora:** Hostinger, `BOT_ACCEPT_ALL=true`, UI.
+
+## 2026-09-04 ~20:47Z — silêncio se a recepção falou no painel Kapso
+
+**Change:** Victor: não é só a tag human-handled. Qualquer outbound que a Tess não enviou (painel Kapso, `cloud_api` sem fingerprint) silencia o fio por 24h. Commit `0e0c01f` + `8251f2a` → push → archive backend. Backup `backend.bak.20260904T204602Z`. Backfill Kapso 24h: 21 fios marcados (excluiu `0007` depois, para o smoke). Kill switch off só no publish; `global=true` + `pilot=true` depois.
+
+**After:** health `status=ok`, `mode=PILOT`, `accept_all=false`, `claimed_count=1` (last4 `4367` SCHEDULING). `.env` intocado.
+
+**Abort:** `UPDATE bot_toggles SET enabled=false WHERE key='global'`.
+
+## 2026-09-05 ~16:10Z — floor reception: reschedule leftover + confirm sem Trinks
+
+**Source:** recepção (Ana Carolina / Ronaldo 15:30 / Rodolfo 16:30). Cruzado com `conversation_history`, `bot_operational_events`, `trinks_api_requests`, `trinks_appointments`.
+
+**Ana Carolina Chenta `8528` (pré-PILOT, 02/09):** pediu mover sáb 05 → sáb 12 (tatuagem + mão). Tess emitiu `reschedules:1` e depois `creates:1` (manicure 12/09). Sem `booking.rescheduled` / sem PUT no telefone dela. Manicure 05/09 11h ficou viva até recepção cancelar hoje 08:55 SP. Tatuagem 12/09 16:30 + manicure 12/09 14:30 confirmadas.
+
+**Ronaldo `5482`:** Tess **gravou** Trinks `526831469` 09:06 SP (`booking.created`, POST 201). Cabelo e Barba André 15:30. Recepção antecipou no WhatsApp — I1 ok; percepção de “não entrou no sistema” não bate o log.
+
+**Rodolfo `9343`:** Tess disse “Confirmo aqui…” + `creates:1`, **bloqueou** `catalog.zero_price_blocked` SKU `14232900` (TA Barba). Sem POST. Cliente “Ok”; Tess mandou endereço. Recepção agendou `526949090` 16:30. I1 quebrado no WhatsApp (afirmou / pediu ok sem commit).
+
+**PILOT agora:** 5/5. Último claim `2185` (alisamento, ~13:08 SP).
+
+**P1:** reschedule-as-create sem cancel do slot antigo; zero_price em SKU que o prompt cotou R$70; “Confirmo aqui” vaza antes do guard.
+
+**Fora:** POST Trinks, OPEN, prompt paste.
+
+## 2026-09-05 ~19:00Z — T11 info-open live (recepção ACK)
+
+**Ritual:** Victor ACK recepção no fio → Gage VPS `deploy@72.60.155.118`. Kill switch `global=false` → backup `backend.bak.20260905T190047Z` → worktree `tess-commit-honesty` reset `c043a75` → archive só `backend/` → `docker compose build --no-cache backend` + up.
+
+**Before allow (last4):** `0007` owner + cohort `4367 4749 5482 9343 2185` (`pilot_claim`). Toggles: `global=false` (publish), `pilot=true` → `stopPilot` congelou run `…830e7813` (`frozen`, 5/5).
+
+**After allow (last4):** único `0007` allow. Cohort removido de allow (DELETE 5 `pilot_claim`). `human_only` / `block` intactos. Toggles: `global=true`, `pilot=false`. `.env` intocado (`BOT_ACCEPT_ALL=false`).
+
+**Health:** `status=ok`, `mode=WHITELIST`, `accept_all=false`, `trinks_ping=ok`, `whitelist_count=1`. SHA live `c043a75`. Nginx não tocado.
+
+**Abort:** `UPDATE bot_toggles SET enabled=false WHERE key='global'`.
+
 

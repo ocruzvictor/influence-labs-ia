@@ -2,7 +2,7 @@
 
 **Epic:** [EPIC-tess-chao-unico](epics/EPIC-tess-chao-unico.md)  
 **Tipo:** Brownfield  
-**Status:** Draft · tetos Aria **Ready-for-Dex**  
+**Status:** Done · live `a9d5af8` · AC3 p95 **ainda aberto**: `duration_ms` = 0 rows no VPS (04–05/09). Próximo dente: persist elapsed em `tess.turn` + p95 em tráfego info-open/`0007` — **sem** novo PILOT. Ver `docs/handoffs/2026-09-05-orion-proxima-sessao-p2-chao.md` Onda 5.  
 **Executor:** @architect → @dev  
 **Quality gate:** @qa  
 **Story points:** 5  

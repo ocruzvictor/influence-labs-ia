@@ -2,7 +2,7 @@
 
 **Epic:** [EPIC-tess-chao-unico](epics/EPIC-tess-chao-unico.md)  
 **Tipo:** Brownfield  
-**Status:** Draft · schema Dara **Ready-for-Dex**  
+**Status:** Done · live `a9d5af8` · AC3 reconcile **PASS** no salon_day 2026-09-05 (delta 0)  
 **Executor:** @data-engineer (modelo) → @dev  
 **Quality gate:** @qa  
 **Story points:** 5  
@@ -35,7 +35,7 @@ Não promete 13,5 cr.
 
 - [x] **AC1:** Modelo Dara: evento `tess.turn` (sem tabela nova), retenção 90d no papel, sem E.164 no export.
 - [x] **AC2:** Um turno SCHEDULING BOOKING grava as quatro dimensões.
-- [ ] **AC3:** Relatório do dia reconcilia com o agregado atual (±1 turno).
+- [x] **AC3:** Relatório do dia reconcilia com o agregado atual (±1 turno). **Live 2026-09-05:** `tess_credit_usage_daily` 19 / 415.15524 = `tess.turn` 19 / 415.15524 (delta 0). Query Dara §4.1 no VPS; **não** usou novo PILOT. 01–03/09 sem `tess.turn` (persist ainda não live). 04/09 delta 94 (persist no meio do dia) — não é o dia canónico. Residual: sem teste automatizado da query (TEST-01).
 - [x] **AC4:** Quinn. Sem WhatsApp.
 
 ## Tasks
@@ -79,7 +79,7 @@ Nenhum. Anti-self-review: Dex implementou; Quinn só gateou.
 
 - [x] Hunt payload / chars / timeout / PII / freeze (Quinn)
 - [x] Rerun `node --test` persist + timeout — 6/6
-- [ ] AC3: unit ou CLI da query Dara §4.1 (chão 6 / próximo dente)
+- [x] AC3: query Dara §4.1 no VPS · salon_day 2026-09-05 delta 0 (Orion 2026-09-05). Unit/CLI da query ainda opcional (TEST-01).
 - [ ] Opcional: timeout test asserta zero `tess_credit_usage_daily` (TEST-02)
 - [ ] Opcional: fixtures de persist com last4 `0007` na coluna (PII-01)
 

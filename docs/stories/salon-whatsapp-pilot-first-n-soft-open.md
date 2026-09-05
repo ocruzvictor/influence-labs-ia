@@ -112,6 +112,7 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 - 2026-09-05 — Orion: lote pós-live P1 (Ana leftover + Rodolfo I1/zero_price + Ronaldo regressão). Fonte: handoffs A+B. P2 e chão 3/5/6/10 estacionados.
 - 2026-09-05 — Dex: P1 implementado (T6–T8). Helpers `resolveCreateMoveLeftoverId` + `hydrateCatalogPrice`; create-as-move cancel leftover; confirmo-aqui global; zero_price blocked outcome. 119 testes fatia verdes.
 - 2026-09-05 — Dex: F1–F5 info-open + confirm-hold. `isInfoOpenIntent`, `resolveKapsoAccess`, gate Kapso, `bookingMutationsAllowed`, áudio quieto info-open, `isConfirmAskOutbound` + hold. 170/170 gate verdes.
+- 2026-09-05 — Orion: T11 live `c043a75`. Victor ACK próxima sessão: P2.2–P2.4 + 5 AC3 (05/09 PASS) + 6 `duration_ms` + léxico 383 + chão 10 no plano. Sem novo PILOT. Smoke #8 fechado.
 
 ### File List (Floor recepção 2026-09-05)
 
@@ -150,11 +151,19 @@ Esta story productiza a regra. **Não** é OPEN-depois-congela. PILOT é modo de
 - [x] **P2.AC1 claim 2185:** `tryClaim` SCHEDULING só com sinal de marcar (ask / bundle 2-de-3 data|serviço|pro). “Quais técnicas / qual produto” / serviço sozinho **não** claima. Sem 9º intent — reusa `tess-context-intent` (`hasSchedulingAsk`, `isSimpleBookingBundle`, `hasFaqSignal`). CANCEL/RESCHEDULE intactos.
 - [x] **P2.AC2 Quinn residual:** após `blocked`/`failed`, sanitize cobre “endereço” / “te esperamos” como fechamento (não sucesso). Não stripar FAQ legítimo sem a flag.
 
-### Estacionado (Handoff B + P2.2–P2.4 + ops)
+### P2 conversão (ACK Victor 2026-09-05 — próxima sessão)
 
-P2.2 alternativas / P2.3 linger / P2.4 digest · chão 10 STOP · stories 5–6 medida live · replay 383 · smoke #8 · `startPilot` sem ACK.
+Plano: `docs/handoffs/2026-09-05-orion-proxima-sessao-p2-chao.md`. Sem novo PILOT. Q5 superseded. Smoke #8 fechado (ACK + log `0007`).
 
-**Restore allowlist (ritual VPS):** `stopPilot` + whitelist só dono. Cohort/teste saem de `allow`. **Não** `BOT_ACCEPT_ALL`. FAQ/PRICING passam pelo info-open (abaixo). Novo PILOT ou booking customer-wide = ACK depois.
+- [ ] **P2.2** alternativas 2–3 quando o slot não cabe (Vinicius `4749` / Daiane `4367` = P3). Trocar “1 alternativa ou handoff” em `CLOCK_HONESTY_FOOTER`.
+- [ ] **P2.3** linger pós-handoff + SLA (Daiane “Ok”). **Depende da cola 46589.**
+- [ ] **P2.4** digest last4 + `trinksId` em `booking.created` (Ronaldo).
+
+### Estacionado / outras frentes
+
+Chão 10 cancel = STOP até GET série + contrato Aria (`docs/stories/salon-whatsapp-chao-10-recorrencia-trinks.md`). Story 5 AC3 = query 05/09 PASS (ver story 5). Story 6 = falta `duration_ms`. Léxico 383 = `docs/analysis/2026-09-05-orion-lexico-383-residual.md`. `startPilot` sem ACK. OPEN / `BOT_ACCEPT_ALL`.
+
+**Restore allowlist (ritual VPS):** feito em T11. FAQ/PRICING = info-open. Novo PILOT ou booking customer-wide = ACK depois.
 
 ## Floor recepção 2026-09-05 — info-open + confirm-hold
 
@@ -172,7 +181,7 @@ P2.2 alternativas / P2.3 linger / P2.4 digest · chão 10 STOP · stories 5–6 
 
 - [x] **T9 (F1–F4):** Gate Kapso + `bookingMutationsAllowed` em `processMessage`. Testes bot-pilot / intent.
 - [x] **T10 (F5):** Helper `isConfirmAskOutbound` + hold/drop em `selectOutboundBlocks` ou processMessage. Testes booking-parser.
-- [ ] **T11:** VPS ritual (Gage): `global=false` → archive `backend/` → build → health → `stopPilot` → whitelist só dono → `global=true` `pilot=false` `accept_all=false`.
+- [x] **T11:** VPS ritual (Gage): `global=false` → archive `backend/` → build → health → `stopPilot` → whitelist só dono → `global=true` `pilot=false` `accept_all=false`.
 
 ### AUTO-DECISION Orion
 
