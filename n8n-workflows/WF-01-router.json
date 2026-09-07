@@ -173,30 +173,28 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{$env.ALERT_WEBHOOK_URL || 'https://example.invalid/router-alert'}}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"workflow\":\"WF-01-router\",\"error\":\"intent_parse_failed\",\"phone\":\"{{$json.phone}}\",\"message\":\"{{$json.message}}\"}",
-        "options": {
-          "ignoreResponseCode": true
-        }
+        "jsCode": "const data = $('Parse Intent').first().json;\nreturn [{\n  json: {\n    workflow: 'WF-01-router',\n    event: 'router_parse_error',\n    status: 'error',\n    error_code: 'intent_parse_failed',\n    phone: data.phone,\n    message: data.message,\n    pediu: data.message,\n    bot_action: 'nao conseguiu classificar a intencao da mensagem',\n    result_label: 'nao entendeu o que a pessoa queria — escalando para humano',\n    intent: data.intent,\n    confidence: data.confidence,\n    details: { parse_error: true }\n  }\n}];"
       },
-      "id": "notify_router_error",
-      "name": "Notify Router Error",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "prepare_parse_error_alert",
+      "name": "Prepare Parse Error Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         500,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "WF-07-owner-alert",
+        "options": {}
+      },
+      "id": "call_owner_alert_parse_error",
+      "name": "Call WF-07 [AJUSTAR ID APOS IMPORT]",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        720,
         260
       ]
     },
@@ -387,23 +385,58 @@
       "main": [
         [
           {
-            "node": "Save Classified Intent",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Switch Intent",
+            "node": "If Parse Error",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Notify Router Error": {
+    "If Parse Error": {
+      "main": [
+        [
+          {
+            "node": "Prepare Parse Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Classified Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Parse Error Alert": {
+      "main": [
+        [
+          {
+            "node": "Call WF-07 [AJUSTAR ID APOS IMPORT]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call WF-07 [AJUSTAR ID APOS IMPORT]": {
       "main": [
         [
           {
             "node": "Call WF-05 [AJUSTAR ID APOS IMPORT]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Classified Intent": {
+      "main": [
+        [
+          {
+            "node": "Switch Intent",
             "type": "main",
             "index": 0
           }

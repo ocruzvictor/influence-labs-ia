@@ -72,5 +72,8 @@ Confirmem: "Modo resumo-dono ativado ✅"
 ## Checklist
 - [ ] Comando colado no grupo Grok Bot
 - [ ] Bot confirmou "Modo resumo-dono ativado ✅"
+- [ ] WF-07 importado no n8n e IDs ajustados em WF-01 / WF-META-01
+- [ ] `ALERT_WEBHOOK_URL` apontando para webhook do Grok Bot
 - [ ] Teste: pedir `*resumo-atendimento` de um atendimento real recente
-- [ ] Validar que logs tecnicos continuam aparecendo entre os bots (nao para Victor)
+- [ ] Validar que alertas chegam com campo `owner_summary` legivel
+- [ ] Validar que logs tecnicos continuam em `technical` (nao para Victor)
