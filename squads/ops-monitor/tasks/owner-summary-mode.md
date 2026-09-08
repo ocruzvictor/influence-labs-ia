@@ -48,9 +48,109 @@ Confirmem: "Modo resumo-dono ativado ✅"
 
 | Voce manda no grupo | O que esperar |
 |---|---|
+| `@monitor-reporter *relatorio-completo-teste` | Relatorio do piloto Studio Tirra (janela desde sab 18h) |
 | `@monitor-reporter *status-operacao` | Panorama em linguagem simples: quantos atendimentos, erros recentes, fila |
 | `@monitor-reporter *resumo-atendimento 47` | Resumo humano so do atendimento #47 |
 | `@monitor-reporter *modo-resumo-dono` | Reativa a regra se algum bot voltar a mandar codigo |
+
+## Comando — Relatorio completo do teste (Studio Tirra)
+
+Janela do piloto: **a partir de sabado passado, 18h (horario SP)**.
+Ignorar tudo antes das 18h de sabado — recepcao ja tratou.
+Atendimentos cujo **primeiro contato** veio do numero antigo com "quero agendar" entram so se forem **depois das 18h de sabado**.
+
+Copie e envie no grupo ou canal do Grok Bot:
+
+```text
+@monitor-reporter *relatorio-completo-teste
+
+Preciso do relatorio completo do piloto do bot WhatsApp Studio Tirra (Influence Labs).
+
+=== JANELA DO TESTE (obrigatorio) ===
+• Considere SOMENTE atendimentos a partir de SABADO PASSADO, 18:00 (horario de Sao Paulo).
+• IGNORE completamente qualquer conversa antes das 18h de sabado — a recepcao ja atendeu essas pessoas.
+• Se a primeira mensagem do cliente continha "quero agendar" e veio do numero antigo, inclua apenas se o horario for DEPOIS das 18h de sabado.
+
+=== REGRAS DE LINGUAGEM (para mim, Victor) ===
+• Portugues simples. ZERO codigo, JSON, stack trace ou IDs tecnicos.
+• Identifique cada cliente por: PRIMEIRO NOME + ultimos 4 digitos do telefone (ex.: Maria ···7766).
+• Foco no CONTEXTO: o que o cliente falou, o que a IA respondeu, e POR QUE deu certo ou errado.
+
+=== PARTE 1 — ATENDIMENTOS (do mais recente ao mais antigo) ===
+
+Para CADA atendimento na janela, use este formato:
+
+📱 Atendimento #___
+👤 Cliente: [Primeiro nome] ···[last4]
+💬 Cliente disse: [resumo fiel do que pediu/perguntou/reclamou]
+🤖 IA respondeu: [resumo fiel do que a bot mandou de volta]
+✅/❌/🟡 Resultado: [1 frase]
+📝 Por que: [1-2 frases — por que deu certo, errado ou ficou pendente]
+⏱️ [data/hora SP]
+
+Legenda:
+✅ = resolvido pela IA (agendou, respondeu FAQ, encaminhou certo)
+❌ = falhou (erro, resposta errada, cliente saiu sem solucao)
+🟡 = pendente ou precisa da recepcao/IA
+
+=== PARTE 2 — RESUMO DE AGENDA (obrigatorio) ===
+
+Monte uma visao so de AGENDAMENTOS na mesma janela (sab 18h em diante):
+
+📅 RESUMO DE AGENDA
+
+🔵 Horarios SOLICITADOS (cliente pediu, ainda nao fechou):
+• [Nome ···last4] — pediu [dia/horario/servico/profissional se souber] — status: [em aberto / aguardando lead / aguardando recepcao ou IA]
+
+🟢 CONFIRMADOS (agenda fechada com sucesso):
+• [Nome ···last4] — [servico] — [dia/hora] — com [profissional se souber]
+
+🟠 REMARCADOS:
+• [Nome ···last4] — de [data/hora antiga] para [nova] — [confirmado ou pendente]
+
+🔴 CANCELADOS:
+• [Nome ···last4] — [servico/data que cancelou] — [motivo se souber]
+
+🟡 EM ABERTO — falta confirmacao do LEAD (cliente ainda nao confirmou):
+• [Nome ···last4] — [o que ficou pendente e o que falta o cliente responder]
+
+🟡 EM ABERTO — falta confirmacao da RECEPCAO ou IA (salao precisa agir):
+• [Nome ···last4] — [o que ficou pendente e o que a recepcao/IA precisa fazer]
+
+Se nao houver itens em alguma categoria, escreva "Nenhum".
+
+=== PARTE 3 — FECHAMENTO ===
+
+📊 RESUMO GERAL
+• Total na janela (sab 18h+): ___
+• ✅ Deu certo: ___
+• ❌ Deu errado: ___
+• 🟡 Pendente / recepcao: ___
+
+🔴 PRIORIDADE PARA A RECEPCAO HOJE
+Liste so os que precisam acao humana agora — nome ···last4 + 1 frase do que fazer.
+
+⚠️ PROBLEMAS REPETIDOS
+Padroes que se repetiram (ex.: "3x bot nao achou horario na sexta") — linguagem normal, sem codigo.
+
+Se faltar dado, marque 🟡 "precisa conferir" — nao invente horario nem confirmacao.
+
+Comece quando estiver pronto.
+```
+
+### Atalho — so pendencias de agenda para a recepcao
+
+```text
+@monitor-reporter *relatorio-completo-teste
+
+Mesmas regras: janela sab 18h+, linguagem simples, primeiro nome + last4, sem codigo.
+
+Me manda APENAS:
+1) PARTE 2 (Resumo de Agenda) — especialmente 🟡 em aberto (lead e recepcao/IA) e 🔴 cancelados se relevantes
+2) PRIORIDADE PARA A RECEPCAO HOJE
+
+Ignore atendimentos ✅ ja resolvidos, salvo se impactarem agenda em aberto.
+```
 
 ## Exemplo — ANTES vs DEPOIS
 
