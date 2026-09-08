@@ -1,0 +1,54 @@
+# SOT de ativação — não liga autoLoad (core-config já é false)
+# PARK = disco only. ACTIVE = uso no trabalho. ON_DEMAND = manual, sem hooks.
+
+autoLoad: false
+
+squads:
+  pedro-valerio-squad:
+    status: ACTIVE
+    entry: "@pedro-valerio"
+  lib-forge:
+    status: ACTIVE
+    protect: true
+  tess-nightwatch:
+    status: ACTIVE
+    protect: true
+  tess-floor-lexicon:
+    status: ACTIVE
+    protect: true
+  squad-creator:
+    status: ACTIVE
+    entry: "@squad-chief"
+  squad-creator-pro:
+    status: ACTIVE_FACTORY
+    note: "local factory; pro_mode false; no Pro agents"
+  deep-research:
+    status: ON_DEMAND
+    entry: "@dr-orchestrator"
+  kaizen:
+    status: ON_DEMAND
+    hooks: false
+  kaizen-v2:
+    status: ON_DEMAND
+    hooks: false
+    note: "do not *install hooks — collide with Nightwatch"
+  dispatch:
+    status: ON_DEMAND
+    note: "factory waves only; never Tess booking"
+  curator:
+    status: PARK
+  seo:
+    status: PARK
+  apex:
+    status: PARK
+  brand:
+    status: PARK
+  legal-analyst:
+    status: PARK
+  education:
+    status: PARK
+
+protected_from_in_place_upgrade:
+  - tess-nightwatch
+  - tess-floor-lexicon
+  - lib-forge

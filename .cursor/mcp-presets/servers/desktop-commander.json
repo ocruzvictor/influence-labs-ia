@@ -1,0 +1,16 @@
+{
+  "name": "desktop-commander",
+  "description": "File management, terminal commands, and system operations",
+  "type": "stdio",
+  "command": "npx",
+  "args": ["-y", "@anthropic/desktop-commander-mcp"],
+  "api_key_required": false,
+  "config": {
+    "paths": ["${USER_HOME}"]
+  },
+  "features": [
+    "File system operations",
+    "Terminal command execution",
+    "Process management"
+  ]
+}

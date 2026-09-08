@@ -1,0 +1,19 @@
+{
+  "name": "aios-research",
+  "description": "Research preset for AIOS - Documentation lookup, web research",
+  "version": "1.0.0",
+  "servers": [
+    "context7",
+    "exa",
+    "playwright"
+  ],
+  "estimated_tokens": "40-60k",
+  "api_keys_required": true,
+  "required_keys": ["EXA_API_KEY"],
+  "use_cases": [
+    "Library documentation lookup",
+    "Web research",
+    "Competitive analysis",
+    "Learning new technologies"
+  ]
+}

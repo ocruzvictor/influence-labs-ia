@@ -1,0 +1,49 @@
+# Canonical manifest: squad.yaml (this file kept for backward compatibility)
+name: pedro-valerio-squad
+version: 1.0.0
+tested: true
+updated_at: "2026-05-21"
+short-title: Process Architect Squad
+description: >-
+  Squad especializado em Engenharia de Processos, Arquitetura de Sistemas e Automação.
+  Agente principal: @pedro-valerio (Process Absolutist & Automation Architect).
+  FASE 2 do TRIO AIOX — transforma insumos estratégicos em artefatos executáveis.
+  Recebe INSUMOS_READY de @oalanicolas, entrega ARTEFATOS_READY para @thiago_finch.
+author: Synkra AIOX / Victor Cruz
+entry_agent: pedro-valerio
+
+settings:
+  activation:
+    show_ecosystem_report: false
+    show_greeting: true
+    show_quick_commands: true
+
+workspace_integration:
+  level: none
+  rationale: >-
+    Projeto influence-labs-ia não utiliza workspace/ do AIOX Pro.
+    Squad opera de forma self-contained em squads/.
+  read_paths: []
+  write_paths: []
+  template_namespace: null
+
+metadata:
+  version: "1.0.0"
+  type: "specialist"
+  score: 9.0
+  base_stats:
+    agents: 1
+    tasks: 15
+    workflows: 1
+    configs: 1
+    checklists: 2
+    templates: 1
+    data_files: 1
+
+trio_position:
+  phase: 2
+  phase_name: ESTRUTURA
+  receives_from: oalanicolas
+  delivers_to: thiago_finch
+  input_package: INSUMOS_READY
+  output_package: ARTEFATOS_READY

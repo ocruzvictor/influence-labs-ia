@@ -1,10 +1,10 @@
-
-
 # Environment & Secrets (AIOS)
 .env
 .env.local
 .env.*.local
 infra/.env
+.cursor/tess-mcp.headers
+.cursor/tess-prod.env
 *.key
 *.pem
 
@@ -41,9 +41,19 @@ Thumbs.db
 tmp/
 temp/
 
+# Local CLI tools (static ffmpeg, venv)
+.tools/
+
 # Raw materials — large binaries (use cloud storage)
 docs/raw-materials/
 
 # Agent Handoffs — podem conter credenciais de sessão
 .aios/handoffs/
 .claude/worktrees/
+
+# AIOX Local (AIOX)
+.aiox-core/local/
+.aiox/install-log.txt
+
+# Vendor clones used only as install source (do not commit)
+.cache/

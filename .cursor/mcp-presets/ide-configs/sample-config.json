@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "sse",
+      "url": "https://mcp.context7.com/sse"
+    },
+    "desktop-commander": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/desktop-commander-mcp"]
+    }
+  },
+  "notes": {
+    "description": "Sample Cursor configuration for AIOS projects",
+    "preset": "aios-dev",
+    "documentation": "https://github.com/allfluence/mcp-ecosystem"
+  }
+}

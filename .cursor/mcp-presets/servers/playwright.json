@@ -1,0 +1,14 @@
+{
+  "name": "playwright",
+  "description": "Browser automation for testing and web interaction",
+  "type": "stdio",
+  "command": "npx",
+  "args": ["-y", "@anthropic/playwright-mcp"],
+  "api_key_required": false,
+  "features": [
+    "Browser automation",
+    "Web testing",
+    "Screenshot capture",
+    "DOM interaction"
+  ]
+}

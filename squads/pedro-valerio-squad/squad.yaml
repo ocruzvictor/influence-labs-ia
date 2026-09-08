@@ -1,0 +1,90 @@
+name: pedro-valerio-squad
+version: 1.1.3
+tested: true
+updated_at: "2026-09-08"
+short-title: Process Architect Squad
+description: >-
+  Squad especializado em Engenharia de Processos, Arquitetura de Sistemas e Automação.
+  Agente principal: @pedro-valerio (Process Absolutist & Automation Architect).
+  FASE 2 do TRIO AIOX — transforma insumos estratégicos em artefatos executáveis.
+  Metodologia Syncra (L0–L3, Migalhas, Forja) em data/syncra-methodology.md.
+author: Synkra AIOX / Victor Cruz
+entry_agent: pedro-valerio
+slashPrefix: pedroValerio
+
+aiox:
+  type: squad
+  minVersion: "2.1.0"
+
+settings:
+  activation:
+    show_ecosystem_report: false
+    show_greeting: true
+    show_quick_commands: true
+
+workspace_integration:
+  level: none
+  rationale: >-
+    Projeto influence-labs-ia não utiliza workspace/ do AIOX Pro.
+    Squad opera de forma self-contained em squads/.
+  read_paths: []
+  write_paths: []
+  template_namespace: null
+
+metadata:
+  version: "1.1.3"
+  type: specialist
+  score: 9.0
+  methodology: syncra
+  base_stats:
+    agents: 1
+    tasks: 15
+    workflows: 1
+    checklists: 4
+    templates: 1
+    data_files: 3
+
+trio_position:
+  phase: 2
+  phase_name: ESTRUTURA
+  receives_from: oalanicolas
+  delivers_to: thiago_finch
+  input_package: INSUMOS_READY
+  output_package: ARTEFATOS_READY
+
+components:
+  agents:
+    - pedro-valerio.md
+  tasks:
+    - eng-map.md
+    - eng-gaps.md
+    - eng-owners.md
+    - arq-structure.md
+    - arq-statuses.md
+    - arq-fields.md
+    - auto-rules.md
+    - auto-connect.md
+    - auto-triggers.md
+    - tmpl-create.md
+    - tmpl-instructions.md
+    - tmpl-test.md
+    - create-task.md
+    - create-workflow.md
+    - create-agent.md
+  workflows:
+    - structure-pipeline.yaml
+  checklists:
+    - audit-checklist.md
+    - veto-checklist.md
+    - fingerprint-checklist.md
+    - task-d-audit.md
+  templates:
+    - base-template.md
+  data:
+    - system-patterns.md
+    - tess-domain-addendum.md
+    - syncra-methodology.md
+    - portability.md
+    - l0-intake.md
+  config:
+    - config.yaml

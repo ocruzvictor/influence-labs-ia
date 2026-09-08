@@ -1,0 +1,19 @@
+{
+  "name": "aios-full",
+  "description": "Full preset with all MCPs - Complex multi-domain tasks",
+  "version": "1.0.0",
+  "servers": [
+    "context7",
+    "desktop-commander",
+    "playwright",
+    "exa"
+  ],
+  "estimated_tokens": "60-80k",
+  "api_keys_required": true,
+  "required_keys": ["EXA_API_KEY"],
+  "use_cases": [
+    "Complex multi-domain tasks",
+    "Full project setup",
+    "Research + Development combined"
+  ]
+}

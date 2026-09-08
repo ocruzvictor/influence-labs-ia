@@ -1,0 +1,13 @@
+{
+  "name": "context7",
+  "description": "Up-to-date library documentation for LLMs",
+  "type": "sse",
+  "url": "https://mcp.context7.com/sse",
+  "api_key_required": false,
+  "documentation": "https://context7.com/docs",
+  "features": [
+    "Library documentation lookup",
+    "API reference",
+    "Code examples"
+  ]
+}

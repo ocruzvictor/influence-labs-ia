@@ -1,0 +1,240 @@
+# Brownfield Squad Upgrade — Local Factory Workflow
+#
+# Official squad-creator-pro (paid) ships README-only in the public repo.
+# This workflow orchestrates what IS available locally:
+#   1. FREE structural upgrade via squad-creator/tasks/upgrade-squad.md
+#   2. OPTIONAL methodology enrichment via pedro-valerio-squad *structure-pipeline
+#
+# Does NOT invent Pro tasks (clone-mind, DNA extraction, axioma, model routing).
+# Forge patterns: docs/framework/forge-patterns/ (backup, migration log, L3/L4 only)
+
+workflow:
+  id: wf-brownfield-upgrade-squad
+  name: Brownfield Squad Upgrade (Local Factory)
+  version: 0.1.0-local
+  description: >-
+    Safe brownfield upgrade for existing squads. Runs free structural upgrade
+    (audit → plan → execute) then optional Pedro L4 methodology enrichment.
+    Qualitative Pro features (Voice/Thinking DNA, mind cloning) are NOT
+    available until official Pro body is published.
+  type: upgrade
+  local_factory: true
+  pro_mode: false
+
+  trigger:
+    type: manual
+    command: "@squad-chief *brownfield-upgrade {squad_name} [--mode=audit|plan|execute|auto] [--enrich=pedro] [--dry-run]"
+
+  inputs:
+    - name: squad_name
+      type: string
+      required: true
+      description: "Target squad under squads/{squad_name}/"
+    - name: mode
+      type: enum
+      values: [audit, plan, execute, auto]
+      default: audit
+      description: "Passed through to free *upgrade-squad task"
+    - name: dry_run
+      type: boolean
+      default: true
+      description: "Preview changes; required before execute (VETO-BFU-001)"
+    - name: enrich_pedro
+      type: boolean
+      default: false
+      description: "After structural upgrade, run @pedro-valerio *structure-pipeline"
+    - name: focus
+      type: enum
+      values: [agents, tasks, workflows, all]
+      default: all
+
+  forge_patterns:
+    reference: docs/framework/forge-patterns/
+    apply:
+      - optimize-component.md    # backup before mutation, rollback on failure
+      - modernize-component.md   # migration log with before/after
+    layer_policy: "L3 (squads/) and L4 (squad components) only — never mutate L1/L2 framework core"
+
+  protected_squads:
+    description: "Operational squads — structural upgrade must NOT overwrite in place"
+    names:
+      - tess-nightwatch
+      - tess-floor-lexicon
+      - lib-forge
+    policy: read_only_for_execute
+    allowed_actions:
+      - audit
+      - plan
+      - gap_report
+    blocked_actions:
+      - in_place_overwrite
+      - bulk_template_replacement
+      - agent_body_replacement
+
+  veto_conditions:
+    - id: VETO-BFU-001
+      condition: "Execute mode requested without prior dry-run diff"
+      trigger: "Before phase structural_upgrade execute step"
+      block_behavior: "BLOCK — run with --dry-run first; review diff against target squad"
+
+    - id: VETO-BFU-002
+      condition: "Target squad is in protected_squads and mode != audit"
+      trigger: "Before any mutation phase"
+      block_behavior: "BLOCK in-place upgrade — audit/plan only; manual patch path required"
+
+    - id: VETO-BFU-003
+      condition: "Dry-run produced critical blockers not acknowledged"
+      trigger: "Before applying structural mutations"
+      block_behavior: "BLOCK apply until blockers resolved or explicitly accepted by user"
+
+    - id: VETO-BFU-004
+      condition: "No backup created before first file mutation"
+      trigger: "Before phase structural_upgrade execute"
+      block_behavior: "BLOCK — create backup per forge-patterns/modernize-component.md pre-conditions"
+
+  agent_mapping:
+    inventory: squad-chief
+    structural_upgrade: squad-chief
+    methodology_enrich: pedro-valerio
+    validate: squad-chief
+
+  phases:
+
+    # ------------------------------------------------------------------
+    # PHASE 1: INVENTORY
+    # Agent: @squad-chief (via free upgrade-squad Phase 0)
+    # ------------------------------------------------------------------
+    - id: inventory
+      name: Inventory
+      agent: squad-chief
+      task_ref: ../squad-creator/tasks/upgrade-squad.md
+      task_phase: "PHASE 0: INVENTORY"
+      description: "Scan squad components, count lines, extract metadata, build registry"
+      blocking: true
+      outputs:
+        - component_registry
+        - squad_version
+        - protected_squad_check
+      scripts:
+        - ../squad-creator/scripts/inventory.py
+      checkpoint:
+        condition: "component_registry.complete == true"
+        on_fail: abort
+
+    # ------------------------------------------------------------------
+    # PHASE 2: STRUCTURAL UPGRADE (FREE)
+    # Agent: @squad-chief — full upgrade-squad audit/plan/execute flow
+    # ------------------------------------------------------------------
+    - id: structural_upgrade
+      name: Structural Upgrade (Free Pack)
+      agent: squad-chief
+      task_ref: ../squad-creator/tasks/upgrade-squad.md
+      task_phases:
+        - "PHASE 1: STRUCTURAL GAP ANALYSIS"
+        - "PHASE 2: UPGRADE PLAN"
+        - "PHASE 3: EXECUTE UPGRADES"
+      description: >-
+        Run free *upgrade-squad for structural compliance (config, agent template,
+        task anatomy, workflow schema). Qualitative DNA gaps deferred to official Pro.
+      command: "@squad-chief *upgrade-squad {squad_name} --mode={mode} --dry-run={dry_run}"
+      forge_requirements:
+        backup: "Copy squads/{squad_name}/ to .aiox/squad-backups/{squad_name}-{timestamp}/ before first mutation"
+        migration_log: ".aiox/squad-runtime/brownfield-upgrade/{squad_name}/migration-log.md"
+        layer: "L3/L4 only"
+      veto_refs:
+        - VETO-BFU-001
+        - VETO-BFU-002
+        - VETO-BFU-003
+        - VETO-BFU-004
+      on_protected_squad:
+        allowed_modes: [audit, plan]
+        message: >-
+          {squad_name} is protected (tess-nightwatch, tess-floor-lexicon, lib-forge).
+          Execute blocked — use audit/plan output for manual targeted patches.
+      outputs:
+        - gap_report
+        - upgrade_plan
+        - dry_run_diff
+        - applied_changes
+
+    # ------------------------------------------------------------------
+    # PHASE 3: METHODOLOGY ENRICH (OPTIONAL — Pedro L4)
+    # Agent: @pedro-valerio — structure-pipeline for process/SOP enrichment
+    # ------------------------------------------------------------------
+    - id: methodology_enrich
+      name: Methodology Enrichment (Pedro L4)
+      agent: pedro-valerio
+      workflow_ref: ../pedro-valerio-squad/workflows/structure-pipeline.yaml
+      optional: true
+      skip_when: "enrich_pedro == false"
+      description: >-
+        Optional Pedro *structure-pipeline to enrich methodology (SOPs, frameworks,
+        process maps). Standalone — does not require TRIO/oalanicolas DNA package.
+      command: "@pedro-valerio *structure-pipeline {artifact_type} --squad={squad_name}"
+      inputs:
+        insumos_package: "gap_report + upgrade_plan from structural_upgrade"
+        artifact_type: "process-map | workflow | task (per gap analysis)"
+      outputs:
+        - artefatos_package
+        - audit_report
+        - veto_report
+      note: >-
+        Pedro L4 adds methodology structure; it does NOT replace official Pro
+        qualitative tasks (Voice DNA, Thinking DNA, mind cloning, axioma scoring).
+
+    # ------------------------------------------------------------------
+    # PHASE 4: VALIDATE
+    # Agent: @squad-chief — free validate-squad pipeline
+    # ------------------------------------------------------------------
+    - id: validate
+      name: Validate Upgraded Squad
+      agent: squad-chief
+      workflow_ref: ../squad-creator/workflows/validate-squad.yaml
+      task_ref: ../squad-creator/tasks/upgrade-squad.md
+      task_phase: "PHASE 4: VERIFICATION"
+      description: "Run *validate-squad; compare before/after scores; emit upgrade report"
+      command: "@squad-chief *validate-squad {squad_name}"
+      blocking: true
+      outputs:
+        - validation_report_md
+        - quality_score_before_after
+        - pass_fail_verdict
+      scripts:
+        - ../squad-creator/scripts/validate-squad.sh
+
+  sequence:
+    - inventory
+    - structural_upgrade
+    - methodology_enrich   # skipped when enrich_pedro=false
+    - validate
+
+  error_handling:
+    on_error:
+      - save_state
+      - log_error
+    rollback:
+      strategy: restore_from_backup
+      reference: docs/framework/forge-patterns/modernize-component.md
+      path: ".aiox/squad-backups/{squad_name}-{timestamp}/"
+
+  resume:
+    state_file: .aiox/squad-runtime/brownfield-upgrade/{squad_name}/state.json
+    supported: true
+
+  outputs:
+    - upgrade_report_md
+    - migration_log_md
+    - validation_report_md
+
+  limitations:
+    not_available_until_official_pro:
+      - clone-mind
+      - extract-voice-dna
+      - extract-thinking-dna
+      - axioma-assessment
+      - model-routing
+      - fidelity-scoring
+      - auto-acquire-sources
+    message: >-
+      For qualitative upgrades, wait for official squad-creator-pro body or use
+      @pedro-valerio *structure-pipeline for methodology-only enrichment.

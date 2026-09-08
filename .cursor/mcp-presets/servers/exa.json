@@ -1,0 +1,17 @@
+{
+  "name": "exa",
+  "description": "AI-powered web search and content extraction",
+  "type": "stdio",
+  "command": "npx",
+  "args": ["-y", "exa-mcp-server"],
+  "api_key_required": true,
+  "env": {
+    "EXA_API_KEY": "${EXA_API_KEY}"
+  },
+  "features": [
+    "Web search",
+    "Content extraction",
+    "Research paper search",
+    "Company research"
+  ]
+}

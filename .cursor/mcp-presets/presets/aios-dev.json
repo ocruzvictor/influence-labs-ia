@@ -1,0 +1,18 @@
+{
+  "name": "aios-dev",
+  "description": "Development preset for AIOS - Story implementation, PRs, coding tasks",
+  "version": "1.0.0",
+  "servers": [
+    "context7",
+    "desktop-commander",
+    "playwright"
+  ],
+  "estimated_tokens": "25-40k",
+  "api_keys_required": false,
+  "use_cases": [
+    "Story implementation",
+    "Pull request creation",
+    "Code development",
+    "Debugging"
+  ]
+}

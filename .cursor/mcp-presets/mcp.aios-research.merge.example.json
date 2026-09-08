@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "MCP_DOCKER": {
+      "command": "docker",
+      "args": ["mcp", "gateway", "run"],
+      "type": "stdio"
+    },
+    "tess": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.tess.im",
+        "--header-file",
+        "${workspaceFolder}/.cursor/tess-mcp.headers",
+        "--transport",
+        "http-first"
+      ]
+    },
+    "context7": {
+      "type": "sse",
+      "url": "https://mcp.context7.com/sse"
+    },
+    "exa": {
+      "command": "npx",
+      "args": ["-y", "exa-mcp-server"],
+      "env": {
+        "EXA_API_KEY": "${EXA_API_KEY}"
+      }
+    }
+  },
+  "_comment": "Example only. Copy servers you need into .cursor/mcp.json. Do not commit API keys."
+}

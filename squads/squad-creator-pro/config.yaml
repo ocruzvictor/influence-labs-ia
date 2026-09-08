@@ -1,0 +1,55 @@
+name: squad-creator-pro
+version: 0.1.0-local
+short-title: Squad Creator Pro (Local Factory)
+description: >-
+  Local factory complement. Official public repo ships README only.
+  Qualitative DNA tasks remain unavailable until official Pro body is published.
+author: Victor Cruz / Orion (local materialization)
+entry_agent: squad-chief
+
+flags:
+  pro_mode: false
+  local_factory: true
+
+# Official SynkraAI/aiox-squads/squad-creator-pro is README-only in the public repo.
+# This config enables base detection without pretending paid Pro artifacts exist.
+official_status:
+  public_repo: "SynkraAI/aiox-squads/squads/squad-creator-pro"
+  public_body: stub
+  note: "README.md only — no agents/, tasks/, workflows/ in upstream"
+
+dependencies:
+  # Structural upgrade (audit → plan → execute) lives in the free pack
+  upgrade_squad:
+    squad: squad-creator
+    path: ../squad-creator
+    task: upgrade-squad
+    task_path: ../squad-creator/tasks/upgrade-squad.md
+    orchestrator: squad-chief
+    command: "*upgrade-squad"
+
+  # Methodology enrichment (L4 operational target)
+  methodology_enrich:
+    squad: pedro-valerio-squad
+    path: ../pedro-valerio-squad
+    workflow: structure-pipeline
+    workflow_path: ../pedro-valerio-squad/workflows/structure-pipeline.yaml
+    orchestrator: pedro-valerio
+    command: "*structure-pipeline"
+
+workflows:
+  brownfield_upgrade:
+    id: wf-brownfield-upgrade-squad
+    path: workflows/wf-brownfield-upgrade-squad.yaml
+    command: "*brownfield-upgrade"
+
+metadata:
+  version: "0.1.0-local"
+  type: local_factory
+  pro_detection: true
+  paid_body_available: false
+  base_stats:
+    agents: 0
+    tasks: 0
+    workflows: 1
+    configs: 1
