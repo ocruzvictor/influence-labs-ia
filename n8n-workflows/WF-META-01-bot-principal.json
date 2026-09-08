@@ -214,7 +214,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $json;\nconst source = $('Parse Payload Meta').item.json;\n\nlet response = '';\nif (typeof raw === 'string') response = raw;\nelse if (raw.output) response = String(raw.output);\nelse if (raw.choices?.[0]?.message?.content) response = raw.choices[0].message.content;\nelse if (raw.response) response = String(raw.response);\nelse if (raw.text) response = String(raw.text);\nelse if (typeof raw.content === 'string') response = raw.content;\nelse if (Array.isArray(raw.content) && raw.content[0]?.text) response = raw.content[0].text;\n\nif (!response) {\n  return [{ json: { ...source, tessResponse: 'Ola! Estou com uma dificuldade tecnica. Nosso atendimento humano entrara em contato em breve!', hasBookingAction: false } }];\n}\n\nresponse = response.trim();\nlet bookingRequest = null, bookingConfirm = null, clientMessage = response;\n\nconst reqMatch = response.match(/\\[BOOKING_REQUEST\\]\\s*\\n?({[\\s\\S]*?})/i);\nif (reqMatch) {\n  try { bookingRequest = JSON.parse(reqMatch[1]); clientMessage = response.replace(reqMatch[0], '').trim(); } catch(e) {}\n}\n\nconst confMatch = response.match(/\\[BOOKING_CONFIRM\\]\\s*\\n?({[\\s\\S]*?})/i);\nif (confMatch) {\n  try { bookingConfirm = JSON.parse(confMatch[1]); clientMessage = clientMessage.replace(confMatch[0], '').trim(); } catch(e) {}\n}\n\nreturn [{ json: {\n  ...source,\n  tessResponse: clientMessage || response,\n  bookingRequest, bookingConfirm,\n  hasBookingAction: !!(bookingRequest || bookingConfirm)\n} }];"
+        "jsCode": "const raw = $json;\nconst source = $('Parse Payload Meta').item.json;\n\nlet response = '';\nif (typeof raw === 'string') response = raw;\nelse if (raw.output) response = String(raw.output);\nelse if (raw.choices?.[0]?.message?.content) response = raw.choices[0].message.content;\nelse if (raw.response) response = String(raw.response);\nelse if (raw.text) response = String(raw.text);\nelse if (typeof raw.content === 'string') response = raw.content;\nelse if (Array.isArray(raw.content) && raw.content[0]?.text) response = raw.content[0].text;\n\nif (!response) {\n  return [{ json: { ...source, tessResponse: 'Ola! Estou com uma dificuldade tecnica. Nosso atendimento humano entrara em contato em breve!', hasBookingAction: false, tessFailed: true } }];\n}\n\nresponse = response.trim();\nlet bookingRequest = null, bookingConfirm = null, clientMessage = response;\n\nconst reqMatch = response.match(/\\[BOOKING_REQUEST\\]\\s*\\n?({[\\s\\S]*?})/i);\nif (reqMatch) {\n  try { bookingRequest = JSON.parse(reqMatch[1]); clientMessage = response.replace(reqMatch[0], '').trim(); } catch(e) {}\n}\n\nconst confMatch = response.match(/\\[BOOKING_CONFIRM\\]\\s*\\n?({[\\s\\S]*?})/i);\nif (confMatch) {\n  try { bookingConfirm = JSON.parse(confMatch[1]); clientMessage = clientMessage.replace(confMatch[0], '').trim(); } catch(e) {}\n}\n\nreturn [{ json: {\n  ...source,\n  tessResponse: clientMessage || response,\n  bookingRequest, bookingConfirm,\n  hasBookingAction: !!(bookingRequest || bookingConfirm),\n  tessFailed: false\n} }];"
       },
       "id": "parse_tess_response",
       "name": "Parse Resposta TESS",
@@ -353,6 +353,34 @@
         1580,
         100
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Parse Payload Meta').first().json;\nlet tessData = {};\ntry { tessData = $('Parse Resposta TESS').first().json; } catch (e) {}\nif (!tessData.tessResponse) {\n  try { tessData = $('Parse Resposta (Slots)').first().json; } catch (e) {}\n}\ntry {\n  const bookingNode = $('Executar Booking Trinks').first().json;\n  if (bookingNode?.bookingResult) tessData = { ...tessData, ...bookingNode };\n} catch (e) {}\n\nconst sendRaw = $json || {};\nconst metaOk = !!(sendRaw.messages?.[0]?.id || sendRaw.message_id || (typeof sendRaw === 'object' && !sendRaw.error?.message));\n\nlet status = 'success';\nlet error_code = null;\nlet result_label = 'resposta enviada ao cliente';\n\nif (tessData.tessFailed) {\n  status = 'warning';\n  error_code = 'tess_empty_response';\n  result_label = 'assistente falhou — cliente recebeu mensagem generica';\n}\nif (!metaOk) {\n  status = 'error';\n  error_code = 'meta_send_failed';\n  result_label = 'falha ao enviar resposta no WhatsApp';\n}\nif (tessData.bookingResult?.type === 'error') {\n  status = 'warning';\n  error_code = 'trinks_error';\n  result_label = 'erro ao consultar agenda no Trinks';\n}\nif (tessData.bookingResult?.type === 'booking_pending') {\n  status = 'warning';\n  result_label = 'agendamento registrado como pendente';\n}\n\nreturn [{\n  json: {\n    workflow: 'WF-META-01-bot-principal',\n    event: 'message_handled',\n    status,\n    error_code,\n    message_id: source.messageId,\n    phone: source.from,\n    contact_name: source.contactName,\n    pediu: source.messageText,\n    bot_action: (tessData.tessResponse || '').slice(0, 100),\n    result_label,\n    atendimento_num: String(source.messageId || '').slice(-6),\n    details: {\n      hasBookingAction: !!tessData.hasBookingAction,\n      bookingResult: tessData.bookingResult || null,\n      meta_ok: metaOk\n    }\n  }\n}];"
+      },
+      "id": "prepare_message_alert",
+      "name": "Prepare Message Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "WF-07-owner-alert",
+        "options": {}
+      },
+      "id": "call_owner_alert_success",
+      "name": "Call WF-07 [AJUSTAR ID APOS IMPORT]",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2060,
+        100
+      ],
+      "notes": "Alerta duplo: owner_summary + technical via ALERT_WEBHOOK_URL"
     }
   ],
   "connections": {
@@ -530,6 +558,28 @@
         [
           {
             "node": "Enviar Resposta (Meta API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Resposta (Meta API)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Message Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Message Alert": {
+      "main": [
+        [
+          {
+            "node": "Call WF-07 [AJUSTAR ID APOS IMPORT]",
             "type": "main",
             "index": 0
           }

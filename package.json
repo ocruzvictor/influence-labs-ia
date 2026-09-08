@@ -7,6 +7,7 @@
     "lint": "node tests/run-prompt-tests.js --lint-only",
     "typecheck": "node tests/run-prompt-tests.js --typecheck-only",
     "test": "node tests/run-prompt-tests.js --mock",
+    "test:owner-alert": "node tests/owner-alert.test.js",
     "test:router": "node tests/run-prompt-tests.js --agent router --mock",
     "test:faq": "node tests/run-prompt-tests.js --agent faq --mock",
     "test:receptionist": "node tests/run-prompt-tests.js --agent receptionist --mock"
