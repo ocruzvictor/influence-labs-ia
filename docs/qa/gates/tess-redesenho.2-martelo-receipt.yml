@@ -1,0 +1,74 @@
+schema: 1
+story: 'tess-redesenho.2'
+story_title: 'Martelo — silêncio ≠ release; aceite nomeado'
+gate: CONCERNS
+status_reason: 'T-1734/T-Denise/T-SLA e unique 019 intactos; silence não solta hold; COMMITTING sem approved = 0 POST no worker. CONCERNS porque o gate/admin em server.js não tem unit e handoff.receipt entra na watch list sem virar sinal P0 do patrol.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:booking-handoff-receipts.js@4e2fbd70,booking-holds.js@936800a1,bot-thread-state.js@2f286def,nightwatch-ops.js@b725f2c1,server.js@38bc252c,handoff-martelo.test.js@07a75c0f,020.sql@1ad642a0,020.rollback.sql@d21f301e,HEAD:d7f9cd0'
+updated: '2026-09-08T23:15:00Z'
+top_issues:
+  - id: 'TEST-003'
+    severity: medium
+    finding: 'T-1734/T-Denise/T-SLA e approve/reject cobrem o worker. O hook em server.js (gateCommit após acquire, 0 POST se !approved, captureForPhone no staff outbound, POST /admin/handoff-receipts/:id com X-Admin-Token) não tem unit. TEST-001 da story 1 permanece OUT.'
+    suggested_action: 'Extrair o ramo CREATE+martelo e o handler admin para helper testável, ou teste de processo com db + createBookingInTrinks mockados. Não reabrir TEST-001/002.'
+    suggested_owner: dev
+  - id: 'OPS-001'
+    severity: medium
+    finding: 'handoff.receipt está em WATCH_EVENTS e o payload é last4+receiptId+action. patrolLive não incrementa sinal P0 nem muda next_action quando há pending/timeout — o alerta P0 do IN/UX fica só na lista de eventos.'
+    suggested_action: 'Contar handoff.receipt pending/timeout na janela em signals (ex. p0_martelo) sem frontend novo. Staging/ops, não blocker de papel.'
+    suggested_owner: devops
+  - id: 'UX-001'
+    severity: low
+    finding: 'REJECT_COPY existe e o admin devolve reject_copy no JSON. Nenhum ramo do bot injeta a frase quando o silêncio cai — o cliente só vê se alguém reenviar ou o próximo turno a copiar.'
+    suggested_action: 'Aceitar na v1 (superfície admin). Ligar inject só no resume pós-reject, sem sucesso/endereço. Fora do IN de story 3 se não for F5.'
+    suggested_owner: sm
+waiver: { active: false }
+
+quality_score: 80
+expires: '2026-09-22T23:15:00Z'
+
+evidence:
+  tests_reviewed: 137
+  tests_passed: 137
+  tests_failed: 0
+  risks_identified: 2
+  coderabbit: 'SKIP — CLI (`coderabbit review`) não aceita `--prompt-only`; tree suja; anti-self-review. [AUTO-DECISION] QA não auto-fixa source.'
+  i1_unit: 'PASS — selectOutboundBlocks intacto; HOLD_COPY ≠ REJECT_COPY; T-Denise copy sem confirmado; skipCreates agora só needs_ref/consultive/overlap (HANDOFF_HUMAN+CREATE entra no acquire e para no martelo sem copy de dropped).'
+  migration: 'PASS — 020 unique pending(hold_id) sem NOW(); CHECK assigned_to bloqueia recepção/recepcao/a recepção/staff; rollback só dropa receipts; 019 unique held|committing não afrouxada; rejected libera unique.'
+  scope: 'PASS — sem cola 46589, sem startPilot, sem POST live, approve não POST Trinks, sem frontend, sem inventar booking.created.'
+  Pedro_veto: 'PASS — isNamedAssignee recusa genéricos + queue:owner; actOnReceipt exige nome no body.'
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Admin reusa X-Admin-Token. Eventos last4 + receiptId + action. Sem PII. CHECK+JS no assigned_to.'
+  performance:
+    status: PASS
+    notes: 'Timeout lazy no lookup; sem cron. SLA clamp 300–3600 default 900. Timeout Tess não aumenta.'
+  reliability:
+    status: CONCERNS
+    notes: 'Worker fail devolve unavailable; hook server/admin sem unit (TEST-003). patrol sem P0 de pending (OPS-001). Apply 020 = staging, não papel.'
+  maintainability:
+    status: PASS
+    notes: '0 LLM no worker. Silence documentado em bot-thread-state. 2-phase e HOLD_COPY ban intactos.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Unit do hook server + admin POST (TEST-003). Não clonar TEST-001/002.'
+      refs: ['backend/server.js']
+    - action: 'Sinal P0 de handoff.receipt pending/timeout no patrol (OPS-001).'
+      refs: ['backend/lib/nightwatch-ops.js']
+    - action: 'Apply 020 em staging depois de 019. Sem Hostinger/OPEN nesta story.'
+      refs: ['infra/migrations/020_booking_handoff_receipts.sql']
+
+auto_decisions:
+  - 'Status ready-for-review ≡ InReview → Done.'
+  - 'CodeRabbit skip (CLI flag drift + tree suja / anti-self-review).'
+  - 'QA não auto-fixa source.'
+  - 'TEST-003/OPS-001 = CONCERNS não FAIL — ACs da fatia cobertos em worker+holds+parser; I1/019 unique não regridem.'
+  - 'TEST-001/002 da story 1 permanecem OUT.'
+  - 'ClickUp skip — MCP ausente.'

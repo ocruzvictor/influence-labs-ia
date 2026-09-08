@@ -1,0 +1,21 @@
+{
+  "id": "onda-1-redesenho-commit",
+  "class": "COMPLEX",
+  "reason": "Dois mecanismos novos no hot-path (hold + receipt) tocando copy, estado de canal e commit. Invariantes I1–I3 não podem afrouxar.",
+  "storySplit": [
+    {
+      "seq": 1,
+      "slug": "hold-sanitize-f5",
+      "covers": ["FR-1", "FR-2", "FR-3", "FR-4", "FR-5", "FR-9", "FR-10"],
+      "effort": "M"
+    },
+    {
+      "seq": 2,
+      "slug": "martelo-aceite",
+      "covers": ["FR-6", "FR-7", "FR-8"],
+      "dependsOn": "hold-sanitize-f5 smoke",
+      "effort": "M"
+    }
+  ],
+  "implementationBlockedUntil": "QA critique APPROVED + @sm draft"
+}

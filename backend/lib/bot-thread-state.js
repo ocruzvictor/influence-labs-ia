@@ -63,6 +63,7 @@ async function loadFromDb(phone) {
 
 /**
  * Marca thread como human-handled (persiste silenced_until + silence_reason).
+ * NÃO toca booking_holds — silêncio ≠ release (story redesenho-2 / F3×F5).
  *
  * @param {string} phone
  * @param {'handoff' | 'business_app'} reason

@@ -1,0 +1,115 @@
+{
+  "id": "onda-1-redesenho-commit",
+  "title": "Onda 1 — lock de inventário + Martelo (spec)",
+  "status": "spec",
+  "created": "2026-09-08",
+  "source": [
+    "docs/ops/MEMORY-tess-t1-t2-fds-2026-09-08.md",
+    "docs/research/2026-09-08-tess-redesenho/06-pipeline-decisao.md"
+  ],
+  "invariants": ["I1", "I2", "I3", "2-phase", "guards-CREATE"],
+  "outOfScope": [
+    "OPEN / startPilot / BOT_ACCEPT_ALL",
+    "colar prompt 46589",
+    "Hostinger / POST Trinks de teste",
+    "split FAQ/BOOKING (Onda 2)",
+    "Digital Employee Cowork auditor (Onda 2)",
+    "A/B modelo / Hermes / OpenClaw hot-path (Onda 3 / PARK)",
+    "Lib Forge generate",
+    "hold nativo Trinks (não evidenciado — não inventar)"
+  ],
+  "functional": [
+    {
+      "id": "FR-1",
+      "priority": "P0",
+      "name": "Estados explícitos no fio de booking",
+      "statement": "Todo fio com intenção de marcar persiste um estado em {DISCOVERY, PROPOSED, HELD, COMMITTING, CONFIRMED, FAILED, REJECTED, EXPIRED}. O estado não é escrito pelo LLM."
+    },
+    {
+      "id": "FR-2",
+      "priority": "P0",
+      "name": "Hold TTL antes de copy definitiva de slot",
+      "statement": "Antes de qualquer copy que trate um horário como 'o seu' ou 'já estou confirmando', o worker insere booking_holds com unique (profissional_id, slot_start) ativo. Insert falhou = copy de indisponível, 0 POST Trinks."
+    },
+    {
+      "id": "FR-3",
+      "priority": "P0",
+      "name": "Sanitize F5 lexical + process-promise",
+      "statement": "sanitizePrematureConfirm e selectOutboundBlocks bloqueiam verbos de reserva/processo (confirmo, confirmando, já está, reservei, marquei, HOLD_COPY atual) sem hold row ativo ou sem 2xx. HOLD_COPY atual é proibida."
+    },
+    {
+      "id": "FR-4",
+      "priority": "P0",
+      "name": "2-phase intacto",
+      "statement": "Afirmação de sucesso (endereço, 'te esperamos', 'confirmado') só após Trinks 2xx do SKU/id certos. Hold local ≠ commit."
+    },
+    {
+      "id": "FR-5",
+      "priority": "P0",
+      "name": "Race 13h",
+      "statement": "Dois fios que oferecem o mesmo (profissional_id, slot_start): só um insert hold vence. O perdedor recebe copy honesta de ocupado. Sem double-offer verbal."
+    },
+    {
+      "id": "FR-6",
+      "priority": "P0",
+      "name": "Martelo — silêncio ≠ abandono",
+      "statement": "Staff no fio (silenced_until / last_staff_outbound_at) não libera hold nem apaga estado PROPOSED/HELD. Libera só: REJECTED nomeado, EXPIRED, CONFIRMED, FAILED."
+    },
+    {
+      "id": "FR-7",
+      "priority": "P0",
+      "name": "Martelo — aceite nomeado",
+      "statement": "Handoff exige receipt com assigned_to nomeado (não 'a recepção'), sla_until, e ação {pending, approved, rejected, timeout}. Approved autoriza COMMITTING; rejected libera hold + copy de negação."
+    },
+    {
+      "id": "FR-8",
+      "priority": "P1",
+      "name": "Timeout SLA Martelo",
+      "statement": "Sem ação no sla_until: evento operacional + re-alerta; hold segue até expires_at. Não afirmar que 'recepção já foi avisada' sem receipt persistido."
+    },
+    {
+      "id": "FR-9",
+      "priority": "P1",
+      "name": "TTL hold",
+      "statement": "expires_at default 3 min (config 120–300s). Expirado → EXPIRED, unique libera, copy não pode continuar soando hold."
+    },
+    {
+      "id": "FR-10",
+      "priority": "P1",
+      "name": "Replay last4 T1/T2 como contrato de teste",
+      "statement": "Cenários 9343, 1734, 6960, Denise, race 13h (1734/7335/4307) têm Given-When-Then. Sem OPEN. Sem inventar booking.created."
+    }
+  ],
+  "nfr": [
+    {
+      "id": "NFR-1",
+      "name": "0 LLM no hold",
+      "statement": "Insert/release/expire hold é worker Postgres. Tess só redige dentro da matriz de copy do estado."
+    },
+    {
+      "id": "NFR-2",
+      "name": "Latência hot-path",
+      "statement": "Hold insert < 50ms p95 local. Não aumenta timeout Tess 25s. Não chama Trinks para criar hold."
+    },
+    {
+      "id": "NFR-3",
+      "name": "Hold local ≠ lock Trinks",
+      "statement": "Hold impede double-offer Tess. Walk-in/Trinks UI ainda pode ocupar o slot; COMMITTING usa guards ocupado existentes e falha honesta."
+    },
+    {
+      "id": "NFR-4",
+      "name": "Sem UI nova na story 1",
+      "statement": "Martelo v1 usa bot_operational_events + Nightwatch + ação aprovada via canal já existente (admin/API interna). Sem frontend novo. Sem Hostinger."
+    },
+    {
+      "id": "NFR-5",
+      "name": "Idempotência",
+      "statement": "Re-insert do mesmo (phone, profissional_id, slot_start) ativo é no-op. POST Trinks continua idempotente via ledger existente."
+    },
+    {
+      "id": "NFR-6",
+      "name": "Fail-closed copy",
+      "statement": "Postgres hold indisponível → não oferecer slot como reservável; FAQ/descoberta ok; 0 POST."
+    }
+  ]
+}

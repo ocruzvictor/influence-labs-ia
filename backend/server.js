@@ -174,6 +174,20 @@ const {
   selectConfirmHoldBlocks,
   INFO_OPEN_MUTATION_COPY,
 } = require('./lib/booking-parser');
+const {
+  acquireHoldForCreate,
+  markCommitting,
+  markConfirmed,
+  markFailed,
+  markReleased,
+  SLOT_UNAVAILABLE_COPY,
+} = require('./lib/booking-holds');
+const {
+  gateCommit,
+  captureForPhone,
+  actOnReceipt,
+  REJECT_COPY,
+} = require('./lib/booking-handoff-receipts');
 const { normalizeKapsoMediaContent } = require('./lib/kapso-media');
 
 // Monitor de cota Trinks (contador mensal compartilhado) — story trinks-quota-monitor.
@@ -1788,21 +1802,16 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
   const hasBookingTag = createsToRun.length > 0 || cancelsToRun.length > 0
     || bookingReschedules.length > 0 || Boolean(bookingReschedule);
   const formatted = formatAssistantOutput(displayText, state.turn === 0);
-  const holdBlocks = selectConfirmHoldBlocks({
+  const holdDecision = selectConfirmHoldBlocks({
     displayText,
     hasBookingTag,
     mutationsAllowed: bookingMutationsAllowed,
     alreadyHeld: Boolean(state.confirmHoldSent),
   });
-  if (holdBlocks !== null) {
-    if (holdBlocks.length === 0) {
-      formatted.responses = [];
-      formatted.response = '';
-    } else {
-      formatted.responses = holdBlocks;
-      formatted.response = holdBlocks[0];
-      state.confirmHoldSent = true;
-    }
+  // candidate sem slot concreto: não injetar HOLD_COPY (T-6960). HELD só após acquire.
+  if (holdDecision?.kind === 'drop') {
+    formatted.responses = [];
+    formatted.response = '';
   }
   state.history.push({ role: 'assistant', content: displayText });
   state.turn += 1;
@@ -1876,7 +1885,10 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     handoffHuman = { motivo: 'multi_servico' };
   }
 
-  const skipCreates = Boolean(handoffHuman);
+  const skipCreates = Boolean(needsReferenceBlock || consultivePreBlock || overlapBlock);
+  const staffOnWire = clientPhone ? await hasStaffOnConversation(clientPhone) : false;
+  const marteloRequired = staffOnWire || Boolean(handoffHuman);
+  let marteloBlocked = false;
   let createIdempotentSkip = false;
   let comboFirstSucceeded = false;
   let comboSecondBlocked = false;
@@ -1939,6 +1951,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     try {
     if (!state.createKeys) state.createKeys = new Set();
     const profsData = Array.isArray(profsPayload.data) ? profsPayload.data : [];
+    let lastHoldId = null;
     for (const createTag of createsToRun) {
     const profObj = createTag.professional_id
       ? profsData.find(p => p.id === createTag.professional_id)
@@ -1960,6 +1973,46 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       const svcEntry = svcPayload.data.find(s => String(s.id) === String(bookingData.serviceId));
       bookingData.durationMinutes = svcEntry?.duracaoEmMinutos || svcEntry?.duration_min || 0;
     }
+    let holdId = null;
+    if (createTag.professional_id && createTag.date_time) {
+      const holdResult = await acquireHoldForCreate(db, {
+        phone: clientPhone,
+        profissionalId: createTag.professional_id,
+        servicoId: createTag.service_id,
+        dateTime: createTag.date_time,
+        durationMinutes: bookingData.durationMinutes,
+        traceId: turnTraceId,
+      });
+      if (!holdResult.ok) {
+        console.warn(
+          `[${sessionId}] Booking HOLD failed:`,
+          holdResult.reason,
+          `prof=${createTag.professional_id}`,
+        );
+        finalMessages.push(SLOT_UNAVAILABLE_COPY);
+        if (comboFirstSucceeded) comboSecondBlocked = true;
+        markBookingOutcome('blocked');
+        break;
+      }
+      holdId = holdResult.hold.id;
+      lastHoldId = holdId;
+    }
+    if (holdId && marteloRequired) {
+      const martelo = await gateCommit(db, {
+        holdId,
+        phone: clientPhone,
+        required: true,
+      });
+      if (!martelo.canCommit) {
+        console.warn(`[${sessionId}] Booking HOLD martelo gate:`, martelo.receipt?.action || 'pending');
+        marteloBlocked = true;
+        markBookingOutcome('blocked');
+        break;
+      }
+    }
+    const failHold = () => {
+      if (holdId) markFailed(db, holdId).catch(() => {});
+    };
     const fit = bookingFitsExpediente(
       bookingData.date,
       bookingData.time,
@@ -2015,6 +2068,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         payload: { kind: 'consultive', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId },
       }).catch(() => {});
       if (comboFirstSucceeded) comboSecondBlocked = true;
+      failHold();
       markBookingOutcome('blocked');
       break;
     }
@@ -2032,6 +2086,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         payload: { serviceId: bookingData.serviceId, serviceName: servicoNomeGuard },
       }).catch(() => {});
       if (comboFirstSucceeded) comboSecondBlocked = true;
+      failHold();
       markBookingOutcome('blocked');
       break;
     }
@@ -2058,6 +2113,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         payload: { kind: 'incompatible', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId },
       }).catch(() => {});
       if (comboFirstSucceeded) comboSecondBlocked = true;
+      failHold();
       markBookingOutcome('blocked');
       break;
     }
@@ -2073,6 +2129,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         payload: { kind: 'expediente', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId },
       }).catch(() => {});
       if (comboFirstSucceeded) comboSecondBlocked = true;
+      failHold();
       markBookingOutcome('blocked');
       break;
     }
@@ -2088,6 +2145,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         payload: { kind: 'janela', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId, reason: guard.reason },
       }).catch(() => {});
       if (comboFirstSucceeded) comboSecondBlocked = true;
+      failHold();
       markBookingOutcome('blocked');
       break;
     }
@@ -2103,6 +2161,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         payload: { kind: 'ocupado', serviceId: bookingData.serviceId, professionalId: bookingData.professionalId, reason: guard.reason },
       }).catch(() => {});
       if (comboFirstSucceeded) comboSecondBlocked = true;
+      failHold();
       markBookingOutcome('blocked');
       break;
     }
@@ -2124,9 +2183,11 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     if (createIdem.skip) {
       console.log(`[idempotency] create duplicado ignorado ${idemKey}`);
       createIdempotentSkip = true;
+      if (holdId) markReleased(db, holdId).catch(() => {});
       continue;
     }
     try {
+      if (holdId) await markCommitting(db, holdId);
       bookingResult = await createBookingInTrinks(bookingData, profsData, {
         clientPhone,
         kapsoConversationId,
@@ -2154,6 +2215,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
         valorFmt,
       }));
       const createdTrinksId = bookingResult?.id || bookingResult?.agendamentoId || null;
+      if (holdId) await markConfirmed(db, holdId, createdTrinksId);
       const createdLast4 = nightwatchOps.last4FromPhone(clientPhone);
       emitOperationalEvent(db, {
         event: 'booking.created',
@@ -2240,6 +2302,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
       }
       comboFirstSucceeded = true;
     } catch (err) {
+      failHold();
       emitOperationalEvent(db, {
         event: 'booking.failed',
         clientPhone,
@@ -2277,6 +2340,7 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     }
     } catch (err) {
       console.error(`[${sessionId}] Booking CREATE crashed:`, err.message);
+      if (lastHoldId) markFailed(db, lastHoldId).catch(() => {});
       emitOperationalEvent(db, {
         event: 'booking.failed',
         clientPhone,
@@ -2294,7 +2358,11 @@ async function processMessage(sessionId, messageText, contactName, incomingHisto
     }
   }
 
-  if (createsToRun.length && !skipCreates && !bookingResult && !finalMessages.length && !createIdempotentSkip) {
+  if (marteloRequired && clientPhone && !bookingResult) {
+    await captureForPhone(db, clientPhone);
+  }
+
+  if (createsToRun.length && !skipCreates && !bookingResult && !finalMessages.length && !createIdempotentSkip && !marteloBlocked) {
     console.warn(`[${sessionId}] Booking CREATE dropped: tag parsed but no POST/guard/fail`);
     emitOperationalEvent(db, {
       event: 'booking.dropped',
@@ -2934,6 +3002,7 @@ app.post('/webhook/kapso', withTimeout(async (req, res) => {
     }) && !isOwnerPhone(targetPhone)) {
       await markHumanHandled(targetPhone, 'business_app');
       await persistStaffOutbound(targetPhone);
+      captureForPhone(db, targetPhone).catch(() => {});
     }
   }
 
@@ -3535,6 +3604,32 @@ app.get('/admin/last-digest', (req, res) => {
     return res.json({ ok: true, status: 'no run yet' });
   }
   return res.json({ ok: true, ...lastSupervisorRun });
+});
+
+app.post('/admin/handoff-receipts/:id', async (req, res) => {
+  if (!ADMIN_TOKEN || req.headers['x-admin-token'] !== ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const { action, assigned_to: assignedTo, note } = req.body || {};
+  try {
+    const result = await actOnReceipt(db, req.params.id, {
+      action,
+      assignedTo,
+      note,
+    });
+    if (!result.ok) {
+      const status = result.reason === 'not_found' ? 404 : 400;
+      return res.status(status).json({ ok: false, error: result.reason });
+    }
+    return res.json({
+      ok: true,
+      receipt: result.receipt,
+      reject_copy: result.receipt.action === 'rejected' ? REJECT_COPY : undefined,
+    });
+  } catch (err) {
+    console.error('[admin] handoff-receipt erro:', err.message);
+    return res.status(500).json({ ok: false, error: 'internal' });
+  }
 });
 
 app.post('/admin/conversations/:phone/resume', async (req, res) => {

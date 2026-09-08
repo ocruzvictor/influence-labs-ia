@@ -18,6 +18,7 @@ const WATCH_EVENTS = [
   'handoff.human',
   'handoff.accepted',
   'handoff.sla_breach',
+  'handoff.receipt',
   'tess.empty',
   'tess.timeout',
   'cancel.not_owned',

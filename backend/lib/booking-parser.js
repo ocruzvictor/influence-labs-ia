@@ -255,6 +255,13 @@ const PREMATURE_CONFIRM_PATTERNS = [
   /\bjá está marcado\b[^\n]*/gi,
   /\bja esta marcado\b[^\n]*/gi,
   /\bvou reagendar\b[^\n]*/gi,
+  /\bconfirmando\b[^\n]*/gi,
+  /\bj[aá]\s+estou\s+confirm[^\n]*/gi,
+  /\breservei\b[^\n]*/gi,
+  /\bmarquei\b[^\n]*/gi,
+  /\bj[aá]\s+est[aá]\s+marcado\b[^\n]*/gi,
+  /\benquanto\s+gravo\b[^\n]*/gi,
+  /J[aá] estou confirmando na agenda, um instante\./gi,
 ];
 
 const POST_FAIL_CONFIRM_PATTERNS = [
@@ -282,7 +289,9 @@ const HONEST_CREATE_SKIP_COPY =
 const HONEST_CANCEL_FAIL_COPY =
   'Não consegui localizar/cancelar seu horário automaticamente 😕\nVou pedir pra recepção resolver com você. Um momento!';
 
-const HOLD_COPY = 'Já estou confirmando na agenda, um instante.';
+/** @deprecated F5 — nunca emitir. T2 I1 FAIL. */
+const BANNED_HOLD_COPY = 'Já estou confirmando na agenda, um instante.';
+const HOLD_COPY = BANNED_HOLD_COPY;
 
 const INFO_OPEN_MUTATION_COPY =
   'Pra marcar um horário me fala o dia e o serviço que você quer.';
@@ -310,13 +319,22 @@ function selectConfirmHoldBlocks({
 }) {
   if (hasBookingTag) return null;
   if (!isConfirmAskOutbound(displayText)) return null;
-  if (!mutationsAllowed) return [];
-  if (alreadyHeld) return [];
-  return [HOLD_COPY];
+  if (!mutationsAllowed) return { kind: 'drop' };
+  if (alreadyHeld) return { kind: 'drop' };
+  return { kind: 'candidate' };
 }
 
 function sanitizePrematureConfirm(text, options = {}) {
-  let s = text;
+  let s = String(text || '');
+  const allowParts = [];
+  s = s.replace(/[^\n]+/g, (line) => {
+    const trimmed = line.trim();
+    if (/^\d{1,2}h(?:\d{2})? está separado por \d+ min\. Só vale quando eu confirmar o agendamento\.$/.test(trimmed)) {
+      allowParts.push(trimmed);
+      return `\x00HELDALLOW${allowParts.length - 1}\x00`;
+    }
+    return line;
+  });
   for (const re of PREMATURE_CONFIRM_PATTERNS) s = s.replace(re, '');
   if (options.afterFailOrBlock) {
     for (const re of POST_FAIL_CONFIRM_PATTERNS) s = s.replace(re, '');
@@ -328,6 +346,7 @@ function sanitizePrematureConfirm(text, options = {}) {
     for (const re of CREATE_SKIP_CONFIRM_PATTERNS) s = s.replace(re, '');
   }
   s = s.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  s = s.replace(/\x00HELDALLOW(\d+)\x00/g, (_, i) => allowParts[Number(i)] || '');
   return s || 'Deixa eu conferir esse horário na agenda.';
 }
 
@@ -1012,6 +1031,7 @@ module.exports = {
   selectConfirmHoldBlocks,
   INFO_OPEN_MUTATION_COPY,
   HOLD_COPY,
+  BANNED_HOLD_COPY,
   normalizeServiceName,
   CLIENT_IMAGE_MARKER,
   FREE_SERVICE_NAMES,

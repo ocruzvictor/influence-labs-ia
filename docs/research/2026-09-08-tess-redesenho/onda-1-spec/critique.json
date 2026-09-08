@@ -1,0 +1,79 @@
+{
+  "storyId": "onda-1-redesenho-commit",
+  "critiquedAt": "2026-09-08T22:25:00-03:00",
+  "critiquedBy": "@qa",
+  "specVersion": 1,
+  "verdict": "APPROVED",
+  "verdictReason": "P0 cobertos, invariantes intactas, split de stories declarado. Sem issue HIGH. Médias são copy HELD vs process-promise, GWT do FR-8 e combo hold — não bloqueiam @sm draft da story 1.",
+  "scores": {
+    "accuracy": 5,
+    "completeness": 4,
+    "consistency": 4,
+    "feasibility": 4,
+    "alignment": 5,
+    "average": 4.4
+  },
+  "issues": [
+    {
+      "id": "CRIT-1",
+      "severity": "MEDIUM",
+      "category": "consistency",
+      "check": "con-4",
+      "description": "Copy HELD permitida ('segurei … enquanto gravo na agenda') ainda é promessa de processo (Δ-4 / FR-3). Conflita com o veto lexical de process-promise.",
+      "location": "spec.md#33-copy-matrix--sanitize-f5",
+      "suggestion": "Na story 1 usar só: '13h está separado por 3 min. Só vale quando eu confirmar o agendamento.' Sem verbo gravar/confirmar no gerúndio.",
+      "autoFixable": true
+    },
+    {
+      "id": "CRIT-2",
+      "severity": "MEDIUM",
+      "category": "completeness",
+      "check": "comp-2",
+      "description": "FR-8 (timeout SLA Martelo) não tem Given-When-Then próprio. T-Denise cobre staff, não o relógio do sla_until.",
+      "location": "spec.md#6-testing",
+      "suggestion": "T-SLA: Given receipt pending When sla_until passa Then action=timeout + evento + hold ainda held até expires_at.",
+      "autoFixable": true
+    },
+    {
+      "id": "CRIT-3",
+      "severity": "MEDIUM",
+      "category": "feasibility",
+      "check": "feas-2",
+      "description": "Unique (profissional_id, slot_start) não modela combo (dois SKUs em sequência). T2 combo_overlap já bloqueia POST paralelo. Story 1 pode deixar combo só no guard — precisa estar explícito no AC da story.",
+      "location": "03-schema-hold.md#booking_holds",
+      "suggestion": "AC story 1: single-SKU only. Combo = OUT, reusa combo_overlap.",
+      "autoFixable": false
+    },
+    {
+      "id": "CRIT-4",
+      "severity": "LOW",
+      "category": "alignment",
+      "check": "align-2",
+      "description": "infra/schema.sql está atrás das tabelas live. Migration deve seguir o canal de migração já usado em prod, não o dump antigo.",
+      "location": "03-schema-hold.md#relação-com-tabelas-vivas",
+      "suggestion": "Na story 1 citar o path de migration real do repo (não reabrir schema.sql legado como SOT).",
+      "autoFixable": false
+    }
+  ],
+  "summary": {
+    "highIssues": 0,
+    "mediumIssues": 3,
+    "lowIssues": 1,
+    "autoFixable": 2
+  },
+  "nextAction": "APPROVED para draft @sm da story hold-sanitize-f5. Aplicar CRIT-1/CRIT-2 no texto da story. Não implementar nesta sessão. Não OPEN.",
+  "autoFixes": [
+    {
+      "issueId": "CRIT-1",
+      "location": "spec.md#3.3",
+      "original": "segurei 13h por 3 min enquanto gravo na agenda — só vale quando eu confirmar",
+      "suggested": "13h está separado por 3 min. Só vale quando eu confirmar o agendamento."
+    },
+    {
+      "issueId": "CRIT-2",
+      "location": "spec.md#6",
+      "original": "(ausente)",
+      "suggested": "T-SLA | FR-8 | Given receipt pending When sla_until passa Then action=timeout + evento + hold held até expires_at"
+    }
+  ]
+}

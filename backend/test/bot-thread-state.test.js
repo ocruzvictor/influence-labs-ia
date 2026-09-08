@@ -201,6 +201,14 @@ test('isStaffSpokeRecently true dentro de 10 min; false se ausente', async () =>
   assert.equal(await isStaffSpokeRecently(phone), true);
 });
 
+test('markHumanHandled / persistStaffOutbound não tocam booking_holds', async () => {
+  const { markHumanHandled, persistStaffOutbound } = require('../lib/bot-thread-state');
+  const phone = '5511999917340';
+  await markHumanHandled(phone, 'business_app', { ttlMs: 60 * 60 * 1000 });
+  await persistStaffOutbound(phone);
+  assert.ok(!queryLog.some((q) => /booking_holds/i.test(q.sql)));
+});
+
 test('hasStaffOnConversation usa janela de 24h, não só a tag', async () => {
   const { persistStaffOutbound, hasStaffOnConversation } = require('../lib/bot-thread-state');
   const phone = '5511999997777';

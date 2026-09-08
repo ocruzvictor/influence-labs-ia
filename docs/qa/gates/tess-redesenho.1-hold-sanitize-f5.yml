@@ -1,0 +1,73 @@
+schema: 1
+story: 'tess-redesenho.1'
+story_title: 'Hold TTL + sanitize F5 — slot lockado antes da boca'
+gate: CONCERNS
+status_reason: 'HOLD_COPY morta, sanitize F5 e hold local no CREATE antes dos guards/POST; 93/93 da fatia PASS. CONCERNS porque T-2xx/T-ocupado não exercitam o hook do server.js e a unique de corrida é só mock JS.'
+reviewer: 'Quinn (Test Architect)'
+reviewed_revision: 'working-tree:booking-holds.js@5b3719d3,booking-parser.js@a1a6b4c0,server.js@59dfa561,booking-holds.test.js@b04369de,booking-parser.test.js@705ebe6c,019.sql@ea55ce53,019.rollback.sql@b1f711fe,HEAD:d7f9cd0'
+updated: '2026-09-08T22:45:00Z'
+top_issues:
+  - id: 'TEST-001'
+    severity: medium
+    finding: 'T-2xx e T-ocupado-trinks cobrem só a máquina do worker (acquire/markConfirmed/markFailed). O hook em server.js (acquire antes dos guards, 0 POST em conflict/unavailable, markConfirmed pós-2xx) não tem unit.'
+    suggested_action: 'Extrair o ramo CREATE+hold para helper testável ou adicionar teste de processo que mocka db + createBookingInTrinks.'
+    suggested_owner: dev
+  - id: 'TEST-002'
+    severity: medium
+    finding: 'T-13h simula ON CONFLICT em fake JS. Unique parcial real de Postgres não é exercitada nesta story.'
+    suggested_action: 'Smoke 0007 / apply 019 em staging antes de OPEN. Sem apply prod nesta story.'
+    suggested_owner: devops
+  - id: 'MNT-001'
+    severity: low
+    finding: 'formatHeldCopy existe e a allowlist é protegida, mas o hot-path nunca emite a frase HELD (T4 path a). candidate só deixa o texto sanitizado.'
+    suggested_action: 'Aceitar na story 1 (auto-commit no tag). Ligar path a só se houver slot concreto persistido — sem NLP. Story 2 Martelo não depende disso.'
+    suggested_owner: sm
+waiver: { active: false }
+
+quality_score: 80
+expires: '2026-09-22T22:45:00Z'
+
+evidence:
+  tests_reviewed: 93
+  tests_passed: 93
+  tests_failed: 0
+  risks_identified: 2
+  coderabbit: 'SKIP — CLI nova (`coderabbit review`) não aceita `--prompt-only`; tree suja; anti-self-review. [AUTO-DECISION] QA não auto-fixa source.'
+  i1_unit: 'PASS — selectOutboundBlocks intacto; sucesso/endereço só com bookingCreatedThisTurn; HOLD_COPY não retorna de selectConfirmHoldBlocks; T-9343/T-6960 stripam process-promise.'
+  migration: 'PASS — unique parciais sem NOW() no predicado; rollback só dropa tabela/indexes/trigger; CHECK trinks_id só em confirmed; expire_ix status=held.'
+  scope: 'PASS — sem cola 46589, sem startPilot, sem POST live, sem inventar booking.created no worker.'
+  backend_suite: '769/770 — fail pré-existente tess-context-cancel-full (getNextBusinessDays); fora desta fatia.'
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Eventos hold.* via emitOperationalEvent; payload last4 + holdId. Sem PII. Sem cola de prompt.'
+  performance:
+    status: PASS
+    notes: 'Insert hold no hot-path CREATE; expire lazy sem cron. TTL clamp 120–300. Timeout Tess não aumenta.'
+  reliability:
+    status: CONCERNS
+    notes: 'NFR-6 fail-closed no worker (T-pg-down). Hook server sem unit (TEST-001). Unique real só no apply 019 (TEST-002). formatHeldCopy usa TZ local do processo — path a não emite.'
+  maintainability:
+    status: PASS
+    notes: '2-phase e guards intactos. Allowlist regex duplicada parser/holds (nit). isActiveStatus unused.'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Unit do hook server (TEST-001) antes ou junto do smoke 0007.'
+      refs: ['backend/server.js']
+    - action: 'Apply 019 em staging e validar unique real (TEST-002). Sem Hostinger/OPEN nesta story.'
+      refs: ['infra/migrations/019_booking_holds.sql']
+    - action: 'Story 2 Martelo — 1734/Denise; receipts; silence ≠ release.'
+      refs: ['docs/stories/epics/EPIC-tess-redesenho-commit.md']
+
+auto_decisions:
+  - 'Status ready-for-review ≡ InReview → Done.'
+  - 'CodeRabbit skip (CLI flag drift + tree suja / anti-self-review).'
+  - 'QA não auto-fixa source.'
+  - 'TEST-001/002 = CONCERNS não FAIL — ACs da fatia cobertos em worker+parser; I1 unit não regride.'
+  - 'ClickUp skip — MCP ausente.'

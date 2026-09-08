@@ -768,22 +768,90 @@ test('isConfirmAskOutbound — Tess ask vs inbound sim', () => {
   assert.equal(isConfirmAskOutbound('confirmo'), false);
 });
 
-test('selectConfirmHoldBlocks — hold, drop, tag skip, info-open sem hold', () => {
-  const { selectConfirmHoldBlocks, HOLD_COPY } = require('../lib/booking-parser');
+test('selectConfirmHoldBlocks — candidate sem HOLD_COPY, drop, tag skip', () => {
+  const { selectConfirmHoldBlocks, HOLD_COPY, BANNED_HOLD_COPY } = require('../lib/booking-parser');
   assert.deepEqual(
+    selectConfirmHoldBlocks({ displayText: 'Tá certo?', hasBookingTag: false, mutationsAllowed: true, alreadyHeld: false }),
+    { kind: 'candidate' },
+  );
+  assert.notDeepEqual(
     selectConfirmHoldBlocks({ displayText: 'Tá certo?', hasBookingTag: false, mutationsAllowed: true, alreadyHeld: false }),
     [HOLD_COPY],
   );
   assert.deepEqual(
     selectConfirmHoldBlocks({ displayText: 'Tá certo?', hasBookingTag: false, mutationsAllowed: true, alreadyHeld: true }),
-    [],
+    { kind: 'drop' },
   );
   assert.deepEqual(
     selectConfirmHoldBlocks({ displayText: 'Tá certo?', hasBookingTag: false, mutationsAllowed: false, alreadyHeld: false }),
-    [],
+    { kind: 'drop' },
   );
   assert.equal(
     selectConfirmHoldBlocks({ displayText: 'Tá certo?', hasBookingTag: true, mutationsAllowed: true, alreadyHeld: false }),
     null,
   );
+  assert.equal(HOLD_COPY, BANNED_HOLD_COPY);
+  assert.equal(HOLD_COPY, 'Já estou confirmando na agenda, um instante.');
+});
+
+test('T-9343 — process-promise + endereço sem POST são stripados', () => {
+  const out = sanitizePrematureConfirm(
+    'Já estou confirmando na agenda, um instante. Confirmado! Te esperamos no Studio.',
+  );
+  assert.ok(!/já estou confirmando na agenda/i.test(out));
+  assert.ok(!/confirmando/i.test(out));
+  assert.ok(!/confirmado/i.test(out));
+  assert.ok(!/te esperamos/i.test(out));
+  const blocks = selectOutboundBlocks({
+    formattedResponses: [out],
+    finalMessages: [],
+    bookingCreatedThisTurn: false,
+    bookingResult: null,
+  });
+  const joined = blocks.join('\n');
+  assert.ok(!/já estou confirmando/i.test(joined));
+  assert.ok(!/te esperamos/i.test(joined));
+});
+
+test('T-6960 — aceite sem tag não emite HOLD_COPY', () => {
+  const { selectConfirmHoldBlocks, HOLD_COPY } = require('../lib/booking-parser');
+  const decision = selectConfirmHoldBlocks({
+    displayText: 'Tá certo? Posso registrar esse horário?',
+    hasBookingTag: false,
+    mutationsAllowed: true,
+    alreadyHeld: false,
+  });
+  assert.deepEqual(decision, { kind: 'candidate' });
+  assert.ok(decision.kind !== 'hold');
+  const stripped = sanitizePrematureConfirm(HOLD_COPY);
+  assert.ok(!/já estou confirmando na agenda/i.test(stripped));
+});
+
+test('T-2xx — sucesso + endereço só após bookingCreatedThisTurn', () => {
+  const success = 'Confirmado! Te esperamos no Studio. Nosso endereço é Rua X.';
+  const blocked = selectOutboundBlocks({
+    formattedResponses: ['Tá certo?'],
+    finalMessages: [],
+    bookingCreatedThisTurn: false,
+  });
+  assert.ok(!blocked.some((b) => /endereço/i.test(b)));
+  const allowed = selectOutboundBlocks({
+    formattedResponses: ['Tá certo?'],
+    finalMessages: [success],
+    bookingCreatedThisTurn: true,
+  });
+  assert.ok(allowed.some((b) => /endereço/i.test(b)));
+});
+
+test('sanitize F5 — reservei / marquei / HOLD_COPY exata somem; allowlist HELD fica', () => {
+  const banned = sanitizePrematureConfirm(
+    'Reservei as 13h. Marquei com a Fefe. Já estou confirmando na agenda, um instante.',
+  );
+  assert.ok(!/reservei/i.test(banned));
+  assert.ok(!/marquei/i.test(banned));
+  assert.ok(!/já estou confirmando/i.test(banned));
+
+  const held = '13h está separado por 180 min. Só vale quando eu confirmar o agendamento.';
+  const kept = sanitizePrematureConfirm(held);
+  assert.equal(kept, held);
 });

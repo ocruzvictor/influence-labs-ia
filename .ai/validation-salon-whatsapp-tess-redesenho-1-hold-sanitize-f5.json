@@ -1,0 +1,43 @@
+{
+  "story": "docs/stories/salon-whatsapp-tess-redesenho-1-hold-sanitize-f5.md",
+  "date": "2026-09-08",
+  "agent": "po",
+  "mode": "yolo",
+  "verdict": "GO",
+  "score": 8,
+  "confidence": "High",
+  "status_transition": "Draft → Ready",
+  "mechanical_fixes": [
+    "AC2 allowlist for HELD copy (infinitive confirmar)",
+    "AC5 expire lazy on acquire — no new cron",
+    "Events bound to emitOperationalEvent",
+    "T4 hook triggers (a) HELD copy (b) BOOKING_CREATE with slot — no NLP",
+    "last4 1734/Denise removed from story-1 ACs",
+    "Change Log 0.1.1"
+  ],
+  "critical": [],
+  "should_fix": [
+    "quality_gate @qa is house convention; Bob matrix expects @architect for code / @dev for schema — CONCERN, not blocking (same as tess-commit.2)",
+    "SQL DDL lives in onda-1-spec/03-schema-hold.md — @dev must copy verbatim, not invent columns",
+    "NFR-3 residual: local hold does not lock Trinks UI — already OUT of AC, do not invent Trinks hold"
+  ],
+  "nice_to_have": [
+    "Inline CREATE TABLE in Dev Notes if @dev cannot open spec path",
+    "ClickUp still empty — local story only"
+  ],
+  "anti_hallucination": "PASS — HOLD_COPY at booking-parser.js:285; emitOperationalEvent in operational-events.js; migration 016 pattern (no NOW() in partial index); 019 is next after 018; booking-confirmation-flow.md §2; MEMORY F5 I1 FAIL. No invented Trinks hold API.",
+  "coderabbit": "PASS — Database+API, High, @dev light, Pre-Commit present, Pre-Deployment correctly OUT.",
+  "code_intelligence": "skipped — isCodeIntelAvailable not invoked (graceful)",
+  "checklist": {
+    "template": "PASS_WITH_LEGACY_STATUS_VOCABULARY",
+    "executor_assignment": "PASS_WITH_STALE_VALIDATOR_CONCERN",
+    "source_tree": "PASS",
+    "ui": "N/A",
+    "ac_coverage": "PASS",
+    "testing": "PASS",
+    "security": "PASS — last4, no PII in events",
+    "task_sequence": "PASS",
+    "implementation_readiness": "PASS"
+  },
+  "handoff": "@dev *develop docs/stories/salon-whatsapp-tess-redesenho-1-hold-sanitize-f5.md"
+}
